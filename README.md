@@ -40,12 +40,12 @@ System **Regionalne Serwisy** to zaawansowana platforma multi-tenant pozwalając
 
 ```mermaid
 graph TB
-    subgraph "Użytkownicy Systemu"
+    subgraph "System Users"
         UA[Super Admin]
-        UB[Admin Domeny]
-        UC[Redaktor]
+        UB[Domain Admin]
+        UC[Editor]
         UD[Moderator]
-        UE[Użytkownik]
+        UE[User]
     end
 
     subgraph "Panel Centralny"
@@ -61,14 +61,14 @@ graph TB
         D4[...]
     end
 
-    subgraph "Wspólna Infrastruktura"
+    subgraph "Shared Infrastructure"
         REDIS[(Redis Cache)]
         RMQ[(RabbitMQ)]
         ES[(Elasticsearch)]
         MINIO[(MinIO Storage)]
     end
 
-    subgraph "Workerzy Python"
+    subgraph "Python Workers"
         W1[Scraper Worker]
         W2[Cron Worker]
         W3[Email Worker]
@@ -417,15 +417,15 @@ CREATE TABLE menu_items (
 
 ```mermaid
 graph TD
-    A[Super Admin<br/>System Level] --> B[Admin Domeny<br/>Domain Level]
-    B --> C[Redaktor<br/>Content Level]
+    A[Super Admin<br/>System Level] --> B[Domain Admin<br/>Domain Level]
+    B --> C[Editor<br/>Content Level]
     C --> D[Moderator<br/>Moderation Level]
-    D --> E[Użytkownik<br/>Public Level]
+    D --> E[User<br/>Public Level]
     
-    A -.->|wszystkie domeny| F[4torun.pl]
-    A -.->|wszystkie domeny| G[4bydgoszcz.pl]
-    B -.->|przypisane domeny| F
-    C -.->|przypisane domeny| F
+    A -.->|all domains| F[4torun.pl]
+    A -.->|all domains| G[4bydgoszcz.pl]
+    B -.->|assigned domains| F
+    C -.->|assigned domains| F
 ```
 
 ### 4.2 Role i Uprawnienia
@@ -1544,20 +1544,20 @@ class ScraperWorker:
 
 ```mermaid
 flowchart TD
-    A[Admin w Panelu Centralnym<br/>Kliknięcie 'Dodaj Domenę'] --> B[Wypełnienie Formularza]
-    B --> C{Walidacja}
-    C -->|Błąd| D[Pokaż Błędy]
+    A["Admin clicks Add Domain"] --> B["Fill Form"]
+    B --> C{"Validation"}
+    C -->|Error| D["Show Errors"]
     D --> B
-    C -->|OK| E[Tworzenie w Bazie Danych]
-    E --> F[CREATE SCHEMA tenant_[domena]]
-    F --> G[CREATE TABLES]
-    G --> H[Kopiowanie Plików]
-    H --> I[mkdir domains/[domena]/public_html]
-    I --> J[cp -r template/* public_html/]
-    J --> K[Konfiguracja Nginx]
-    K --> L[Reload Nginx]
-    L --> M[Domena Gotowa!]
-    M --> N[Wysłanie Email do Admina]
+    C -->|OK| E["Create in Database"]
+    E --> F["CREATE SCHEMA tenant_domain"]
+    F --> G["CREATE TABLES"]
+    G --> H["Copy Files"]
+    H --> I["mkdir domains/domain/public_html"]
+    I --> J["cp -r template/* public_html/"]
+    J --> K["Configure Nginx"]
+    K --> L["Reload Nginx"]
+    L --> M["Domain Ready!"]
+    M --> N["Send Email to Admin"]
     
     style M fill:#90EE90
 ```
@@ -1805,11 +1805,892 @@ add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style
 - Prisma ORM: https://www.prisma.io/docs
 - BeautifulSoup: https://www.crummy.com/software/BeautifulSoup/
 
+### 15.3 Szczegółowy Plan Zadań (Task Breakdown)
+
+Szczegółowy podział prac dla zespołu deweloperskiego. Każdy task zawiera estymację, odpowiedzialnego i kryteria akceptacji.
+
+---
+
+#### 📋 ETAP 1: INFRASTRUKTURA (2 tygodnie)
+
+**Cel:** Przygotowanie środowiska produkcyjnego, instalacja i konfiguracja wszystkich komponentów infrastrukturalnych.
+
+| # | Zadanie | Odpowiedzialny | Estymacja | Kryteria Akceptacji | Zależności |
+|---|---------|----------------|-----------|---------------------|------------|
+| 1.1 | **Setup konta hostingowego** | DevOps | 4h | Konto aktywne, dostęp SSH działa, limity zweryfikowane | - |
+| 1.2 | **Konfiguracja domen** | DevOps | 4h | Wszystkie domeny (serwisy-lokalne-sterowanie.pl, 4torun.pl, 4bydgoszcz.pl) wskazują na serwer, DNS rozwiązują się poprawnie | 1.1 |
+| 1.3 | **Instalacja PostgreSQL 15** | DevOps | 6h | Baza zainstalowana, działa na porcie 5432, autostart skonfigurowany, firewall otwarty tylko dla localhost | 1.1 |
+| 1.4 | **Konfiguracja PostgreSQL (security)** | DevOps | 4h | Utworzony użytkownik app_user, silne hasło, uprawnienia ograniczone, logowanie włączone | 1.3 |
+| 1.5 | **Instalacja Redis** | DevOps | 3h | Redis działa na porcie 6379, autostart skonfigurowany, persistencja włączona | 1.1 |
+| 1.6 | **Instalacja RabbitMQ** | DevOps | 4h | RabbitMQ działa (management UI dostępny), użytkownik app_user utworzony, vhost skonfigurowany | 1.1 |
+| 1.7 | **Instalacja Node.js 20 LTS** | DevOps | 2h | Node v20.x zainstalowany, npm działa, n dostępny | 1.1 |
+| 1.8 | **Instalacja Python 3.11** | DevOps | 2h | Python 3.11 zainstalowany, pip działa, venv dostępny | 1.1 |
+| 1.9 | **Instalacja Nginx** | DevOps | 3h | Nginx zainstalowany, działa na porcie 80/443, konfiguracja domyślna działa | 1.1 |
+| 1.10 | **Konfiguracja SSL (Let's Encrypt)** | DevOps | 4h | Certyfikaty SSL wygenerowane dla wszystkich domen, auto-renewal skonfigurowane (cron), redirect HTTP→HTTPS działa | 1.2, 1.9 |
+| 1.11 | **Instalacja PM2** | DevOps | 2h | PM2 zainstalowany globalnie, logrotate skonfigurowane, startup script wygenerowany | 1.7 |
+| 1.12 | **Tworzenie struktury katalogów** | DevOps | 3h | Katalogi /domains, /shared, /workers, /logs utworzone, uprawnienia ustawione (www-data), quoty skonfigurowane | 1.1 |
+| 1.13 | **Konfiguracja firewall (UFW)** | DevOps | 3h | Otwarte porty: 22, 80, 443, 64321 (SSH custom), pozostałe zamknięte, reguły działają | 1.1 |
+| 1.14 | **Setup backupu automatycznego** | DevOps | 6h | Skrypty backupu (baza + pliki), cron codziennie o 2:00, retencja 30 dni, test restore wykonany | 1.3, 1.12 |
+| 1.15 | **Konfiguracja logrotate** | DevOps | 2h | Logi nginx, app, system rotowane codziennie, kompresja po 7 dniach, usuwanie po 90 dniach | 1.9 |
+| 1.16 | **Instalacja monitoringu (opcjonalnie)** | DevOps | 4h | Netdata lub podobne zainstalowane, dashboard dostępny, alerty skonfigurowane | 1.1 |
+
+**Deliverables Etapu 1:**
+- [ ] Serwer gotowy, wszystkie usługi działają
+- [ ] Dokumentacja dostępów (loginy, hasła w bezpiecznym miejscu)
+- [ ] Test połączenia do każdej usługi
+- [ ] Backup działa (przywrócony testowo)
+
+---
+
+#### 📋 ETAP 2: BAZA DANYCH I API (2 tygodnie)
+
+**Cel:** Stworzenie architektury bazy danych multi-tenant oraz API centralnego z systemem autentykacji.
+
+| # | Zadanie | Odpowiedzialny | Estymacja | Kryteria Akceptacji | Zależności |
+|---|---------|----------------|-----------|---------------------|------------|
+| 2.1 | **Inicjalizacja projektu API** | Backend | 2h | Projekt Node.js + TypeScript utworzony, struktura katalogów, tsconfig, eslint, prettier | 1.7 |
+| 2.2 | **Instalacja zależności API** | Backend | 2h | Express, Prisma, Zod, JWT, bcrypt, cors, helmet, rate-limit zainstalowane | 2.1 |
+| 2.3 | **Konfiguracja Prisma** | Backend | 4h | Prisma zainicjalizowana, połączenie z DB działa, pierwszy model utworzony | 1.3, 2.2 |
+| 2.4 | **Projektowanie schema public** | Backend | 8h | Wszystkie tabele centralne (users, roles, domains, sources, cron_jobs) zaprojektowane w Prisma, relacje zdefiniowane | 2.3 |
+| 2.5 | **Projektowanie schema tenant** | Backend | 8h | Wszystkie tabele per tenant (posts, categories, comments, companies, jobs, etc.) zaprojektowane, relacje zdefiniowane | 2.4 |
+| 2.6 | **Migracje bazy danych** | Backend | 4h | Pierwsza migracja utworzona i wykonana, schema public istnieje w DB | 2.4, 2.5 |
+| 2.7 | **Setup struktury API** | Backend | 4h | Katalogi routes, controllers, services, middleware, utils utworzone, routing działa | 2.1 |
+| 2.8 | **Middleware autentykacji JWT** | Backend | 6h | Middleware weryfikujące token JWT działa, obsługa błędów (401, 403), refresh token mechanism | 2.7 |
+| 2.9 | **System RBAC (Role-Based Access Control)** | Backend | 8h | Middleware sprawdzające uprawnienia działa, helpery do sprawdzania ról, system działa per domena i globalnie | 2.8 |
+| 2.10 | **API Auth (login, register, refresh, logout)** | Backend | 6h | Endpointy /auth/* działają, walidacja Zod, hasła hashowane (bcrypt), tokeny generowane poprawnie | 2.8 |
+| 2.11 | **CRUD API dla domen** | Backend | 8h | Endpointy GET/POST/PUT/DELETE /domains działają, walidacja, obsługa błędów, paginacja | 2.9 |
+| 2.12 | **CRUD API dla użytkowników** | Backend | 8h | Endpointy /users działają, zarządzanie rolami, przypisywanie do domen | 2.9 |
+| 2.13 | **CRUD API dla źródeł (sources)** | Backend | 6h | Endpointy /sources działają, konfiguracja parserów zapisywana w JSONB | 2.9 |
+| 2.14 | **API dla masowych operacji** | Backend | 6h | Endpointy /mass/* działają, obsługa dodawania do wielu domen naraz | 2.11 |
+| 2.15 | **Walidacja requestów (Zod)** | Backend | 4h | Wszystkie endpointy walidują dane wejściowe, czytelne komunikaty błędów | Cały etap |
+| 2.16 | **Obsługa błędów i logowanie** | Backend | 4h | Centralny error handler, logi w Winston/structlog, stack traces w dev | Cały etap |
+| 2.17 | **Dokumentacja API (Swagger/OpenAPI)** | Backend | 4h | Specyfikacja OpenAPI dostępna pod /api-docs, wszystkie endpointy udokumentowane | Cały etap |
+| 2.18 | **Testy jednostkowe API** | Backend | 8h | Testy dla głównych endpointów (auth, domains, users), coverage > 70% | Cały etap |
+
+**Deliverables Etapu 2:**
+- [ ] Baza danych z pełnym schematem (public + tenant template)
+- [ ] API działa, wszystkie endpointy testowane w Postman/Insomnia
+- [ ] Dokumentacja API dostępna online
+- [ ] Testy jednostkowe przechodzą
+
+---
+
+#### 📋 ETAP 3: PANEL ADMINISTRACYJNY CENTRALNY (3 tygodnie)
+
+**Cel:** Stworzenie interfejsu webowego do zarządzania całym systemem.
+
+| # | Zadanie | Odpowiedzialny | Estymacja | Kryteria Akceptacji | Zależności |
+|---|---------|----------------|-----------|---------------------|------------|
+| 3.1 | **Inicjalizacja projektu Next.js** | Frontend | 2h | Projekt Next.js 14 + TypeScript utworzony, App Router, Tailwind skonfigurowany | 1.7 |
+| 3.2 | **Instalacja shadcn/ui** | Frontend | 2h | shadcn/ui zainicjalizowany, podstawowe komponenty zainstalowane (button, card, input, dialog, table) | 3.1 |
+| 3.3 | **Setup klienta API** | Frontend | 4h | Klient HTTP (axios/fetch) z interceptors, obsługa tokenów, refresh token działa | 2.10 |
+| 3.4 | **System autentykacji (frontend)** | Frontend | 6h | Formularz logowania działa, przechowywanie tokenów (httpOnly cookie lub secure localStorage), protected routes | 3.3 |
+| 3.5 | **Layout główny panelu** | Frontend | 6h | Header, Sidebar, Main Content Area działają, responsywność działa (mobile menu), nawigacja między stronami | 3.2 |
+| 3.6 | **Strona Dashboard** | Frontend | 8h | Metryki wyświetlane, wykresy (Chart.js/Recharts) działają, dane pobierane z API | 3.5 |
+| 3.7 | **Lista domen (tabela)** | Frontend | 8h | Tabela z paginacją, sortowaniem, filtrowaniem, akcjami (edytuj, usuń), działa z API | 2.11 |
+| 3.8 | **Formularz dodawania domeny** | Frontend | 8h | Formularz z walidacją (Zod), upload logo (drag&drop), podgląd przed utworzeniem | 3.7 |
+| 3.9 | **Szczegóły domeny z zakładkami** | Frontend | 8h | Zakładki: Dashboard, Treści, Użytkownicy, Ustawienia działają, routing per zakładka | 3.7 |
+| 3.10 | **Zarządzanie użytkownikami systemu** | Frontend | 8h | Lista użytkowników, formularz dodawania, przypisywanie ról per domena | 2.12 |
+| 3.11 | **Zarządzanie źródłami scrapingu** | Frontend | 8h | Lista źródeł, formularz z konfiguracją parserów (JSON editor), przycisk "Uruchom scraping" | 2.13 |
+| 3.12 | **Moduł masowych operacji** | Frontend | 10h | Interfejs do dodawania bannerów/menu/wpisów do wielu domen, wybór domen (checkboxy), podgląd zmian | 2.14 |
+| 3.13 | **Przeglądarka logów** | Frontend | 8h | Tabela logów z filtrami (data, poziom, kategoria), paginacja, możliwość eksportu | 2.16 |
+| 3.14 | **Zarządzanie szablonami** | Frontend | 6h | Lista szablonów, edytor podstawowy, zastosowanie do wybranych domen | 3.2 |
+| 3.15 | **Obsługa błędów i toast notifications** | Frontend | 4h | Globalna obsługa błędów API, toast notifications działają, retry mechanism | Cały etap |
+| 3.16 | **Responsywność panelu** | Frontend | 6h | Panel działa poprawnie na tabletach i mobilnych (testowanie), menu dostosowane | Cały etap |
+
+**Deliverables Etapu 3:**
+- [ ] Panel centralny działa pod serwisy-lokalne-sterowanie.pl
+- [ ] Można dodać nową domenę przez interfejs
+- [ ] Można zarządzać użytkownikami i źródłami
+- [ ] Wszystkie funkcje przetestowane manualnie
+
+---
+
+#### 📋 ETAP 4: SYSTEM SCRAPINGU (2 tygodnie)
+
+**Cel:** Implementacja workerów pobierających dane ze źródeł zewnętrznych.
+
+| # | Zadanie | Odpowiedzialny | Estymacja | Kryteria Akceptacji | Zależności |
+|---|---------|----------------|-----------|---------------------|------------|
+| 4.1 | **Inicjalizacja projektu Python** | Backend | 2h | Struktura katalogów, requirements.txt, venv | 1.8 |
+| 4.2 | **Instalacja zależności Python** | Backend | 2h | aiohttp, beautifulsoup4, pika, psycopg2, python-dotenv zainstalowane | 4.1 |
+| 4.3 | **Moduł połączenia z PostgreSQL** | Backend | 4h | Klient asyncpg/psycopg2 działa, połączenie pulowane, transakcje działają | 4.2 |
+| 4.4 | **Moduł połączenia z RabbitMQ** | Backend | 4h | Consumer działa, reconnect po utracie połączenia, kolejki deklarowane | 4.2, 1.6 |
+| 4.5 | **Moduł HTTP fetcher** | Backend | 6h | Pobieranie stron działa, obsługa timeoutów, retry logic (3 próby), headers User-Agent | 4.2 |
+| 4.6 | **Parser HTML (BeautifulSoup)** | Backend | 8h | Selektory CSS działają, ekstrakcja tytułu, treści, daty, obrazków działa | 4.5 |
+| 4.7 | **Parser RSS/Atom** | Backend | 4h | Parsowanie RSS działa, obsługa różnych formatów | 4.5 |
+| 4.8 | **Parser JSON/API** | Backend | 4h | Parsowanie JSON działa, obsługa nested structures | 4.5 |
+| 4.9 | **Dekodowanie base64 URL-i** | Backend | 3h | Źródła z base64 encoded URL (jak policja.gov.pl) są poprawnie dekodowane | 4.6 |
+| 4.10 | **System mapowania pól** | Backend | 6h | Mapping konfiguracji na pola bazy działa, obsługa template strings | 4.6 |
+| 4.11 | **Zapisywanie do bazy (upsert)** | Backend | 6h | Wpisy tworzone/aktualizowane poprawnie, obsługa duplikatów (external_id), transakcje | 4.3 |
+| 4.12 | **Czyszczenie cache po scrapingu** | Backend | 3h | Po zapisaniu danych, cache Redis jest invalidowany dla danej domeny | 4.11, 1.5 |
+| 4.13 | **Obsługa błędów i logowanie** | Backend | 4h | Błędy logowane szczegółowo, failed jobs wracają do kolejki (dead letter queue) | Cały etap |
+| 4.14 | **Skrypt testujący parser** | Backend | 4h | Można przetestować parser na konkretnym URL bez zapisywania do bazy | 4.6 |
+| 4.15 | **Konfiguracja cron jobs (systemowych)** | DevOps | 4h | Cron uruchamia scrapery wg harmonogramu, logi zapisywane | 1.1, 4.4 |
+| 4.16 | **Monitoring workerów** | Backend | 3h | Health check endpoint, metryki (przetworzone elementy, błędy) | Cały etap |
+
+**Deliverables Etapu 4:**
+- [ ] Scraper działa i pobiera dane z policja.gov.pl
+- [ ] Scraper działa i pobiera dane z torun.pl
+- [ ] Dane pojawiają się w bazie
+- [ ] Cron uruchamia scrapery automatycznie
+
+---
+
+#### 📋 ETAP 5: FRONTEND SERWISU REGIONALNEGO (4 tygodnie)
+
+**Cel:** Stworzenie strony publicznej dla serwisów regionalnych (4torun.pl, itp.).
+
+| # | Zadanie | Odpowiedzialny | Estymacja | Kryteria Akceptacji | Zależności |
+|---|---------|----------------|-----------|---------------------|------------|
+| 5.1 | **Setup projektu Next.js (kopia template)** | Frontend | 2h | Projekt sklonowany z template, działa lokalnie, połączenie z API centralnym | 3.1 |
+| 5.2 | **Implementacja ThemeProvider** | Frontend | 6h | Kolory z API są dynamicznie wczytywane i stosowane, zmiany w panelu od razu widać na stronie | 5.1, 10.2 |
+| 5.3 | **Komponent Header** | Frontend | 8h | Logo, menu, dropdowny, sticky header, mobile menu (hamburger), warianty (default/transparent) | 5.2 |
+| 5.4 | **Komponent InfoBar** | Frontend | 6h | Data, imieniny, pogoda, jakość powietrza wyświetlane poprawnie, odświeżanie danych | 5.2 |
+| 5.5 | **Komponent Navigation** | Frontend | 6h | Menu z CPT, dropdowny, wyróżnione elementy, responsywne | 5.3 |
+| 5.6 | **Komponent HeroSection** | Frontend | 8h | Układ jak na zrzutach (główna wiadomość + boczne + mini), responsywny | 5.2 |
+| 5.7 | **Komponent NewsCard + NewsGrid** | Frontend | 8h | Wszystkie warianty (default, featured, horizontal, overlay), Masonry/grid działa | 5.2 |
+| 5.8 | **Komponent CategoryGrid (Firmy)** | Frontend | 6h | Grid z ikonami, hover effects, linki działają | 5.2 |
+| 5.9 | **Komponent JobCard** | Frontend | 6h | Wyświetlanie ofert pracy, filtry, sortowanie | 5.2 |
+| 5.10 | **Komponent ObituaryCard** | Frontend | 6h | Specjalny design dla nekrologów, znicze, formatowanie | 5.2 |
+| 5.11 | **Strona Główna (Home)** | Frontend | 10h | Wszystkie sekcje zgodnie z projektem (Hero, Wiadomości, Kronika, Firmy, Praca, Przewodnik, Nekrologi, Ludzie), dane z API | 5.3-5.10 |
+| 5.12 | **Strona Archiwum (lista wpisów)** | Frontend | 8h | Filtrowanie, paginacja, sidebar z kategoriami, działa dla wszystkich CPT | 5.7 |
+| 5.13 | **Strona Pojedynczego Wpisu** | Frontend | 10h | Wyświetlanie treści, galeria, autor, źródło, oceny, komentarze, related posts | 5.7 |
+| 5.14 | **System komentarzy (wyświetlanie + dodawanie)** | Frontend | 8h | Lista komentarzy, formularz dodawania (dla niezalogowanych też), odpowiedzi | 5.13 |
+| 5.15 | **System ocen (rating)** | Frontend | 6h | Gwiazdki, średnia wyświetlana, możliwość głosowania | 5.13 |
+| 5.16 | **Komponent WeatherPage (szczegóły)** | Frontend | 6h | Strona /pogoda z mapą, 5-dniową prognozą, szczegółami | 5.4 |
+| 5.17 | **Komponent Footer** | Frontend | 6h | 3 kolumny, najnowsze wpisy, linki, social media, newsletter | 5.2 |
+| 5.18 | **SEO (meta tagi)** | Frontend | 6h | Dynamiczne meta tagi per strona, Open Graph, Twitter Cards | 12 |
+| 5.19 | **Generowanie sitemap.xml** | Frontend | 4h | Sitemap generowana dynamicznie, działa dla robotów | 5.18 |
+| 5.20 | **Lazy loading obrazków** | Frontend | 4h | Blur placeholder, lazy loading działa, Lighthouse performance > 80 | 5.7 |
+| 5.21 | **Responsywność (mobile)** | Frontend | 8h | Wszystkie strony działają na mobile (320px+), testowane | Cały etap |
+| 5.22 | **Optymalizacja Core Web Vitals** | Frontend | 6h | LCP < 2.5s, FID < 100ms, CLS < 0.1, testy w PageSpeed Insights | Cały etap |
+
+**Deliverables Etapu 5:**
+- [ ] Strona 4torun.pl działa publicznie
+- [ ] Wszystkie sekcje wyglądają jak na zrzutach
+- [ ] Responsywność działa
+- [ ] SEO meta tagi są poprawne
+- [ ] Core Web Vitals na zielono
+
+---
+
+#### 📋 ETAP 6: PANEL ADMINISTRACYJNY SERWISU (2 tygodnie)
+
+**Cel:** Panel zarządzania dla konkretnego serwisu regionalnego.
+
+| # | Zadanie | Odpowiedzialny | Estymacja | Kryteria Akceptacji | Zależności |
+|---|---------|----------------|-----------|---------------------|------------|
+| 6.1 | **Layout panelu serwisu** | Frontend | 4h | Sidebar nawigacyjny, header z info o domenie, działa na mobile | 5.1 |
+| 6.2 | **Dashboard serwisu** | Frontend | 6h | Statystyki (wyświetlenia, wpisy, komentarze), wykres, aktywność | 6.1 |
+| 6.3 | **Lista wpisów (tabela)** | Frontend | 8h | Tabela z filtrami (typ, status, kategoria), akcje (edytuj, usuń, podgląd), sortowanie | 6.1 |
+| 6.4 | **Edytor wpisów (Rich Text)** | Frontend | 12h | TipTap editor działa, formatowanie, dodawanie obrazków, zapisywanie wersji | 6.3 |
+| 6.5 | **Upload obrazków (Media Library)** | Frontend | 8h | Drag&drop upload, przeglądarka mediów, wybór do wpisu, usuwanie | 6.4 |
+| 6.6 | **Zarządzanie kategoriami** | Frontend | 6h | Drzewo kategorii, dodawanie, edycja, usuwanie, sortowanie (drag&drop) | 6.1 |
+| 6.7 | **Zarządzanie tagami** | Frontend | 4h | Lista tagów, autosuggest przy dodawaniu do wpisu, możliwość łączenia | 6.1 |
+| 6.8 | **Budowniczy menu (Menu Builder)** | Frontend | 8h | Drag&drop do tworzenia menu, hierarchia, wybór linków (strony/wpisy/kategorie) | 6.1 |
+| 6.9 | **Zarządzanie widgetami** | Frontend | 6h | Lista widgetów, konfiguracja per pozycja, włączanie/wyłączanie | 6.1 |
+| 6.10 | **Zarządzanie bannerami** | Frontend | 6h | Lista bannerów, upload obrazków, daty wyświetlania, pozycje | 6.1 |
+| 6.11 | **Ustawienia serwisu (ogólne)** | Frontend | 6h | Nazwa, opis, kontakt, social media, kolory (podstawowe) | 6.1 |
+| 6.12 | **Edytor motywu (zaawansowany)** | Frontend | 8h | Color pickery, wybór fontów, podgląd na żywo, eksport/import | 6.11 |
+| 6.13 | **Ustawienia SEO per serwis** | Frontend | 6h | Globalne meta tagi, robots.txt, struktura permalinków | 6.11 |
+
+**Deliverables Etapu 6:**
+- [ ] Panel /admin działa na 4torun.pl
+- [ ] Można dodać, edytować, usunąć wpis
+- [ ] Media library działa
+- [ ] Można zmienić motyw kolorystyczny
+
+---
+
+#### 📋 ETAP 7: DEPLOYMENT I TESTOWANIE (1 tydzień)
+
+**Cel:** Wdrożenie pierwszego serwisu produkcyjnie i testowanie całości.
+
+| # | Zadanie | Odpowiedzialny | Estymacja | Kryteria Akceptacji | Zależności |
+|---|---------|----------------|-----------|---------------------|------------|
+| 7.1 | **Konfiguracja 4torun.pl w panelu centralnym** | DevOps | 4h | Domena dodana przez panel, schema utworzona, pliki skopiowane | 3.8 |
+| 7.2 | **Import początkowych danych** | Backend | 4h | Przykładowe wpisy dodane, kategorie utworzone, menu skonfigurowane | 7.1 |
+| 7.3 | **Konfiguracja źródeł scrapingu dla 4torun.pl** | Backend | 3h | Policja i Urząd Miasta dodane jako źródła, pierwszy scraping wykonany | 4.16, 7.1 |
+| 7.4 | **Konfiguracja SSL dla 4torun.pl** | DevOps | 2h | Certyfikat działa, redirect HTTP→HTTPS działa | 1.10, 7.1 |
+| 7.5 | **Testy end-to-end (E2E)** | QA | 8h | Testy w Cypress/Playwright przechodzą (logowanie, dodanie wpisu, scraping) | Cały etap |
+| 7.6 | **Testy wydajnościowe** | DevOps | 4h | Load testing (100 równoczesnych użytkowników), odpowiedź < 200ms | Cały etap |
+| 7.7 | **Testy bezpieczeństwa (podstawowe)** | DevOps | 4h | Brak krytycznych podatności w npm audit, headers bezpieczeństwa działają | Cały etap |
+| 7.8 | **Backup przed uruchomieniem** | DevOps | 2h | Pełny backup wykonany i zweryfikowany | 1.14 |
+| 7.9 | **Uruchomienie produkcyjne** | DevOps | 2h | Strona dostępna publicznie, monitoring działa | Cały etap |
+| 7.10 | **Poprawki po testach** | Cały zespół | 8h | Zgłoszone błędy naprawione, retesty przechodzą | 7.5-7.7 |
+
+**Deliverables Etapu 7:**
+- [ ] 4torun.pl działa produkcyjnie
+- [ ] Testy E2E przechodzą
+- [ ] Wydajność jest akceptowalna
+- [ ] Backup działa
+
+---
+
+#### 📋 ETAP 8: DOKUMENTACJA I PRZEKAZANIE (1 tydzień)
+
+**Cel:** Przygotowanie dokumentacji i szkolenie użytkowników.
+
+| # | Zadanie | Odpowiedzialny | Estymacja | Kryteria Akceptacji | Zależności |
+|---|---------|----------------|-----------|---------------------|------------|
+| 8.1 | **Dokumentacja techniczna** | Backend | 8h | Architektura, API, deployment opisane, diagramy aktualne | Cały etap |
+| 8.2 | **Dokumentacja użytkownika (panel centralny)** | Frontend | 6h | Instrukcja obsługi panelu centralnego ze zrzutami ekranu | 8.1 |
+| 8.3 | **Dokumentacja użytkownika (panel serwisu)** | Frontend | 6h | Instrukcja dodawania wpisów, zarządzania treścią | 8.1 |
+| 8.4 | **Szkolenie administratorów** | Cały zespół | 4h | Szkolenie przeprowadzone, materiały przekazane, pytania omówione | 8.2 |
+| 8.5 | **Szkolenie redaktorów** | Frontend | 4h | Szkolenie z edytora wpisów, publikowania, zarządzania mediami | 8.3 |
+| 8.6 | **Przekazanie dostępów i haseł** | DevOps | 2h | Hasła przekazane bezpiecznym kanałem, lista kont i uprawnień | Cały etap |
+| 8.7 | **Ostateczne testy akceptacyjne (UAT)** | Klient | 4h | Klient akceptuje system lub zgłasza ostatnie poprawki | Cały etap |
+| 8.8 | **Poprawki po UAT** | Cały zespół | 8h | Zgłoszenia z UAT naprawione | 8.7 |
+| 8.9 | **Podpisanie protokołu odbioru** | PM | 1h | Dokument podpisany przez obie strony | 8.8 |
+
+**Deliverables Etapu 8:**
+- [ ] Dokumentacja kompletna
+- [ ] Szkolenia przeprowadzone
+- [ ] Protokół odbioru podpisany
+- [ ] System przekazany do użytkowania
+
+---
+
+### 15.4 Harmonogram i Zależności Krytyczne
+
+```mermaid
+gantt
+    title Project Timeline
+    dateFormat  YYYY-MM-DD
+    section Infrastructure
+    Setup hosting            :done, infra1, 2026-02-17, 10d
+    Install services         :done, infra2, after infra1, 4d
+    
+    section Database and API
+    Database design          :active, db1, after infra2, 5d
+    API implementation       :db2, after db1, 9d
+    
+    section Admin Panel
+    Frontend setup           :admin1, after db2, 2d
+    Module implementation    :admin2, after admin1, 19d
+    
+    section Scraping
+    Worker implementation    :scrap1, after db2, 10d
+    Cron configuration       :scrap2, after scrap1, 4d
+    
+    section Frontend
+    UI Components            :front1, after admin1, 14d
+    Public pages             :front2, after front1, 14d
+    
+    section Site Panel
+    Edytor i funkcje         :site1, after front1, 10d
+    
+    section Deployment
+    Testy i wdrożenie        :deploy1, after front2, 5d
+    
+    section Dokumentacja
+    Docs i szkolenia         :doc1, after deploy1, 5d
+```
+
+**Ścieżka krytyczna:**
+Infrastruktura → Baza + API → Panel Centralny (Setup) → Frontend (Komponenty) → Frontend (Strony) → Deployment
+
+**Całkowity czas:** 17 tygodni (ok. 4 miesiące)
+
+---
+
+## 9. MODUŁ PIŁKI NOŻNEJ ⚽
+
+Rozszerzenie systemu o moduł sportowy - automatyczne pobieranie i wyświetlanie danych piłkarskich dla drużyn regionalnych (na podstawie Sofascore).
+
+### 9.1 Architektura Modułu
+
+```mermaid
+flowchart TB
+    subgraph External["External Sources"]
+        SS[Sofascore.com]
+    end
+    
+    subgraph ScrapingLayer["Scraping Layer"]
+        SW[Football Scraper Worker]
+        API[REST API Client]
+    end
+    
+    subgraph DataLayer["Data Layer"]
+        DB_FOOTBALL[(football_teams)]
+        DB_MATCHES[(football_matches)]
+        DB_STANDINGS[(football_standings)]
+        DB_SQUADS[(football_squads)]
+    end
+    
+    subgraph FrontendLayer["Frontend"]
+        W_NEXT[Widget Next Match]
+        W_LAST[Widget Last Result]
+        W_STAND[Widget Standings]
+        PAGE_TEAM[Team Page]
+        PAGE_TABLE[League Table]
+    end
+    
+    SS -->|HTML/JSON| SW
+    SW -->|Parsed Data| API
+    API --> DB_FOOTBALL
+    API --> DB_MATCHES
+    API --> DB_STANDINGS
+    API --> DB_SQUADS
+    
+    DB_FOOTBALL --> W_NEXT
+    DB_MATCHES --> W_NEXT
+    DB_MATCHES --> W_LAST
+    DB_STANDINGS --> W_STAND
+    DB_STANDINGS --> PAGE_TABLE
+    DB_FOOTBALL --> PAGE_TEAM
+    DB_MATCHES --> PAGE_TEAM
+```
+
+### 9.2 Struktura Danych
+
+#### Model: FootballTeam
+```typescript
+interface FootballTeam {
+  id: string;                    // UUID
+  domain_id: string;             // FK do domains
+  external_id: number;           // ID z Sofascore (np. 4901)
+  slug: string;                  // "cracovia"
+  name: string;                  // "Cracovia"
+  short_name: string;            // "Cracovia"
+  country_code: string;          // "PL"
+  country_name: string;          // "Polska"
+  logo_url: string;              // https://img.sofascore.com/api/v1/team/{id}/image
+  stadium_name?: string;         // "Marshal Jozef Pilsudski Stadium"
+  manager_name?: string;         // "Luka Elsner"
+  manager_photo_url?: string;
+  current_tournament_id?: number;
+  current_tournament_name?: string;
+  is_primary: boolean;           // Czy to główna drużyna miasta
+  display_order: number;         // Kolejność wyświetlania
+  is_active: boolean;
+  created_at: Date;
+  updated_at: Date;
+}
+```
+
+#### Model: FootballMatch
+```typescript
+interface FootballMatch {
+  id: string;
+  external_id: number;           // ID meczu z Sofascore
+  team_id: string;               // FK do football_teams
+  opponent_id?: number;          // External ID przeciwnika
+  opponent_name: string;
+  opponent_short_name: string;
+  opponent_logo_url: string;
+  opponent_slug?: string;
+  
+  // Dane meczu
+  match_date: Date;
+  match_time?: string;           // "20:30"
+  status: 'scheduled' | 'live' | 'finished' | 'postponed';
+  is_home: boolean;              // Czy drużyna główna gra u siebie
+  
+  // Wyniki
+  home_score?: number;
+  away_score?: number;
+  home_halftime_score?: number;
+  away_halftime_score?: number;
+  
+  // Wynik z perspektywy drużyny głównej
+  result?: 'W' | 'D' | 'L';      // Win, Draw, Loss
+  
+  // Turniej
+  tournament_id: number;
+  tournament_name: string;
+  tournament_logo_url?: string;
+  round?: string;                // "Runda 21"
+  
+  // Flagi
+  is_featured: boolean;          // Wyróżniony na stronie głównej
+  show_on_homepage: boolean;
+  
+  created_at: Date;
+  updated_at: Date;
+}
+```
+
+#### Model: FootballStandings
+```typescript
+interface FootballStandings {
+  id: string;
+  team_id: string;               // FK do football_teams
+  tournament_id: number;
+  tournament_name: string;
+  season: string;                // "2025/2026"
+  
+  // Pozycja i statystyki
+  position: number;
+  played: number;
+  won: number;
+  drawn: number;
+  lost: number;
+  goals_for: number;
+  goals_against: number;
+  goal_difference: number;
+  points: number;
+  
+  // Forma (ostatnie 5 meczów)
+  form: string;                  // np. "WDRDW"
+  form_details?: FormMatch[];    // Szczegóły formy
+  
+  // Status
+  promotion_status?: 'champions' | 'conference' | 'relegation' | null;
+  
+  // Typ tabeli
+  table_type: 'total' | 'home' | 'away';
+  
+  updated_at: Date;
+}
+
+interface FormMatch {
+  match_id: number;
+  result: 'W' | 'D' | 'L';
+  opponent_name: string;
+  score: string;                 // "2:1"
+  date: Date;
+}
+```
+
+#### Model: FootballPlayer
+```typescript
+interface FootballPlayer {
+  id: string;
+  team_id: string;
+  name: string;
+  position: 'forward' | 'midfielder' | 'defender' | 'goalkeeper';
+  is_key_player: boolean;
+  jersey_number?: number;
+  nationality?: string;
+  birth_date?: Date;
+  photo_url?: string;
+}
+```
+
+### 9.3 Schemat Bazy Danych (SQL)
+
+```sql
+-- Tabela drużyn
+CREATE TABLE football_teams (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    domain_id UUID NOT NULL REFERENCES domains(id) ON DELETE CASCADE,
+    external_id INTEGER NOT NULL,
+    slug VARCHAR(50) NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    short_name VARCHAR(50),
+    country_code VARCHAR(2) DEFAULT 'PL',
+    country_name VARCHAR(50) DEFAULT 'Polska',
+    logo_url VARCHAR(255),
+    stadium_name VARCHAR(100),
+    manager_name VARCHAR(100),
+    manager_photo_url VARCHAR(255),
+    current_tournament_id INTEGER,
+    current_tournament_name VARCHAR(100),
+    is_primary BOOLEAN DEFAULT false,
+    display_order INTEGER DEFAULT 0,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(domain_id, external_id)
+);
+
+-- Tabela meczów
+CREATE TABLE football_matches (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    external_id INTEGER NOT NULL UNIQUE,
+    team_id UUID NOT NULL REFERENCES football_teams(id) ON DELETE CASCADE,
+    opponent_id INTEGER,
+    opponent_name VARCHAR(100) NOT NULL,
+    opponent_short_name VARCHAR(50),
+    opponent_logo_url VARCHAR(255),
+    opponent_slug VARCHAR(50),
+    match_date DATE NOT NULL,
+    match_time TIME,
+    status VARCHAR(20) DEFAULT 'scheduled',
+    is_home BOOLEAN DEFAULT true,
+    home_score INTEGER,
+    away_score INTEGER,
+    home_halftime_score INTEGER,
+    away_halftime_score INTEGER,
+    result CHAR(1),
+    tournament_id INTEGER,
+    tournament_name VARCHAR(100),
+    tournament_logo_url VARCHAR(255),
+    round_info VARCHAR(50),
+    is_featured BOOLEAN DEFAULT false,
+    show_on_homepage BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabela tabeli ligowej
+CREATE TABLE football_standings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    team_id UUID NOT NULL REFERENCES football_teams(id) ON DELETE CASCADE,
+    tournament_id INTEGER NOT NULL,
+    tournament_name VARCHAR(100),
+    season VARCHAR(10) NOT NULL,
+    position INTEGER NOT NULL,
+    played INTEGER DEFAULT 0,
+    won INTEGER DEFAULT 0,
+    drawn INTEGER DEFAULT 0,
+    lost INTEGER DEFAULT 0,
+    goals_for INTEGER DEFAULT 0,
+    goals_against INTEGER DEFAULT 0,
+    goal_difference INTEGER DEFAULT 0,
+    points INTEGER DEFAULT 0,
+    form VARCHAR(5),
+    form_details JSONB,
+    promotion_status VARCHAR(20),
+    table_type VARCHAR(10) DEFAULT 'total',
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(team_id, tournament_id, season, table_type)
+);
+
+-- Tabela zawodników
+CREATE TABLE football_squads (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    team_id UUID NOT NULL REFERENCES football_teams(id) ON DELETE CASCADE,
+    external_id INTEGER,
+    name VARCHAR(100) NOT NULL,
+    position VARCHAR(20) NOT NULL,
+    is_key_player BOOLEAN DEFAULT false,
+    jersey_number INTEGER,
+    nationality VARCHAR(50),
+    birth_date DATE,
+    photo_url VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Indeksy
+CREATE INDEX idx_football_matches_team_date ON football_matches(team_id, match_date);
+CREATE INDEX idx_football_matches_status ON football_matches(status);
+CREATE INDEX idx_football_matches_featured ON football_matches(is_featured) WHERE is_featured = true;
+CREATE INDEX idx_football_standings_position ON football_standings(tournament_id, season, position);
+```
+
+### 9.4 Konfiguracja Scrapera
+
+#### Nowy typ scrapera: `SOFASCORE_FOOTBALL`
+
+```typescript
+interface SofascoreFootballScraperConfig {
+  type: 'SOFASCORE_FOOTBALL';
+  teamId: number;                // np. 4901 dla Cracovii
+  teamSlug: string;              // "cracovia"
+  domainId: string;              // ID domeny w systemie
+  
+  // Co scrapować
+  dataTypes: {
+    matches: boolean;            // Mecze
+    standings: boolean;          // Tabela
+    squad: boolean;              // Skład
+    form: boolean;               // Forma (wykres)
+  };
+  
+  // Interwały
+  intervals: {
+    matches: number;             // minuty (np. 60)
+    standings: number;           // minuty (np. 120)
+    squad: number;               // minuty (np. 1440 - raz dziennie)
+  };
+  
+  // Opcje wyświetlania
+  displayOptions: {
+    showOnHomepage: boolean;
+    homepageWidgetType: 'next-match' | 'last-result' | 'standings' | 'mini-table' | 'all';
+    highlightIfPlayingToday: boolean;  // Wyróżnij na stronie głównej jeśli mecz dziś
+  };
+}
+```
+
+#### Parser - selektory CSS
+
+```python
+SOFASCORE_SELECTORS = {
+    # Dane drużyny
+    'team_name': 'h1.textStyle_display.extraLarge',
+    'team_logo': 'img[alt="{team_name}"]',
+    'manager_name': 'span:contains("Trener") + span',
+    'manager_photo': 'img[alt="{manager_name}"]',
+    'stadium': '.p_lg svg + span',
+    'tournament': '[href*="/tournament/"]',
+    
+    # Mecze
+    'match_list': '.card-component .d_flex.flex-d_column',
+    'match_item': 'a[href*="/match/"]',
+    'match_date': 'bdi.textStyle_body.small',
+    'match_time': 'span.textStyle_body.small',
+    'match_home_team': '.d_flex.ai_center:first-child bdi',
+    'match_away_team': '.d_flex.ai_center:last-child bdi',
+    'match_score': 'span.score',
+    'match_result': '.w_xl.h_xl.br_50%',  # W/D/L
+    
+    # Tabela
+    'standings_table': '.tabs__content[role="tabpanel"]',
+    'standings_row': 'a[href*="/team/"] + div',
+    'position': '.w_xl.h_xl.br_50%',
+    'team_in_table': 'img + div span',
+    'stats': 'bdi.textStyle_table.medium',
+    'form': '.d_flex.ai_center.jc_flex-start',
+}
+```
+
+### 9.5 Komponenty Frontend
+
+#### A. Widgety na Stronie Głównej
+
+```typescript
+// Widget następnego meczu
+interface NextMatchWidgetProps {
+  team: FootballTeam;
+  match: FootballMatch;
+  variant: 'large' | 'compact';
+  showCountdown?: boolean;
+}
+
+// Widget ostatniego wyniku
+interface LastResultWidgetProps {
+  team: FootballTeam;
+  match: FootballMatch;
+  showStats?: boolean;
+}
+
+// Widget pozycji w tabeli
+interface StandingsWidgetProps {
+  team: FootballTeam;
+  standings: FootballStandings;
+  showTrend?: boolean;
+}
+
+// Mini tabela ligowa
+interface MiniTableWidgetProps {
+  tournamentName: string;
+  teams: StandingsTeam[];
+  highlightTeamId: string;
+  maxRows?: number;
+}
+```
+
+#### B. Komponenty Strony Drużyny
+
+```typescript
+// Hero drużyny
+interface TeamHeroProps {
+  team: FootballTeam;
+  currentForm: ('W' | 'D' | 'L')[];
+}
+
+// Lista meczów
+interface MatchesListProps {
+  matches: FootballMatch[];
+  showTournament?: boolean;
+  showResults?: boolean;
+  pagination?: boolean;
+}
+
+// Tabela ligowa
+interface StandingsTableProps {
+  standings: FootballStandings[];
+  highlightTeamId: string;
+  showForm?: boolean;
+  filterTypes?: ('total' | 'home' | 'away')[];
+}
+
+// Wykres formy (pozycji)
+interface FormChartProps {
+  data: {
+    week: number;
+    position: number;
+  }[];
+  maxPosition: number;
+}
+
+// Skład drużyny
+interface SquadDisplayProps {
+  players: FootballPlayer[];
+  groupByPosition?: boolean;
+}
+```
+
+### 9.6 Design System - Piłka Nożna
+
+#### Kolory Statusów
+```css
+:root {
+  /* Wyniki meczów */
+  --match-win: #15B168;           /* Zielony - wygrana */
+  --match-win-bg: #dcfce7;        /* Jasny zielony tło */
+  
+  --match-draw: #808080;          /* Szary - remis */
+  --match-draw-bg: #f3f4f6;       /* Jasny szary tło */
+  
+  --match-loss: #C7361F;          /* Czerwony - przegrana */
+  --match-loss-bg: #fee2e2;       /* Jasny czerwony tło */
+  
+  /* Pozycje w tabeli */
+  --position-champions: #FFD700;  /* Złoty - Liga Mistrzów */
+  --position-conference: #3B82F6; /* Niebieski - Liga Konferencji */
+  --position-relegation: #EF4444; /* Czerwony - spadek */
+  --position-normal: #9CA3AF;     /* Szary - pozostałe */
+}
+```
+
+#### Rozmiary Elementów
+```css
+/* Logo drużyny */
+--team-logo-xl: 96px;      /* Hero */
+--team-logo-lg: 64px;      /* Widgety */
+--team-logo-md: 40px;      /* Lista meczów */
+--team-logo-sm: 24px;      /* Tabela */
+
+/* Forma (ostatnie mecze) */
+--form-badge-size: 24px;
+
+/* Wynik meczu */
+--score-font-size: 1.5rem;
+--score-font-weight: 700;
+```
+
+### 9.7 API Endpoints
+
+```typescript
+// Drużyny
+GET   /api/v1/football/teams?domain={domain}
+POST  /api/v1/football/teams           // Dodaj drużynę
+GET   /api/v1/football/teams/:id
+PUT   /api/v1/football/teams/:id
+DELETE /api/v1/football/teams/:id
+
+// Mecze
+GET   /api/v1/football/matches?team={teamId}&status={status}&limit={n}
+GET   /api/v1/football/matches/next?team={teamId}
+GET   /api/v1/football/matches/last?team={teamId}
+GET   /api/v1/football/matches/today?domain={domain}  // Wszystkie mecze dziś
+
+// Tabela
+GET   /api/v1/football/standings?team={teamId}&type={total|home|away}
+GET   /api/v1/football/standings/tournament/{tournamentId}?season={season}
+
+// Skład
+GET   /api/v1/football/squads?team={teamId}
+
+// Forma (dane do wykresu)
+GET   /api/v1/football/form?team={teamId}&weeks={n}
+```
+
+### 9.8 Struktura Podstron
+
+#### URL: `/pilka-nozna` lub `/sport`
+Lista wszystkich drużyn przypisanych do domeny.
+
+#### URL: `/druzyna/{slug}` (np. `/druzyna/cracovia`)
+Szczegóły drużyny z zakładkami:
+- **Mecze** - lista wszystkich meczów
+- **Tabela** - pozycja w ligowej tabeli
+- **Skład** - lista zawodników
+- **Statystyki** - szczegółowe statystyki
+
+#### Sekcje na stronie drużyny:
+1. **Hero** - logo, nazwa, trener, stadion, flaga kraju
+2. **Najbliższe mecze** - lista z datami i wynikami
+3. **Ostatnia forma** - wizualizacja ostatnich 5-10 meczów
+4. **Wyróżniony mecz** - najbliższy ważny mecz z odliczaniem
+5. **Tabela ligowa** - pozycja drużyny w kontekście ligi
+6. **Wykres pozycji** - SVG pokazujący zmiany pozycji w czasie
+7. **O drużynie** - opis SEO
+
+### 9.9 Integracja z Panelem Admina
+
+#### Nowe uprawnienia:
+```typescript
+'football:manage'           // Dostęp do modułu piłkarskiego
+'football:teams:create'     // Dodawanie drużyn
+'football:teams:edit'       // Edycja drużyn
+'football:teams:delete'     // Usuwanie drużyn
+'football:matches:edit'     // Edycja meczów (ręczna korekta)
+'football:scrapers:manage'  // Zarządzanie scraperami
+```
+
+#### Nowe menu:
+```
+⚽ Piłka Nożna
+├── 📋 Drużyny
+│   ├── Lista drużyn
+│   └── Dodaj drużynę
+├── ⚽ Mecze
+│   ├── Wszystkie mecze
+│   ├── Nadchodzące
+│   └── Ostatnie wyniki
+├── 📊 Tabela ligowa
+│   └── Konfiguracja
+├── 👤 Składy
+│   └── Zarządzanie zawodnikami
+└── ⚙️ Scraper
+    ├── Logi
+    └── Konfiguracja
+```
+
+### 9.10 Zadania Implementacyjne (Dodatkowe do Planu)
+
+#### Nowe zadania w Etapie 3 (Backend API):
+
+| # | Zadanie | Estymacja | Zależności |
+|---|---------|-----------|------------|
+| 3.15 | **Modele bazy football_teams** | 2h | 3.1 |
+| 3.16 | **Modele bazy football_matches** | 2h | 3.15 |
+| 3.17 | **Modele bazy football_standings** | 2h | 3.15 |
+| 3.18 | **API endpoints dla drużyn** | 4h | 3.15 |
+| 3.19 | **API endpoints dla meczów** | 4h | 3.16 |
+| 3.20 | **API endpoints dla tabeli** | 3h | 3.17 |
+| 3.21 | **Walidacja danych piłkarskich** | 2h | 3.18-3.20 |
+
+#### Nowe zadania w Etapie 4 (Scraping):
+
+| # | Zadanie | Estymacja | Zależności |
+|---|---------|-----------|------------|
+| 4.17 | **Parser Sofascore HTML** | 8h | 4.1 |
+| 4.18 | **Scraper meczów (Sofascore)** | 6h | 4.17 |
+| 4.19 | **Scraper tabeli ligowej** | 4h | 4.17 |
+| 4.20 | **Scraper składów** | 4h | 4.17 |
+| 4.21 | **Scheduler dla scrapingu piłkarskiego** | 3h | 4.18-4.20 |
+| 4.22 | **Obsługa cache dla danych piłkarskich** | 2h | 4.21 |
+
+#### Nowe zadania w Etapie 5 (Frontend Publiczny):
+
+| # | Zadanie | Estymacja | Zależności |
+|---|---------|-----------|------------|
+| 5.14 | **Komponent TeamLogo** | 2h | 5.1 |
+| 5.15 | **Komponent MatchCard** | 4h | 5.14 |
+| 5.16 | **Komponent MatchesList** | 4h | 5.15 |
+| 5.17 | **Komponent StandingsTable** | 6h | 5.1 |
+| 5.18 | **Komponent FormChart (SVG)** | 6h | 5.1 |
+| 5.19 | **Komponent SquadDisplay** | 3h | 5.1 |
+| 5.20 | **Widget NextMatch** | 3h | 5.15 |
+| 5.21 | **Widget LastResult** | 3h | 5.15 |
+| 5.22 | **Widget MiniTable** | 3h | 5.17 |
+| 5.23 | **Strona drużyny (/druzyna/{slug})** | 6h | 5.16, 5.17, 5.18 |
+| 5.24 | **Sekcja Sport na stronie głównej** | 4h | 5.20-5.22 |
+
+#### Nowe zadania w Etapie 6 (Panel Admina):
+
+| # | Zadanie | Estymacja | Zależności |
+|---|---------|-----------|------------|
+| 6.14 | **Lista drużyn w panelu** | 4h | 6.1, 3.18 |
+| 6.15 | **Formularz dodawania/edycji drużyny** | 6h | 6.14 |
+| 6.16 | **Wyszukiwarka drużyn Sofascore** | 4h | 6.15 |
+| 6.17 | **Zarządzanie meczami** | 4h | 6.1, 3.19 |
+| 6.18 | **Podgląd tabeli ligowej** | 3h | 6.1, 3.20 |
+| 6.19 | **Konfiguracja scrapera piłkarskiego** | 4h | 6.15 |
+
 ---
 
 **KONIEC DOKUMENTACJI**
 
-*Wersja: 3.0 (Zintegrowana)*  
+*Wersja: 3.1 (Zintegrowana z modułem Piłkarskim)*  
 *Data: 12 lutego 2026*  
 *Autor: System Architect*  
 *Status: Ready for Implementation*
