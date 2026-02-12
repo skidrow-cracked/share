@@ -30,6 +30,7 @@
 17. [Moduł Piłki Nożnej ⚽](#17-moduł-piłki-nożnej-)
 18. [Moduł Gazetek Promocyjnych 🛍️](#18-moduł-gazetek-promocyjnych-)
 19. [Moduł Sławnych Osób ⭐](#19-moduł-sławnych-osób-urodzonych-w-mieście-)
+20. [Standardy Danych i Struktury CPT 📊](#20-standardy-danych-i-struktury-cpt-)
 
 ---
 
@@ -1741,7 +1742,7 @@ graph LR
 | **Etap 7** | 1 tydzień | Deployment | Skrypty automatyzacji, Testy, 4torun.pl live, **Konfiguracja modułów** |
 | **Etap 8** | 1 tydzień | Dokumentacja | Dokumentacja techniczna, Szkolenia, **Dokumentacja modułów** |
 
-**RAZEM: ~21 tygodni (5 miesięcy)** z nowymi modułami (17 tygodni bez)
+**RAZEM: ~22-23 tygodnie (5.5 miesiąca)** z nowymi modułami i standardami danych (17 tygodni bez)
 
 ### 15.3 Stack Technologiczny
 
@@ -1870,6 +1871,13 @@ Szczegółowy podział prac dla zespołu deweloperskiego. Każdy task zawiera es
 | 2.16 | **Obsługa błędów i logowanie** | Backend | 4h | Centralny error handler, logi w Winston/structlog, stack traces w dev | Cały etap |
 | 2.17 | **Dokumentacja API (Swagger/OpenAPI)** | Backend | 4h | Specyfikacja OpenAPI dostępna pod /api-docs, wszystkie endpointy udokumentowane | Cały etap |
 | 2.18 | **Testy jednostkowe API** | Backend | 8h | Testy dla głównych endpointów (auth, domains, users), coverage > 70% | Cały etap |
+| 2.19 | **Model unified posts (JSONB metadata)** | Backend | 6h | Tabela posts z content_type i JSONB metadata dla wszystkich CPT, migracja | 2.5 |
+| 2.20 | **Model businesses (rozszerzony)** | Backend | 6h | Tabela businesses z pełną strukturą (PKD, godziny, adresy, walidacja NIP/REGON) | 2.5 |
+| 2.21 | **Model jobs (oferty pracy)** | Backend | 4h | Tabela jobs z wymaganiami, wynagrodzeniem, lokalizacją, walidacją | 2.5 |
+| 2.22 | **Model obituaries (nekrologi)** | Backend | 4h | Tabela obituaries z danymi zmarłego, ceremonią, kondolencjami | 2.5 |
+| 2.23 | **Model weather_cache (pogoda)** | Backend | 2h | Tabela weather_cache z JSONB dla current/hourly/daily, indeksy czasowe | 2.5 |
+| 2.24 | **Indeksy wyszukiwania full-text** | Backend | 4h | Indeksy GIN dla wyszukiwania po treści we wszystkich tabelach CPT | 2.19-2.23 |
+| 2.25 | **Walidatory NIP/REGON w DB** | Backend | 3h | CHECK constraints dla NIP (10 cyfr) i REGON (9/14 cyfr), funkcje walidacyjne | 2.20 |
 
 **Deliverables Etapu 2:**
 - [ ] Baza danych z pełnym schematem (public + tenant template)
@@ -1963,11 +1971,23 @@ Szczegółowy podział prac dla zespołu deweloperskiego. Każdy task zawiera es
 | 4.29 | **AI Processor dla biografii** | Backend | 6h | Wysyłanie do OpenAI, parsowanie JSON, zapisywanie wyników | 4.28, 3.31 |
 | 4.30 | **Scheduler dla sławnych osób** | Backend | 3h | Cron do przetwarzania kolejki osób, batch processing | 4.29 |
 | 4.31 | **System kolejkowania AI** | Backend | 4h | Kolejka osób do przetworzenia, retry mechanism, logi | 4.29 |
+| 4.32 | **ContentProcessingPipeline (framework)** | Backend | 8h | Abstrakcyjna klasa pipeline z extract/map/normalize/validate dla wszystkich scraperów | 4.6 |
+| 4.33 | **Mapowanie Policja → NormalizedContent** | Backend | 4h | Konfiguracja mapowania pól, ekstrakcja typu zdarzenia, parsowanie daty i miejsca | 4.32 |
+| 4.34 | **Mapowanie Urząd Miasta → NormalizedContent** | Backend | 4h | Konfiguracja mapowania, wykrywanie galerii zdjęć, kategoryzacja po URL | 4.32 |
+| 4.35 | **Mapowanie OLX → BusinessMetadata** | Backend | 6h | Ekstrakcja kategorii, telefonów, mapowanie kategorii OLX→nasze | 4.32 |
+| 4.36 | **Mapowanie Facebook → BusinessMetadata** | Backend | 6h | Parsowanie stron firmowych, godzin otwarcia, lokalizacji | 4.32 |
+| 4.37 | **Mapowanie pracuj.pl → JobMetadata** | Backend | 5h | Ekstrakcja wynagrodzenia, wymagań, typu umowy | 4.32 |
+| 4.38 | **Słownik kategorii biznesowych (PKD)** | Backend | 6h | Mapowanie kodów PKD na nasze kategorie biznesowe, baza synonimów | 4.35, 4.36 |
+| 4.39 | **System normalizacji adresów** | Backend | 4h | Normalizacja ul.→ulica, skróty, dopasowanie do słownika ulic miasta | 4.33-4.37 |
+| 4.40 | **System walidacji NIP/REGON** | Backend | 3h | Algorytmy checksum, weryfikacja poprawności numerów | 4.35, 4.36 |
+| 4.41 | **Testy integracyjne dla pipeline** | Backend | 6h | Testy end-to-end dla wszystkich mapowań, mocki HTML | 4.33-4.40 |
 
 **Deliverables Etapu 4:**
-- [ ] Scraper działa i pobiera dane z policja.gov.pl
-- [ ] Scraper działa i pobiera dane z torun.pl
-- [ ] Dane pojawiają się w bazie
+- [ ] Scraper działa i pobiera dane z policja.gov.pl (format NormalizedContent)
+- [ ] Scraper działa i pobiera dane z torun.pl (format NormalizedContent)
+- [ ] Dane są normalizowane i walidowane przed zapisem
+- [ ] ContentProcessingPipeline działa dla wszystkich źródeł
+- [ ] Dane pojawiają się w bazie w ujednoliconym formacie
 - [ ] Cron uruchamia scrapery automatycznie
 
 ---
@@ -2185,22 +2205,22 @@ gantt
 **Ścieżka krytyczna:**
 Infrastruktura → Baza + API (oryginalne + nowe modele) → Panel Centralny (Setup) → Frontend (Komponenty + Strony) → Frontend (Nowe moduły) → Deployment
 
-**Całkowity czas:** ~21 tygodni (ok. 5 miesięcy) z nowymi modułami, 17 tygodni bez
+**Całkowity czas:** ~22-23 tygodnie (ok. 5.5 miesiąca) z nowymi modułami i standardami danych, 17 tygodni bez
 
 ---
 
 ### 15.5 Pełna Lista Zadań - Wszystkie Etapy
 
-**Podsumowanie statystyk (oryginalne + nowe moduły):**
+**Podsumowanie statystyk (oryginalne + nowe moduły + standardy danych):**
 - **Etap 1 (Infrastruktura):** 10 zadań → 10 zadań
-- **Etap 2 (Baza danych):** 12 zadań → 17 zadań (+modele dla modułów)
+- **Etap 2 (Baza danych):** 12 zadań → 22 zadań (+modele dla modułów + unified CPT)
 - **Etap 3 (Backend API):** 15 zadań → 24 zadań (+endpointy dla modułów)
-- **Etap 4 (Scraping):** 16 zadań → 31 zadań (+scrapery piłki, gazetek, osób)
+- **Etap 4 (Scraping):** 16 zadań → 39 zadań (+scrapery piłki, gazetek, osób + mapowania CPT)
 - **Etap 5 (Frontend publiczny):** 22 zadania → 43 zadania (+komponenty modułów)
 - **Etap 6 (Panel admina):** 13 zadań → 21 zadań (+konfiguracja modułów)
 - **Etap 7 (Deployment):** 10 zadań → 16 zadań (+konfiguracja modułów)
 - **Etap 8 (Dokumentacja):** 9 zadań → 12 zadań (+dokumentacja modułów)
-- **RAZEM:** 107 zadań → 164 zadań (~140h dodatkowych = ~17-18 dni roboczych)
+- **RAZEM:** 107 zadań → 187 zadań (~160h dodatkowych = ~20-21 dni roboczych)
 
 #### Lista zadań z nowych modułów (do przypisania webdev):
 
@@ -2287,6 +2307,30 @@ Infrastruktura → Baza + API (oryginalne + nowe modele) → Panel Centralny (Se
 [ ] 7.15 - Konfiguracja AI dla sławnych osób
 [ ] 7.16 - Testowy scraping osób z Wikipedii
 [ ] 8.12 - Dokumentacja modułu sławnych osób
+```
+
+**Standardy Danych i Struktury CPT (20 zadań):**
+```
+[ ] 20.1 - Implementacja ContentProcessingPipeline
+[ ] 20.2 - Normalizatory (tekst, adres, telefon)
+[ ] 20.3 - Walidatory (NIP, REGON, email)
+[ ] 2.19 - Model unified posts (JSONB metadata)
+[ ] 2.20 - Model businesses (rozszerzona struktura)
+[ ] 2.21 - Model jobs (oferty pracy)
+[ ] 2.22 - Model obituaries (nekrologi)
+[ ] 2.23 - Model weather_cache (pogoda)
+[ ] 2.24 - Indeksy full-text dla wszystkich CPT
+[ ] 2.25 - Walidatory NIP/REGON w DB
+[ ] 4.32 - ContentProcessingPipeline framework
+[ ] 4.33 - Mapowanie Policja → NormalizedContent
+[ ] 4.34 - Mapowanie Urząd Miasta → NormalizedContent
+[ ] 4.35 - Mapowanie OLX → BusinessMetadata
+[ ] 4.36 - Mapowanie Facebook → BusinessMetadata
+[ ] 4.37 - Mapowanie pracuj.pl → JobMetadata
+[ ] 4.38 - Słownik kategorii biznesowych (PKD)
+[ ] 4.39 - System normalizacji adresów
+[ ] 4.40 - System walidacji NIP/REGON
+[ ] 4.41 - Testy integracyjne dla pipeline
 ```
 
 #### Ścieżka wdrożenia nowych modułów (fazy):
@@ -4043,4 +4087,1621 @@ interface PersonDetailPageProps {
 *Status: Ready for Implementation*
 
 ---
+
+
+
+---
+
+## 20. STANDARDY DANYCH I STRUKTURY CPT 📊
+
+**Cel:** Jednolity format przechowywania i wymiany danych dla wszystkich typów contentu. Wszystkie scrapery MUSZĄ produkować dane w formacie `NormalizedContent`, który jest następnie mapowany do konkretnych tabel DB.
+
+### 20.1 Abstrakcyjny Format NormalizedContent
+
+Wszystkie scrapery (niezależnie od źródła) produkują ten sam format wyjściowy:
+
+```typescript
+interface NormalizedContent {
+  // IDENTYFIKACJA
+  id?: string;                    // UUID (generowany przy zapisie)
+  external_id: string;            // ID ze źródła (unikalne w ramach źródła)
+  source_slug: string;            // np. "policja_torun", "urzad_miasta", "facebook_local"
+  content_type: ContentType;      // Enum: 'news' | 'police' | 'chronicle' | 'business' | 'classified' | 'job' | 'obituary'
+  
+  // TREŚĆ PODSTAWOWA
+  title: string;                  // Tytuł (znormalizowany, max 200 znaków)
+  slug: string;                   // URL-friendly (auto-generowany z tytułu)
+  excerpt?: string;               // Zajawka (max 500 znaków, auto-generowana jeśli brak)
+  content_html: string;           // Pełna treść w HTML (oczyszczona)
+  content_text: string;           // Treść plain text (dla wyszukiwarki)
+  
+  // METADANE CZASOWE
+  published_at: string;           // ISO 8601 (data publikacji w źródle)
+  modified_at?: string;           // ISO 8601 (data modyfikacji w źródle)
+  scraped_at: string;             // ISO 8601 (data scrapingu)
+  valid_until?: string;           // ISO 8601 (data ważności - dla ogłoszeń, pracy)
+  
+  // AUTORSTWO I ŹRÓDŁO
+  author_name?: string;           // Autor (jeśli znany)
+  author_email?: string;          // Email autora
+  source_url: string;             // URL do oryginału
+  source_name: string;            // Nazwa źródła (np. "Policja Toruń")
+  is_external: boolean;           // Czy content z zewnątrz (true dla scrapów)
+  
+  // KLASYFIKACJA
+  category?: string;              // Główna kategoria (znormalizowana)
+  subcategory?: string;           // Podkategoria
+  tags: string[];                 // Tagi (znormalizowane, lowercase)
+  locations: LocationRef[];       // Lokalizacje (miasto, dzielnica, adres)
+  
+  // MEDIA
+  featured_image?: ImageData;     // Główny obraz
+  gallery?: ImageData[];          // Galeria dodatkowych obrazów
+  attachments?: AttachmentData[]; // Załączniki (PDF, DOC)
+  videos?: VideoData[];           // Filmy
+  
+  // DANE SPECJALIZOWANE (zależne od content_type)
+  metadata: NewsMetadata | PoliceMetadata | BusinessMetadata | JobMetadata | ClassifiedMetadata | ObituaryMetadata | ChronicleMetadata;
+  
+  // STATUS I FLAGI
+  status: 'draft' | 'published' | 'archived' | 'pending_review';
+  is_highlighted: boolean;        // Czy wyróżnić na stronie głównej
+  is_urgent: boolean;             // Czy pilne (np. poszukiwania)
+  language: string;               // ISO 639-1 (np. 'pl', 'en')
+  
+  // STATYSTYKI (opcjonalnie)
+  view_count?: number;
+  share_count?: number;
+}
+
+// --- WSPÓLNE POD-TYPY ---
+
+interface LocationRef {
+  type: 'city' | 'district' | 'street' | 'address' | 'coordinates';
+  name: string;                   // Nazwa do wyświetlenia
+  slug: string;                   // URL-friendly
+  coordinates?: { lat: number; lng: number }; // Dla map
+}
+
+interface ImageData {
+  url: string;                    // URL oryginału
+  local_path?: string;            // Ścieżka lokalna po pobraniu
+  alt: string;                    // Tekst alternatywny
+  caption?: string;               // Podpis
+  credit?: string;                // Autor/źródło zdjęcia
+  width?: number;
+  height?: number;
+  file_size?: number;
+  mime_type?: string;
+}
+
+interface AttachmentData {
+  url: string;
+  local_path?: string;
+  filename: string;
+  file_size: number;
+  mime_type: string;
+  title?: string;
+}
+
+interface VideoData {
+  url: string;
+  platform?: 'youtube' | 'facebook' | 'vimeo' | 'local';
+  embed_code?: string;
+  thumbnail?: ImageData;
+  duration?: number;              // w sekundach
+}
+
+enum ContentType {
+  NEWS = 'news',                  // Wiadomości ogólne
+  POLICE = 'police',              // Komunikaty policji
+  CHRONICLE = 'chronicle',        // Kronika policyjna/zdarzenia
+  BUSINESS = 'business',          // Firmy/biznesy
+  CLASSIFIED = 'classified',      // Ogłoszenia drobne
+  JOB = 'job',                    // Oferty pracy
+  OBITUARY = 'obituary',          // Nekrologi
+  EVENT = 'event',                // Wydarzenia (kalendarz)
+  ANNOUNCEMENT = 'announcement'   // Ogłoszenia urzędowe
+}
+```
+
+---
+
+### 20.2 Struktury Danych per CPT
+
+#### 20.2.1 WIADOMOŚCI (news)
+
+Standardowe artykuły informacyjne.
+
+```typescript
+interface NewsMetadata {
+  // KLASYFIKACJA TEMATYCZNA
+  news_type: 'local' | 'regional' | 'national' | 'world' | 'sport' | 'culture' | 'economy';
+  
+  // POWIĄZANIA
+  related_news_ids?: string[];    // ID powiązanych artykułów
+  series_name?: string;           // Nazwa cyklu (np. "Tygodniowy przegląd")
+  series_part?: number;           // Numer części w cyklu
+  
+  // ŹRÓDŁO I WERYFIKACJA
+  source_credibility: 'official' | 'verified' | 'unverified' | 'citizen_report';
+  fact_checked: boolean;          // Czy zweryfikowane
+  fact_check_notes?: string;      // Notatki weryfikacyjne
+  
+  // SEO I METADANE
+  keywords?: string[];            // Słowa kluczowe dla SEO
+  reading_time?: number;          // Szacowany czas czytania (min)
+}
+```
+
+**Schemat SQL - tabela `posts` (rozszerzenie):**
+
+```sql
+-- Tabela główna (już istnieje w schemacie bazowym)
+CREATE TABLE tenant_${domain}.posts (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  content_type VARCHAR(20) DEFAULT 'news' CHECK (content_type IN ('news', 'police', 'chronicle', 'business', 'classified', 'job', 'obituary', 'event', 'announcement')),
+  
+  -- Podstawowe pola
+  title VARCHAR(200) NOT NULL,
+  slug VARCHAR(220) NOT NULL UNIQUE,
+  excerpt TEXT,
+  content_html TEXT NOT NULL,
+  content_text TEXT,              -- Dla full-text search
+  
+  -- Czas
+  published_at TIMESTAMP WITH TIME ZONE,
+  modified_at TIMESTAMP WITH TIME ZONE,
+  scraped_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  valid_until TIMESTAMP WITH TIME ZONE, -- Dla ogłoszeń czasowych
+  
+  -- Autorstwo
+  author_name VARCHAR(100),
+  author_email VARCHAR(100),
+  source_url TEXT,
+  source_name VARCHAR(100),
+  is_external BOOLEAN DEFAULT true,
+  
+  -- Klasyfikacja
+  category_id UUID REFERENCES tenant_${domain}.categories(id),
+  tags TEXT[],                    -- Array tagów
+  
+  -- Media
+  featured_image JSONB,
+  gallery JSONB[],
+  attachments JSONB[],
+  
+  -- Status
+  status VARCHAR(20) DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'archived', 'pending_review')),
+  is_highlighted BOOLEAN DEFAULT false,
+  is_urgent BOOLEAN DEFAULT false,
+  language VARCHAR(2) DEFAULT 'pl',
+  
+  -- Metadane specyficzne per type
+  metadata JSONB,                 -- Tutaj trafia NewsMetadata/PoliceMetadata/etc.
+  
+  -- Statystyki
+  view_count INTEGER DEFAULT 0,
+  share_count INTEGER DEFAULT 0,
+  
+  -- Zarządzanie
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  created_by UUID,
+  updated_by UUID,
+  
+  -- Indeksy
+  CONSTRAINT valid_email CHECK (author_email IS NULL OR author_email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')
+);
+
+-- Indeksy dla wyszukiwania
+CREATE INDEX idx_posts_type ON tenant_${domain}.posts(content_type);
+CREATE INDEX idx_posts_status ON tenant_${domain}.posts(status);
+CREATE INDEX idx_posts_published ON tenant_${domain}.posts(published_at DESC);
+CREATE INDEX idx_posts_category ON tenant_${domain}.posts(category_id);
+CREATE INDEX idx_posts_tags ON tenant_${domain}.posts USING GIN(tags);
+CREATE INDEX idx_posts_metadata ON tenant_${domain}.posts USING GIN(metadata);
+CREATE INDEX idx_posts_external ON tenant_${domain}.posts(source_slug, external_id) WHERE is_external = true;
+
+-- Full-text search
+CREATE INDEX idx_posts_search ON tenant_${domain}.posts 
+  USING gin(to_tsvector('polish', COALESCE(title, '') || ' ' || COALESCE(content_text, '')));
+```
+
+---
+
+#### 20.2.2 POLICJA (police)
+
+Komunikaty policyjne - wymagają specyficznej struktury ze względu na formalny charakter.
+
+```typescript
+interface PoliceMetadata {
+  // TYP KOMUNIKATU (znormalizowany)
+  incident_type: 
+    | 'accident'           // Wypadek
+    | 'collision'          // Kolizja
+    | 'theft'              // Kradzież
+    | 'burglary'           // Włamanie
+    | 'assault'            // Napad/pobicie
+    | 'fraud'              // Oszustwo
+    | 'drugs'              // Narkotyki
+    | 'dui'                // Jazda po alkoholu
+    | 'speeding'           // Przekroczenie prędkości
+    | 'wanted'             // Poszukiwania
+    | 'missing_person'     // Zaginięcie
+    | 'found_person'       // Odnalezienie
+    | 'appeal_witnesses'   // Apel o świadków
+    | 'safety_warning'     // Ostrzeżenie
+    | 'other';             // Inne
+  
+  // MIEJSCE ZDARZENIA
+  incident_location: {
+    address: string;              // Dokładny adres
+    city_district?: string;       // Dzielnica
+    coordinates?: { lat: number; lng: number };
+    description?: string;         // Dodatkowy opis miejsca
+  };
+  
+  // CZAS ZDARZENIA
+  incident_date: string;          // ISO 8601 (data zdarzenia)
+  incident_time?: string;         // HH:MM (czas)
+  
+  // PODMIOTY
+  perpetrator?: {
+    description?: string;         // Rysopis
+    age_range?: string;           // Przedział wiekowy
+    distinguishing_features?: string[]; // Znamiona szczególne
+    vehicle?: {
+      make?: string;              // Marka
+      model?: string;             // Model
+      color?: string;             // Kolor
+      registration?: string;      // Nr rejestracyjny
+      description?: string;       // Dodatkowy opis
+    };
+  };
+  
+  victim?: {
+    count?: number;               // Liczba poszkodowanych
+    description?: string;         // Opis poszkodowanych
+    injuries?: string;            // Zakres obrażeń
+  };
+  
+  // SKUTKI
+  damage_description?: string;    // Opis strat
+  items_stolen?: string[];        // Skradzione przedmioty
+  value_damaged?: number;         // Wartość strat (PLN)
+  value_stolen?: number;          // Wartość skradziona (PLN)
+  
+  // STATUS
+  case_status: 'open' | 'investigating' | 'closed' | 'solved';
+  case_number?: string;           // Numer sprawy
+  
+  // APELE
+  appeal_type?: 'witnesses' | 'information' | 'help_identify';
+  contact_phone?: string;         // Telefon do kontaktu
+  contact_email?: string;         // Email do kontaktu
+}
+```
+
+**Przykład JSON (zescrapowany komunikat policji):**
+
+```json
+{
+  "external_id": "policja_2025_0847",
+  "source_slug": "policja_torun",
+  "content_type": "police",
+  "title": "Włamanie do sklepu przy ul. Szerokiej",
+  "slug": "wlamanie-do-sklepu-przy-ul-szerokiej",
+  "excerpt": "Nieznani sprawcy włamali się do sklepu spożywczego. Skradziono papierosy i alkohol o wartości 5000 zł.",
+  "content_html": "<p>W nocy z 11 na 12 lutego...</p>",
+  "content_text": "W nocy z 11 na 12 lutego...",
+  "published_at": "2025-02-12T08:30:00Z",
+  "scraped_at": "2025-02-12T10:00:00Z",
+  "source_url": "https://torun.policja.gov.pl/...",
+  "source_name": "Policja Toruń",
+  "is_external": true,
+  "category": "bezpieczenstwo",
+  "tags": ["włamanie", "kradzież", "szeroka"],
+  "locations": [
+    { "type": "street", "name": "ul. Szeroka", "slug": "ul-szeroka" }
+  ],
+  "metadata": {
+    "incident_type": "burglary",
+    "incident_location": {
+      "address": "ul. Szeroka 24",
+      "city_district": "Stare Miasto"
+    },
+    "incident_date": "2025-02-12",
+    "incident_time": "02:30",
+    "items_stolen": ["papierosy", "alkohol"],
+    "value_stolen": 5000,
+    "case_status": "investigating",
+    "contact_phone": "997"
+  },
+  "status": "published",
+  "is_highlighted": false,
+  "is_urgent": false,
+  "language": "pl"
+}
+```
+
+---
+
+#### 20.2.3 KRONIKA (chronicle)
+
+Krótkie, często nieoficjalne doniesienia o zdarzeniach (np. pożary, wypadki bez ofiar, awarie).
+
+```typescript
+interface ChronicleMetadata {
+  // TYP ZDARZENIA
+  event_type:
+    | 'fire'               // Pożar
+    | 'flood'              // Podtopienie
+    | 'storm_damage'       // Szkody po nawałnicy
+    | 'power_outage'       // Awaria prądu
+    | 'water_outage'       // Awaria wody
+    | 'gas_leak'           // Wyciek gazu
+    | 'road_closure'       // Zamknięcie drogi
+    | 'traffic_jam'        // Korki
+    | 'public_event'       // Wydarzenie publiczne
+    | 'animal_rescue'      // Akcja ratunkowa zwierząt
+    | 'other';
+  
+  // CZAS TRWANIA
+  duration_minutes?: number;      // Szacowany czas trwania zdarzenia
+  is_ongoing: boolean;            // Czy trwa w chwili publikacji
+  
+  // MIEJSCE
+  location_description: string;   // "Przy skrzyżowaniu ul. A i B"
+  
+  // PODMIOTY
+  services_involved?: string[];   // Straż pożarna, pogotowie, policja
+  
+  // SKUTKI
+  impact_level: 'minor' | 'moderate' | 'major' | 'critical';
+  affected_area?: string;         // Obszar objęty
+  evacuated_count?: number;       // Liczba ewakuowanych
+  
+  // STATUS AKTUALIZACJI
+  is_confirmed: boolean;          // Czy potwierdzone przez służby
+  updates?: {
+    timestamp: string;
+    content: string;
+  }[];
+}
+```
+
+---
+
+#### 20.2.4 FIRMY (business)
+
+Baza firm - wymaga najbardziej rozbudowanej struktury ze względu na potrzebę klasyfikacji.
+
+```typescript
+interface BusinessMetadata {
+  // IDENTYFIKACJA FIRMY
+  tax_id?: string;                // NIP (10 cyfr)
+  regon?: string;                 // REGON (9 lub 14 cyfr)
+  krs_number?: string;            // Numer KRS
+  company_type: 'sole_proprietorship' | 'partnership' | 'llc' | 'corporation' | 'cooperative' | 'other';
+  
+  // DANE KONTAKTOWE
+  contact: {
+    phones: string[];             // Numery telefonów
+    emails: string[];             // Adresy email
+    website?: string;             // Strona WWW
+    facebook?: string;            // Fanpage
+    instagram?: string;
+    linkedin?: string;
+  };
+  
+  // ADRESY
+  addresses: {
+    type: 'main' | 'branch' | 'warehouse' | 'office';
+    street: string;
+    building_number: string;
+    apartment_number?: string;
+    postal_code: string;          // Format: XX-XXX
+    city: string;
+    district?: string;
+    coordinates?: { lat: number; lng: number };
+    is_primary: boolean;
+  }[];
+  
+  // KATEGORYZACJA PKD (Polska Klasyfikacja Dziaalności)
+  pkd_codes: {
+    code: string;                 // Format: XX.XX.X
+    name: string;                 // Nazwa kodu
+    is_primary: boolean;          // Główny kod PKD
+  }[];
+  
+  // KATEGORIE BIZNESOWE (nasza klasyfikacja)
+  business_categories: {
+    primary: string;              // Główna kategoria (np. "gastronomia")
+    secondary?: string;           // Podkategoria (np. "restauracje")
+    tertiary?: string;            // Szczegół (np. "kuchnia włoska")
+  };
+  
+  // GODZINY OTWARCIA
+  opening_hours: {
+    monday?: { open: string; close: string; is_24h: boolean; is_closed: boolean }[];
+    tuesday?: { open: string; close: string; is_24h: boolean; is_closed: boolean }[];
+    wednesday?: { open: string; close: string; is_24h: boolean; is_closed: boolean }[];
+    thursday?: { open: string; close: string; is_24h: boolean; is_closed: boolean }[];
+    friday?: { open: string; close: string; is_24h: boolean; is_closed: boolean }[];
+    saturday?: { open: string; close: string; is_24h: boolean; is_closed: boolean }[];
+    sunday?: { open: string; close: string; is_24h: boolean; is_closed: boolean }[];
+    holidays?: 'open' | 'closed' | 'same_as_sunday' | 'special_hours';
+    special_hours_notes?: string;
+  };
+  
+  // USŁUGI I OFERTA
+  services: {
+    name: string;
+    description?: string;
+    price_from?: number;
+    price_to?: number;
+    price_unit?: 'service' | 'hour' | 'day' | 'item';
+    currency: string;             // PLN, EUR, USD
+  }[];
+  
+  // PRODUKTY (dla sklepów)
+  products?: {
+    name: string;
+    category?: string;
+    brands?: string[];
+    is_available: boolean;
+  }[];
+  
+  // OPIS BIZNESU
+  year_established?: number;
+  employee_count_range?: '1' | '2-9' | '10-49' | '50-249' | '250+';
+  description_short?: string;     // 1-2 zdania
+  description_full?: string;      // Pełny opis
+  
+  // CERTYFIKATY I WYRÓŻNIENIA
+  certifications?: string[];      // ISO, HACCP, etc.
+  awards?: {
+    name: string;
+    year?: number;
+    issuer?: string;
+  }[];
+  
+  // PŁATNOŚCI
+  payment_methods: ('cash' | 'card' | 'transfer' | 'blik' | 'voucher')[];
+  
+  // DOSTĘPNOŚĆ
+  accessibility?: {
+    wheelchair_accessible: boolean;
+    wheelchair_toilet: boolean;
+    parking_available: boolean;
+    parking_private: boolean;
+  };
+  
+  // JĘZYKI
+  languages_spoken?: string[];    // pl, en, de, uk, etc.
+  
+  // GALERIA I LOGO
+  logo?: ImageData;
+  photos?: ImageData[];
+  
+  // OCENY I RECENZJE
+  rating?: {
+    average: number;              // 1-5
+    count: number;
+    source: 'internal' | 'google' | 'facebook' | 'combined';
+  };
+  
+  // STATUS WERYFIKACJI
+  verification_status: 'unverified' | 'pending' | 'verified' | 'premium';
+  verified_by?: string;           // Kto zweryfikował
+  verified_at?: string;           // Kiedy zweryfikowano
+  
+  // WYRÓŻNIENIA
+  is_premium: boolean;            // Płatne wyróżnienie
+  premium_until?: string;         // Data końca wyróżnienia
+  is_recommended: boolean;        // Polecane przez redakcję
+}
+```
+
+**Schemat SQL - tabela `businesses`:**
+
+```sql
+CREATE TABLE tenant_${domain}.businesses (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  
+  -- Podstawowe pola (dziedziczone z posts)
+  content_type VARCHAR(20) DEFAULT 'business',
+  title VARCHAR(200) NOT NULL,   -- Nazwa firmy
+  slug VARCHAR(220) NOT NULL UNIQUE,
+  excerpt TEXT,                  -- Krótki opis
+  content_html TEXT,             -- Pełny opis
+  
+  -- Identyfikacja
+  tax_id VARCHAR(10),            -- NIP
+  regon VARCHAR(14),             -- REGON
+  krs_number VARCHAR(20),
+  company_type VARCHAR(30),
+  
+  -- Kontakt (znormalizowany)
+  contact JSONB NOT NULL,
+  
+  -- Adresy (array)
+  addresses JSONB[] NOT NULL,
+  
+  -- Klasyfikacja
+  pkd_codes JSONB[],
+  business_categories JSONB NOT NULL,
+  
+  -- Godziny otwarcia
+  opening_hours JSONB,
+  
+  -- Oferta
+  services JSONB[],
+  products JSONB[],
+  
+  -- Metadane
+  year_established INTEGER,
+  employee_count_range VARCHAR(10),
+  certifications TEXT[],
+  payment_methods TEXT[],
+  languages_spoken TEXT[],
+  
+  -- Media
+  logo JSONB,
+  photos JSONB[],
+  
+  -- Statusy
+  verification_status VARCHAR(20) DEFAULT 'unverified',
+  is_premium BOOLEAN DEFAULT false,
+  is_recommended BOOLEAN DEFAULT false,
+  premium_until TIMESTAMP WITH TIME ZONE,
+  
+  -- Statystyki
+  view_count INTEGER DEFAULT 0,
+  rating_average DECIMAL(2,1),
+  rating_count INTEGER DEFAULT 0,
+  
+  -- Zarządzanie
+  status VARCHAR(20) DEFAULT 'draft',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  
+  -- Indeksy
+  CONSTRAINT valid_nip CHECK (tax_id IS NULL OR tax_id ~ '^\d{10}$'),
+  CONSTRAINT valid_rating CHECK (rating_average IS NULL OR (rating_average >= 1 AND rating_average <= 5))
+);
+
+-- Indeksy dla wyszukiwania firm
+CREATE INDEX idx_businesses_type ON tenant_${domain}.businesses(company_type);
+CREATE INDEX idx_businesses_premium ON tenant_${domain}.businesses(is_premium) WHERE is_premium = true;
+CREATE INDEX idx_businesses_verified ON tenant_${domain}.businesses(verification_status);
+CREATE INDEX idx_businesses_categories ON tenant_${domain}.businesses USING GIN(business_categories);
+CREATE INDEX idx_businesses_pkd ON tenant_${domain}.businesses USING GIN(pkd_codes);
+CREATE INDEX idx_businesses_coords ON tenant_${domain}.businesses 
+  USING gin((array_agg((a->>'coordinates')::jsonb))::text[]);
+```
+
+**Kategorie biznesowe (słownik):**
+
+```typescript
+const BUSINESS_CATEGORIES = {
+  gastronomia: {
+    icon: 'utensils',
+    subcategories: {
+      restauracje: ['kuchnia_polska', 'kuchnia_wloska', 'kuchnia_azjatycka', 'kuchnia_grill', 'fine_dining'],
+      kawiarnie: ['cafe', 'coffee_shop', 'kawiarnia_ksiegarnia'],
+      bary: ['bar', 'pub', 'cocktail_bar', 'wine_bar'],
+      fast_food: ['kebab', 'burger', 'pizza', 'zapiekanki'],
+      cukiernie: ['piekarnia', 'ciastkarnia', 'lodziarnia']
+    }
+  },
+  handel: {
+    icon: 'shopping-cart',
+    subcategories: {
+      sklepy_spozywcze: ['supermarket', 'delikatesy', 'sklep_spozywczy', 'warzywniak'],
+      odziez: ['boutique', 'sklep_odziezowy', 'second_hand', 'galeria'],
+      elektronika: ['rtv_agd', 'komputery', 'telefony'],
+      ksiazki: ['ksiegarnia', 'antykwariat'],
+      chemia: ['drogeria', 'apteka', 'sklep_chemiczny']
+    }
+  },
+  uslugi: {
+    icon: 'wrench',
+    subcategories: {
+      motoryzacja: ['warsztat', 'myjnia', 'wulkanizacja', 'stacja_paliw'],
+      budowlane: ['remonty', 'hydraulik', 'elektryk', 'murarz'],
+      beauty: ['fryzjer', 'kosmetyczka', 'salon_paznokci', 'spa'],
+      zdrowie: ['lekarz', 'dentysta', 'fizjoterapeuta', 'psycholog'],
+      finansowe: ['ksiegowa', 'ubezpieczenia', 'kredyty', 'biuro_rachunkowe'],
+      prawne: ['kancelaria', 'notariusz', 'radca_prawny', 'adwokat'],
+      it: ['serwis_komputerowy', 'tworzenie_stron', 'marketing']
+    }
+  },
+  rozrywka: {
+    icon: 'gamepad',
+    subcategories: {
+      kultura: ['kino', 'teatr', 'muzeum', 'galeria'],
+      sport: ['silownia', 'basen', 'klub_sportowy', 'korty'],
+      rozrywka: ['kręgielnia', 'escape_room', 'gokarty', 'park_rozrywki']
+    }
+  },
+  edukacja: {
+    icon: 'graduation-cap',
+    subcategories: {
+      szkoly: ['przedszkole', 'szkola_podstawowa', 'liceum', 'technikum'],
+      kursy: ['jezykowe', 'muzyczne', 'tance', 'sztuki_walki'],
+      szkolenia: ['zawodowe', 'komputerowe', 'biznesowe']
+    }
+  },
+  noclegi: {
+    icon: 'bed',
+    subcategories: {
+      hotele: ['hotel', 'pensjonat', 'motel'],
+      inne: ['hostel', 'apartament', 'kwatery', 'airbnb']
+    }
+  },
+  transport: {
+    icon: 'car',
+    subcategories: {
+      publiczny: ['przewoz_osobowy', 'taxi', 'uber'],
+      logistyka: ['kurier', 'przeprowadzki', 'transport_ciezki']
+    }
+  }
+};
+```
+
+---
+
+#### 20.2.5 OGŁOSZENIA DROBNE (classified)
+
+Ogłoszenia od użytkowników - kupię, sprzedam, zamienię.
+
+```typescript
+interface ClassifiedMetadata {
+  // TYP TRANSAKCJI
+  transaction_type: 'sell' | 'buy' | 'exchange' | 'giveaway' | 'rent';
+  
+  // KATEGORIA
+  category: 
+    | 'electronics' | 'automotive' | 'real_estate' | 'furniture' 
+    | 'clothing' | 'books' | 'sports' | 'toys' | 'tools' 
+    | 'animals' | 'services' | 'other';
+  
+  // STAN PRZEDMIOTU
+  condition: 'new' | 'like_new' | 'good' | 'acceptable' | 'for_parts';
+  
+  // CENA
+  price: {
+    amount: number;
+    currency: string;             // PLN, EUR, USD
+    is_negotiable: boolean;
+    is_free: boolean;
+  };
+  
+  // Lokalizacja odbioru
+  pickup_location: {
+    address?: string;
+    city_district?: string;
+    coordinates?: { lat: number; lng: number };
+    is_pickup_only: boolean;      // Tylko odbiór osobisty
+    can_deliver: boolean;         // Możliwość dostawy
+    can_ship: boolean;            // Możliwość wysyłki
+  };
+  
+  // DANE SPRZEDAJĄCEGO
+  seller: {
+    name: string;
+    phone?: string;
+    email?: string;
+    is_private: boolean;          // true = osoba prywatna, false = firma
+    show_phone: boolean;          // Czy pokazywać numer publicznie
+  };
+  
+  // PARAMETRY SPECJALIZOWANE
+  // Dla elektroniki
+  electronics_params?: {
+    brand?: string;
+    model?: string;
+    year?: number;
+    warranty?: boolean;
+  };
+  
+  // Dla motoryzacji
+  automotive_params?: {
+    make?: string;
+    model?: string;
+    year?: number;
+    mileage?: number;
+    fuel_type?: 'petrol' | 'diesel' | 'electric' | 'hybrid' | 'lpg';
+    engine_size?: number;
+    power_kw?: number;
+  };
+  
+  // Dla nieruchomości
+  real_estate_params?: {
+    property_type: 'apartment' | 'house' | 'room' | 'land' | 'garage';
+    area_m2: number;
+    rooms_count?: number;
+    floor?: number;
+    total_floors?: number;
+    construction_year?: number;
+    heating_type?: string;
+  };
+  
+  // DATA WAŻNOŚCI
+  expires_at: string;             // Auto-usunięcie po 30/60/90 dniach
+  auto_renew: boolean;            // Czy auto-odnawiać
+  
+  // STATYSTYKI
+  view_count: number;
+  contact_count: number;          // Ile razy ktoś kliknął "pokaż telefon"
+}
+```
+
+---
+
+#### 20.2.6 PRACA (job)
+
+Oferty pracy - struktura zgodna ze standardami pracuj.pl/OLX.
+
+```typescript
+interface JobMetadata {
+  // DANE STANOWISKA
+  position_title: string;         // Stanowisko (np. "Programista Java")
+  position_level: 'entry' | 'junior' | 'mid' | 'senior' | 'manager' | 'director' | 'executive';
+  
+  // PRACODAWCA
+  employer: {
+    name: string;
+    company_id?: string;          // FK do businesses
+    is_agency: boolean;           // Czy to agencja pracy
+    logo?: ImageData;
+    website?: string;
+  };
+  
+  // LOKALIZACJA
+  location: {
+    type: 'stationary' | 'remote' | 'hybrid';
+    city?: string;
+    address?: string;
+    remote_percentage?: number;   // % pracy zdalnej (dla hybrid)
+  };
+  
+  // WYNAGRODZENIE
+  salary: {
+    is_disclosed: boolean;
+    from?: number;
+    to?: number;
+    currency: string;
+    period: 'hour' | 'day' | 'week' | 'month' | 'year';
+    type: 'gross' | 'net';
+    has_bonus: boolean;
+    has_commission: boolean;
+  };
+  
+  // WYMAGANIA
+  requirements: {
+    experience_years?: number;    // Lata doświadczenia
+    education_level?: 'none' | 'primary' | 'vocational' | 'secondary' | 'bachelor' | 'master' | 'phd';
+    languages: {
+      language: string;
+      level: 'basic' | 'conversational' | 'fluent' | 'native';
+    }[];
+    skills: string[];             // Wymagane umiejętności
+    nice_to_have: string[];       // Mile widziane
+    certificates?: string[];      // Wymagane certyfikaty
+    drivers_license?: boolean;
+    drivers_license_categories?: string[]; // A, B, C, D
+    travel_willingness?: boolean;
+    availability?: 'immediate' | 'two_weeks' | 'month' | 'negotiable';
+  };
+  
+  // OFERUJEMY
+  benefits: {
+    contract_type: 'uop' | 'b2b' | 'uz' | 'uod' | 'internship' | 'other'; // Umowa o pracę, B2B, etc.
+    employment_type: 'full_time' | 'part_time' | 'temporary' | 'seasonal';
+    working_hours?: string;       // np. "8:00-16:00" lub "elastyczne"
+    benefits_list: string[];      // Lista benefitów
+    perks?: {
+      medical_care?: boolean;
+      dental_care?: boolean;
+      multisport?: boolean;
+      remote_work?: boolean;
+      flexible_hours?: boolean;
+      training_budget?: boolean;
+      parking?: boolean;
+      meals?: boolean;
+      phone?: boolean;
+      laptop?: boolean;
+    };
+  };
+  
+  // ZAKRES OBOWIĄZKÓW
+  responsibilities: string[];     // Lista obowiązków
+  
+  // PROCES REKRUTACJI
+  recruitment: {
+    stages_count?: number;        // Ile etapów rekrutacji
+    response_time_days?: number;  // Czas odpowiedzi
+    contact_person?: string;
+    contact_email?: string;
+    contact_phone?: string;
+    application_url?: string;     // Zewnętrzny formularz
+  };
+  
+  // DATA WAŻNOŚCI
+  expires_at: string;
+  is_featured: boolean;           // Wyróżniona oferta
+  
+  // STATYSTYKI
+  view_count: number;
+  application_count: number;
+}
+```
+
+**Schemat SQL - tabela `jobs`:**
+
+```sql
+CREATE TABLE tenant_${domain}.jobs (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  
+  -- Podstawowe
+  content_type VARCHAR(20) DEFAULT 'job',
+  title VARCHAR(200) NOT NULL,   -- Tytuł ogłoszenia
+  slug VARCHAR(220) NOT NULL UNIQUE,
+  excerpt TEXT,                  -- Krótki opis
+  content_html TEXT,             -- Pełny opis
+  
+  -- Metadane pracy
+  position_title VARCHAR(100) NOT NULL,
+  position_level VARCHAR(20),
+  
+  -- Pracodawca
+  employer JSONB NOT NULL,
+  employer_company_id UUID REFERENCES tenant_${domain}.businesses(id),
+  
+  -- Lokalizacja
+  location JSONB NOT NULL,
+  
+  -- Wynagrodzenie
+  salary JSONB,
+  
+  -- Wymagania i oferta
+  requirements JSONB,
+  benefits JSONB NOT NULL,
+  responsibilities TEXT[],
+  
+  -- Rekrutacja
+  recruitment JSONB,
+  
+  -- Statusy
+  status VARCHAR(20) DEFAULT 'published',
+  expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  is_featured BOOLEAN DEFAULT false,
+  
+  -- Statystyki
+  view_count INTEGER DEFAULT 0,
+  application_count INTEGER DEFAULT 0,
+  
+  -- Czas
+  published_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  
+  -- Indeksy
+  CONSTRAINT valid_expiry CHECK (expires_at > created_at)
+);
+
+-- Indeksy dla wyszukiwania pracy
+CREATE INDEX idx_jobs_level ON tenant_${domain}.jobs(position_level);
+CREATE INDEX idx_jobs_featured ON tenant_${domain}.jobs(is_featured);
+CREATE INDEX idx_jobs_expires ON tenant_${domain}.jobs(expires_at);
+CREATE INDEX idx_jobs_location ON tenant_${domain}.jobs USING GIN(location);
+CREATE INDEX idx_jobs_salary ON tenant_${domain}.jobs USING GIN(salary);
+```
+
+---
+
+#### 20.2.7 NEKROLOGI (obituary)
+
+Wymagają specyficznego, wrażliwego podejścia.
+
+```typescript
+interface ObituaryMetadata {
+  // DANE ZMARŁEGO
+  deceased: {
+    full_name: string;
+    maiden_name?: string;         // Nazwisko panieńskie
+    birth_date: string;
+    death_date: string;
+    age_at_death: number;
+    birth_place?: string;
+    death_place?: string;
+    
+    // Życiorys
+    occupation?: string;          // Zawód
+    family_info?: string;         // Informacja o rodzinie
+    achievements?: string;        // Osiągnięcia życiowe
+  };
+  
+  // CEREMONIA POGRZEBOWA
+  funeral: {
+    date: string;
+    time: string;
+    location: string;             // Miejsce (np. "Kościół św. Katarzyny")
+    address?: string;
+    coordinates?: { lat: number; lng: number };
+    burial_place?: string;        // Miejsce pochówku
+    burial_coordinates?: { lat: number; lng: number };
+    
+    // Szczegóły
+    is_cremation: boolean;        // Czy kremacja
+    funeral_home?: string;        // Dom pogrzebowy
+    funeral_home_phone?: string;
+    
+    // Oględziny
+    viewing?: {
+      date: string;
+      time_from: string;
+      time_to: string;
+      location: string;
+    };
+  };
+  
+  // KONDOLENCJE
+  condolences: {
+    enabled: boolean;
+    online_book?: boolean;        // Księga kondolencyjna online
+    flowers_enabled: boolean;     // Można składać kwiaty
+    donations_enabled: boolean;   // Zamiast kwiatów - darowizny
+    donation_recipient?: string;  // Dla kogo darowizna
+  };
+  
+  // ZNICZE (wirtualne)
+  virtual_candles: {
+    enabled: boolean;
+    count: number;
+    last_24h: number;
+  };
+  
+  // ZDJĘCIE
+  photo?: ImageData;              // Zdjęcie zmarłego
+  photo_caption?: string;
+  
+  // NOTATKA REDAKCYJNA
+  editor_note?: string;           // Wspomnienie redakcyjne (opcjonalne)
+  
+  // ZGŁASZAJĄCY
+  submitted_by: {
+    name: string;
+    relationship: string;         // Pokrewieństwo ze zmarłym
+    phone?: string;
+    email?: string;
+  };
+  
+  // STATUS PUBLIKACJI
+  is_premium: boolean;            // Wyróżniony nekrolog
+  premium_until?: string;
+  
+  // WAŻNOŚĆ (auto-archiwizacja)
+  display_until: string;          // Domyślnie 30 dni od śmierci
+}
+```
+
+**Schemat SQL - tabela `obituaries`:**
+
+```sql
+CREATE TABLE tenant_${domain}.obituaries (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  
+  -- Podstawowe
+  content_type VARCHAR(20) DEFAULT 'obituary',
+  title VARCHAR(200) NOT NULL,   -- "Odszedł Jan Kowalski"
+  slug VARCHAR(220) NOT NULL UNIQUE,
+  excerpt TEXT,                  -- Krótkie podsumowanie
+  content_html TEXT,             -- Pełny nekrolog
+  
+  -- Dane zmarłego
+  deceased JSONB NOT NULL,
+  
+  -- Ceremonia
+  funeral JSONB NOT NULL,
+  
+  -- Opcje kondolencji
+  condolences JSONB,
+  virtual_candles_enabled BOOLEAN DEFAULT true,
+  virtual_candles_count INTEGER DEFAULT 0,
+  
+  -- Media
+  photo JSONB,
+  editor_note TEXT,
+  
+  -- Zgłaszający
+  submitted_by JSONB NOT NULL,
+  
+  -- Status
+  status VARCHAR(20) DEFAULT 'pending_review', -- Wymaga weryfikacji przed publikacją
+  is_premium BOOLEAN DEFAULT false,
+  display_until TIMESTAMP WITH TIME ZONE NOT NULL,
+  
+  -- Czas
+  published_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  
+  -- Indeksy
+  CONSTRAINT valid_display CHECK (display_until > created_at)
+);
+
+-- Indeksy
+CREATE INDEX idx_obituaries_dates ON tenant_${domain}.obituaries(death_date DESC);
+CREATE INDEX idx_obituaries_display ON tenant_${domain}.obituaries(display_until);
+CREATE INDEX idx_obituaries_premium ON tenant_${domain}.obituaries(is_premium);
+```
+
+---
+
+#### 20.2.8 POGODA (weather)
+
+Pogoda nie jest CPT w tradycyjnym sensie - to dane z zewnętrznego API.
+
+```typescript
+interface WeatherData {
+  // META
+  location: {
+    city: string;
+    coordinates: { lat: number; lng: number };
+    timezone: string;
+  };
+  
+  // AKTUALNA
+  current: {
+    timestamp: string;
+    temperature: number;          // °C
+    feels_like: number;           // Odczuwalna
+    humidity: number;             // %
+    pressure: number;             // hPa
+    wind_speed: number;           // km/h
+    wind_direction: number;       // Stopnie (0-360)
+    visibility: number;           // km
+    uv_index: number;
+    condition: string;            // sunny, cloudy, rainy, snowy, etc.
+    condition_icon: string;       // Kod ikony
+    precipitation_chance: number; // %
+    precipitation_amount: number; // mm
+  };
+  
+  // PROGNOZA GODZINOWA (24h)
+  hourly: {
+    timestamp: string;
+    temperature: number;
+    condition: string;
+    precipitation_chance: number;
+  }[];
+  
+  // PROGNOZA DZIENNA (5-7 dni)
+  daily: {
+    date: string;
+    temp_min: number;
+    temp_max: number;
+    temp_avg: number;
+    condition: string;
+    condition_icon: string;
+    precipitation_chance: number;
+    precipitation_amount: number;
+    wind_speed: number;
+    sunrise: string;
+    sunset: string;
+    moon_phase?: string;
+  }[];
+  
+  // ALERTY
+  alerts?: {
+    type: 'storm' | 'frost' | 'heat' | 'wind' | 'fog' | 'other';
+    severity: 'minor' | 'moderate' | 'severe' | 'extreme';
+    title: string;
+    description: string;
+    start: string;
+    end: string;
+  }[];
+  
+  // JAKOŚĆ POWIETRZA
+  air_quality?: {
+    aqi: number;                  // 0-500
+    pm25: number;
+    pm10: number;
+    o3: number;
+    no2: number;
+    so2: number;
+    co: number;
+    quality_label: 'good' | 'moderate' | 'unhealthy_sensitive' | 'unhealthy' | 'very_unhealthy' | 'hazardous';
+    health_recommendation?: string;
+  };
+  
+  // CZAS POBRANIA
+  fetched_at: string;
+  next_update_at: string;
+}
+```
+
+**Schemat SQL - tabela `weather_cache`:**
+
+```sql
+CREATE TABLE tenant_${domain}.weather_cache (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  domain_id UUID REFERENCES public.domains(id),
+  
+  -- Lokalizacja
+  location JSONB NOT NULL,
+  
+  -- Dane
+  current JSONB NOT NULL,
+  hourly JSONB[],
+  daily JSONB[],
+  alerts JSONB[],
+  air_quality JSONB,
+  
+  -- Czas
+  fetched_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  next_update_at TIMESTAMP WITH TIME ZONE,
+  expires_at TIMESTAMP WITH TIME ZONE, -- Czas ważności cache
+  
+  -- Unikalność per domena
+  UNIQUE(domain_id)
+);
+
+-- Auto-czyszczenie starego cache
+CREATE INDEX idx_weather_expires ON tenant_${domain}.weather_cache(expires_at);
+```
+
+---
+
+### 20.3 Mapowanie Pól dla Scraperów
+
+Każdy scraper musi mapować dane ze źródła do formatu `NormalizedContent`.
+
+#### 20.3.1 Przykład: Policja Toruń → NormalizedContent
+
+```typescript
+// Konfiguracja mapowania
+const POLICE_TORUN_MAPPING = {
+  // Identyfikacja
+  external_id: {
+    selector: '.news-id',
+    transform: (val) => `policja_torun_${val}`
+  },
+  
+  // Treść
+  title: {
+    selector: 'h1.news-title',
+    transform: (val) => val.trim()
+  },
+  
+  content_html: {
+    selector: '.news-content',
+    transform: (val) => cleanHtml(val) // Usuwa skrypty, style
+  },
+  
+  // Czas
+  published_at: {
+    selector: '.news-date',
+    transform: (val) => {
+      // Format: "12.02.2025 r."
+      const [day, month, year] = val.match(/(\d{2})\.(\d{2})\.(\d{4})/);
+      return `${year}-${month}-${day}T08:00:00Z`; // Domyślnie 8:00 rano
+    }
+  },
+  
+  // Metadane policyjne (parsowanie z treści)
+  metadata: {
+    incident_type: {
+      from_content: true,
+      patterns: [
+        { regex: /włamanie/i, value: 'burglary' },
+        { regex: /kradzież pojazdu/i, value: 'theft' },
+        { regex: /kolizja|wypadek drogowy/i, value: 'accident' },
+        { regex: /poszukujemy|zaginął/i, value: 'missing_person' },
+        { regex: /jazda pod wpływem|pijan/i, value: 'dui' },
+      ],
+      default: 'other'
+    },
+    
+    incident_location: {
+      from_content: true,
+      pattern: /w (?:miejscowości|mieście|ulicy|ul\.?) ([A-Za-ząćęłńóśźżĄĆĘŁŃÓŚŹŻ\s\.]+)/i,
+      transform: (match) => ({
+        address: match[1].trim(),
+        description: match[0]
+      })
+    },
+    
+    incident_date: {
+      from_content: true,
+      pattern: /w dniu (\d{1,2})[\s\.](\w+|\d{2})[\s\.]?(\d{4})?/i,
+      transform: (match, context) => {
+        const day = match[1].padStart(2, '0');
+        const month = parsePolishMonth(match[2]);
+        const year = match[3] || context.published_at.substring(0, 4);
+        return `${year}-${month}-${day}`;
+      }
+    },
+    
+    case_status: {
+      static: 'investigating'
+    }
+  },
+  
+  // Kategoria automatyczna
+  category: {
+    static: 'bezpieczenstwo'
+  },
+  
+  // Tagi (auto-generowane z treści)
+  tags: {
+    from_content: true,
+    keywords: ['policja', 'bezpieczeństwo', 'zdarzenie']
+  }
+};
+```
+
+---
+
+#### 20.3.2 Przykład: Urząd Miasta → NormalizedContent
+
+```typescript
+const CITY_OFFICE_MAPPING = {
+  external_id: {
+    selector: 'meta[name="article-id"]',
+    attribute: 'content'
+  },
+  
+  title: {
+    selector: '.article-header h1'
+  },
+  
+  content_html: {
+    selector: '.article-body'
+  },
+  
+  published_at: {
+    selector: 'time[datetime]',
+    attribute: 'datetime'
+  },
+  
+  // Mapowanie kategorii na podstawie URL/sekcji
+  category: {
+    from_url: true,
+    mapping: {
+      '/kultura/': 'kultura',
+      '/sport/': 'sport',
+      '/inwestycje/': 'inwestycje',
+      '/komunikacja/': 'komunikacja',
+      '/edukacja/': 'edukacja',
+      '/zdjecia/': 'galeria',
+      '/filmy/': 'wideo'
+    }
+  },
+  
+  // Metadane dla galerii
+  metadata: {
+    news_type: {
+      from_url: true,
+      pattern: /\/zdjecia\//,
+      value: 'gallery',
+      default: 'local'
+    },
+    
+    // Galeria zdjęć
+    gallery: {
+      selector: '.gallery-item img',
+      multiple: true,
+      transform: (elements) => elements.map(img => ({
+        url: img.src,
+        alt: img.alt,
+        width: img.width,
+        height: img.height
+      }))
+    }
+  }
+};
+```
+
+---
+
+#### 20.3.3 Przykład: OLX/Facebook (Firmy) → BusinessMetadata
+
+```typescript
+const OLX_BUSINESS_MAPPING = {
+  // Podstawowe
+  title: {
+    selector: 'h1[data-cy="ad_title"]'
+  },
+  
+  excerpt: {
+    selector: '[data-cy="ad_description"]',
+    max_length: 500
+  },
+  
+  // Kontakt
+  metadata: {
+    contact: {
+      phones: {
+        selector: '[data-cy="phone-number"]',
+        multiple: true
+      },
+      emails: {
+        selector: 'a[href^="mailto:"]',
+        attribute: 'href',
+        transform: (val) => val.replace('mailto:', '')
+      }
+    },
+    
+    // Lokalizacja
+    addresses: {
+      selector: '[data-cy="ad-location"]',
+      transform: (val) => [{
+        type: 'main',
+        street: val,
+        city: context.city, // Z kontekstu scrapera
+        is_primary: true
+      }]
+    },
+    
+    // Kategorie (mapowanie z OLX do naszych)
+    business_categories: {
+      selector: '[data-cy="category-path"] a',
+      multiple: true,
+      transform: (categories) => mapOlxToOurCategories(categories)
+    },
+    
+    // Godziny (jeśli podane w opisie)
+    opening_hours: {
+      from_description: true,
+      pattern: /(pon|wt|śr|czw|pt|sob|nd):?\s*(\d{1,2}[:\.]?\d{2})?\s*-\s*(\d{1,2}[:\.]?\d{2})/gi
+    },
+    
+    verification_status: {
+      static: 'unverified'
+    }
+  }
+};
+```
+
+---
+
+### 20.4 Normalizacja i Walidacja Danych
+
+Wszystkie dane przed zapisem do DB muszą przejść normalizację:
+
+```typescript
+// Normalizacja tekstu
+function normalizeText(text: string): string {
+  return text
+    .replace(/\s+/g, ' ')          // Wielokrotne spacje -> jedna
+    .replace(/[\u2018\u2019]/g, "'") // Znaki typograficzne
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u2013\u2014]/g, '-')
+    .trim();
+}
+
+// Normalizacja adresu
+function normalizeAddress(address: string): { street: string; number: string } {
+  // Usuń zbędne spacje przy numerze
+  const cleaned = address
+    .replace(/\s+(\d)/, ' $1')     // "ul. Szeroka24" -> "ul. Szeroka 24"
+    .replace(/(\d)\s*\/\s*(\d)/, '$1/$2'); // "24 / 5" -> "24/5"
+  
+  // Rozdziel nazwę ulicy i numer
+  const match = cleaned.match(/^(.+?)\s+(\d+[\w\/]*)$/);
+  if (match) {
+    return { street: match[1].trim(), number: match[2] };
+  }
+  return { street: cleaned, number: '' };
+}
+
+// Normalizacja telefonu
+function normalizePhone(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length === 9) {
+    return digits.replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3');
+  }
+  return phone;
+}
+
+// Walidacja NIP
+function validateNIP(nip: string): boolean {
+  const digits = nip.replace(/\D/g, '');
+  if (digits.length !== 10) return false;
+  
+  const weights = [6, 5, 7, 2, 3, 4, 5, 6, 7];
+  const checksum = digits.split('').slice(0, 9)
+    .reduce((sum, digit, i) => sum + parseInt(digit) * weights[i], 0);
+  
+  return (checksum % 11) === parseInt(digits[9]);
+}
+
+// Walidacja REGON
+function validateREGON(regon: string): boolean {
+  const digits = regon.replace(/\D/g, '');
+  if (digits.length !== 9 && digits.length !== 14) return false;
+  
+  const weights9 = [8, 9, 2, 3, 4, 5, 6, 7];
+  const checksum = digits.split('').slice(0, 8)
+    .reduce((sum, digit, i) => sum + parseInt(digit) * weights9[i], 0);
+  
+  return (checksum % 11) % 10 === parseInt(digits[8]);
+}
+```
+
+---
+
+### 20.5 Jednolity Pipeline Przetwarzania
+
+```mermaid
+flowchart LR
+    subgraph Input["Źródło Danych"]
+        SRC1[policja.gov.pl]
+        SRC2[torun.pl]
+        SRC3[OLX]
+        SRC4[Facebook]
+    end
+    
+    subgraph Processing["Przetwarzanie"]
+        FETCH[1. Pobranie HTML]
+        PARSE[2. Parsowanie]
+        MAP[3. Mapowanie pól]
+        NORM[4. Normalizacja]
+        VALID[5. Walidacja]
+    end
+    
+    subgraph Output["Format Wyjściowy"]
+        NORM_CONTENT[NormalizedContent]
+    end
+    
+    subgraph Storage["Zapis"]
+        DB[(PostgreSQL)]
+    end
+    
+    SRC1 --> FETCH
+    SRC2 --> FETCH
+    SRC3 --> FETCH
+    SRC4 --> FETCH
+    
+    FETCH --> PARSE
+    PARSE --> MAP
+    MAP --> NORM
+    NORM --> VALID
+    VALID -->|Valid| NORM_CONTENT
+    VALID -->|Invalid| ERROR[Log błędu]
+    
+    NORM_CONTENT --> DB
+```
+
+**Kod pipeline:**
+
+```typescript
+class ContentProcessingPipeline {
+  async process(
+    html: string, 
+    sourceConfig: SourceMappingConfig
+  ): Promise<NormalizedContent> {
+    
+    // 1. Parsowanie
+    const $ = cheerio.load(html);
+    
+    // 2. Ekstrakcja surowych danych
+    const rawData = this.extractFields($, sourceConfig);
+    
+    // 3. Mapowanie do NormalizedContent
+    const mapped = this.mapToNormalized(rawData, sourceConfig);
+    
+    // 4. Normalizacja
+    const normalized = this.normalize(mapped);
+    
+    // 5. Walidacja
+    const validation = this.validate(normalized);
+    if (!validation.valid) {
+      throw new ValidationError(validation.errors);
+    }
+    
+    // 6. Generowanie slug
+    normalized.slug = this.generateSlug(normalized.title);
+    
+    // 7. Ekstrakcja plain text z HTML
+    normalized.content_text = this.htmlToText(normalized.content_html);
+    
+    // 8. Timestamp
+    normalized.scraped_at = new Date().toISOString();
+    
+    return normalized;
+  }
+  
+  private extractFields($: cheerio.Root, config: SourceMappingConfig): any {
+    const result = {};
+    
+    for (const [field, mapping] of Object.entries(config)) {
+      if (mapping.static) {
+        result[field] = mapping.static;
+      } else if (mapping.selector) {
+        const el = $(mapping.selector);
+        const value = mapping.attribute 
+          ? el.attr(mapping.attribute)
+          : el.text();
+        result[field] = mapping.transform 
+          ? mapping.transform(value) 
+          : value;
+      }
+    }
+    
+    return result;
+  }
+  
+  private normalize(content: NormalizedContent): NormalizedContent {
+    return {
+      ...content,
+      title: normalizeText(content.title),
+      content_html: this.sanitizeHtml(content.content_html),
+      tags: content.tags.map(t => t.toLowerCase().trim()),
+      // ... inne normalizacje
+    };
+  }
+  
+  private validate(content: NormalizedContent): ValidationResult {
+    const errors = [];
+    
+    if (!content.title || content.title.length < 5) {
+      errors.push('Tytuł za krótki');
+    }
+    
+    if (!content.content_html || content.content_html.length < 50) {
+      errors.push('Treść za krótka');
+    }
+    
+    if (!content.published_at) {
+      errors.push('Brak daty publikacji');
+    }
+    
+    return {
+      valid: errors.length === 0,
+      errors
+    };
+  }
+  
+  private generateSlug(title: string): string {
+    return title
+      .toLowerCase()
+      .replace(/[ąćęłńóśźż]/g, c => ({ą:'a',ć:'c',ę:'e',ł:'l',ń:'n',ó:'o',ś:'s',ź:'z',ż:'z'})[c])
+      .replace(/[^\w\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .substring(0, 220);
+  }
+}
+```
+
+---
+
+### 20.6 Zadania Implementacyjne dla Webdev
+
+| # | Zadanie | Szacowanie | Priorytet |
+|---|---------|-----------|-----------|
+| 20.1 | Implementacja klasy `ContentProcessingPipeline` | 8h | Krytyczny |
+| 20.2 | Implementacja normalizatorów (tekst, adres, telefon) | 4h | Krytyczny |
+| 20.3 | Implementacja walidatorów (NIP, REGON, email) | 3h | Krytyczny |
+| 20.4 | Konfiguracja mapowania dla Policji Toruń | 4h | Wysoki |
+| 20.5 | Konfiguracja mapowania dla Urzędu Miasta | 4h | Wysoki |
+| 20.6 | Konfiguracja mapowania dla OLX (firmy) | 6h | Średni |
+| 20.7 | Konfiguracja mapowania dla Facebook (firmy) | 6h | Średni |
+| 20.8 | Implementacja tabeli `posts` z JSONB metadata | 3h | Krytyczny |
+| 20.9 | Implementacja tabeli `businesses` | 4h | Wysoki |
+| 20.10 | Implementacja tabeli `jobs` | 3h | Wysoki |
+| 20.11 | Implementacja tabeli `obituaries` | 3h | Średni |
+| 20.12 | Implementacja tabeli `weather_cache` | 2h | Średni |
+| 20.13 | Migracja istniejących danych do nowego formatu | 6h | Niski |
+| 20.14 | Testy jednostkowe dla pipeline | 6h | Wysoki |
+| 20.15 | Dokumentacja API dla NormalizedContent | 3h | Średni |
+
+---
+
+**KONIEC SEKCJI 20**
 
