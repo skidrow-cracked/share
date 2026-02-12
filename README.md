@@ -27,6 +27,9 @@
 14. [Deployment i Dodawanie Nowych Portali](#14-deployment-i-dodawanie-nowych-portali)
 15. [Wdrożenie - Plan Etapowy](#15-wdrożenie---plan-etapowy)
 16. [Bezpieczeństwo](#16-bezpieczeństwo)
+17. [Moduł Piłki Nożnej ⚽](#17-moduł-piłki-nożnej-)
+18. [Moduł Gazetek Promocyjnych 🛍️](#18-moduł-gazetek-promocyjnych-)
+19. [Moduł Sławnych Osób ⭐](#19-moduł-sławnych-osób-urodzonych-w-mieście-)
 
 ---
 
@@ -1730,15 +1733,15 @@ graph LR
 | Etap | Czas | Główne Zadania | Dostarczalne |
 |------|------|----------------|--------------|
 | **Etap 1** | 2 tyg | Infrastruktura | Hosting, PostgreSQL, Redis, RabbitMQ, SSL |
-| **Etap 2** | 2 tyg | Baza Danych + API | Schematy SQL, API centralne, Auth, RBAC |
-| **Etap 3** | 3 tyg | Panel Centralny | Next.js, Dashboard, Zarządzanie domenami, Użytkownicy |
-| **Etap 4** | 2 tyg | Scraping | Python workers, RabbitMQ, Parsers dla zródeł |
-| **Etap 5** | 4 tyg | Frontend Serwisu | Next.js, Szablony, Komponenty, CPT views, SEO |
-| **Etap 6** | 2 tyg | Panel Serwisu | Edytor wpisów, Media library, Ustawienia |
-| **Etap 7** | 1 tydzień | Deployment | Skrypty automatyzacji, Testy, 4torun.pl live |
-| **Etap 8** | 1 tydzień | Dokumentacja | Dokumentacja techniczna, Szkolenia |
+| **Etap 2** | 2 tyg | Baza Danych + API | Schematy SQL, API centralne, Auth, RBAC, **Modele dla nowych modułów** |
+| **Etap 3** | 3 tyg | Panel Centralny | Next.js, Dashboard, Zarządzanie domenami, Użytkownicy, **Endpointy modułów** |
+| **Etap 4** | 2 tyg +1 | Scraping | Python workers, RabbitMQ, Parsers dla zródeł, **Sofascore, Blix.pl, Wikipedia** |
+| **Etap 5** | 4 tyg +2 | Frontend Serwisu | Next.js, Szablony, Komponenty, CPT views, SEO, **Sport, Gazetki, Sławni** |
+| **Etap 6** | 2 tyg +1 | Panel Serwisu | Edytor wpisów, Media library, Ustawienia, **Konfiguracja modułów** |
+| **Etap 7** | 1 tydzień | Deployment | Skrypty automatyzacji, Testy, 4torun.pl live, **Konfiguracja modułów** |
+| **Etap 8** | 1 tydzień | Dokumentacja | Dokumentacja techniczna, Szkolenia, **Dokumentacja modułów** |
 
-**RAZEM: 17 tygodni (4 miesiące)**
+**RAZEM: ~21 tygodni (5 miesięcy)** z nowymi modułami (17 tygodni bez)
 
 ### 15.3 Stack Technologiczny
 
@@ -1749,6 +1752,7 @@ graph LR
 | **Backend API** | Node.js + Express/Fastify | 20 LTS |
 | **ORM** | Prisma | latest |
 | **Scraping** | Python + aiohttp + BeautifulSoup | 3.11+ |
+| **AI Processing** | OpenAI GPT-4o API | latest |
 | **Database** | PostgreSQL | 15+ |
 | **Cache** | Redis | 7+ |
 | **Queue** | RabbitMQ | 3.12+ |
@@ -1897,6 +1901,22 @@ Szczegółowy podział prac dla zespołu deweloperskiego. Każdy task zawiera es
 | 3.14 | **Zarządzanie szablonami** | Frontend | 6h | Lista szablonów, edytor podstawowy, zastosowanie do wybranych domen | 3.2 |
 | 3.15 | **Obsługa błędów i toast notifications** | Frontend | 4h | Globalna obsługa błędów API, toast notifications działają, retry mechanism | Cały etap |
 | 3.16 | **Responsywność panelu** | Frontend | 6h | Panel działa poprawnie na tabletach i mobilnych (testowanie), menu dostosowane | Cały etap |
+| 3.17 | **Modele bazy football_teams** | Backend | 2h | Tabela football_teams w Prisma, relacje, migracja | 2.5 |
+| 3.18 | **Modele bazy football_matches** | Backend | 2h | Tabela football_matches w Prisma, relacje, migracja | 3.17 |
+| 3.19 | **Modele bazy football_standings** | Backend | 2h | Tabela football_standings w Prisma, relacje, migracja | 3.17 |
+| 3.20 | **API endpoints dla drużyn piłkarskich** | Backend | 4h | CRUD endpointy /football/teams działają, walidacja Zod | 3.17 |
+| 3.21 | **API endpoints dla meczów** | Backend | 4h | CRUD endpointy /football/matches działają, filtrowanie per drużyna | 3.18 |
+| 3.22 | **API endpoints dla tabeli ligowej** | Backend | 3h | Endpointy /football/standings działają, różne typy tabel | 3.19 |
+| 3.23 | **Modele bazy leaflet_shops** | Backend | 2h | Tabela leaflet_shops w Prisma, migracja | 2.5 |
+| 3.24 | **Modele bazy leaflets i pages** | Backend | 3h | Tabele leaflets i leaflet_pages w Prisma, migracja | 3.23 |
+| 3.25 | **Modele bazy domain_shops** | Backend | 2h | Tabela domain_shops (przypisania sklepów do domen) | 3.23 |
+| 3.26 | **API endpoints dla sklepów gazetek** | Backend | 4h | CRUD endpointy /leaflet-shops działają | 3.23 |
+| 3.27 | **API endpoints dla gazetek** | Backend | 4h | Endpointy /leaflets z obsługą stron, upload okładek | 3.24 |
+| 3.28 | **Modele bazy famous_people** | Backend | 2h | Tabela famous_people w Prisma, pola AI, migracja | 2.5 |
+| 3.29 | **Modele bazy domain_famous_people** | Backend | 2h | Tabela przypisań osób do domen | 3.28 |
+| 3.30 | **API endpoints dla sławnych osób** | Backend | 4h | CRUD endpointy /famous-people, integracja z OpenAI | 3.28 |
+| 3.31 | **Serwis OpenAI API** | Backend | 6h | Klient OpenAI, prompt template, parsing odpowiedzi, obsługa błędów | 3.30 |
+| 3.32 | **Walidacja danych modułów rozszerzonych** | Backend | 4h | Wszystkie nowe endpointy walidują dane, testy | Cały etap |
 
 **Deliverables Etapu 3:**
 - [ ] Panel centralny działa pod serwisy-lokalne-sterowanie.pl
@@ -1928,6 +1948,21 @@ Szczegółowy podział prac dla zespołu deweloperskiego. Każdy task zawiera es
 | 4.14 | **Skrypt testujący parser** | Backend | 4h | Można przetestować parser na konkretnym URL bez zapisywania do bazy | 4.6 |
 | 4.15 | **Konfiguracja cron jobs (systemowych)** | DevOps | 4h | Cron uruchamia scrapery wg harmonogramu, logi zapisywane | 1.1, 4.4 |
 | 4.16 | **Monitoring workerów** | Backend | 3h | Health check endpoint, metryki (przetworzone elementy, błędy) | Cały etap |
+| 4.17 | **Parser Sofascore HTML** | Backend | 8h | Selektory CSS dla Sofascore, ekstrakcja danych drużyny, meczów | 4.6 |
+| 4.18 | **Scraper meczów piłkarskich (Sofascore)** | Backend | 6h | Worker pobiera mecze, wyniki, daty, zapisuje do bazy | 4.17 |
+| 4.19 | **Scraper tabeli ligowej** | Backend | 4h | Worker pobiera pozycje w tabeli, statystyki drużyn | 4.17 |
+| 4.20 | **Scraper składów drużyn** | Backend | 4h | Worker pobiera listę zawodników z pozycjami | 4.17 |
+| 4.21 | **Scheduler dla scrapingu piłkarskiego** | Backend | 3h | Cron dla meczów (co 1h), tabeli (co 6h), składów (co 24h) | 4.18-4.20 |
+| 4.22 | **Cache dla danych piłkarskich** | Backend | 2h | Redis cache dla często pobieranych danych | 4.21 |
+| 4.23 | **Parser Blix.pl - lista sklepów** | Backend | 6h | Selektory dla sklepów, kategorii, logotypów | 4.6 |
+| 4.24 | **Parser Blix.pl - gazetki** | Backend | 6h | Ekstrakcja gazetek, okładek, dat ważności, liczby stron | 4.23 |
+| 4.25 | **Downloader obrazków gazetek** | Backend | 4h | Pobieranie okładek i stron gazetek lokalnie, optymalizacja | 4.24 |
+| 4.26 | **Archiwizacja starych gazetek** | Backend | 3h | Przenoszenie do archiwum po X dniach, opcjonalne usuwanie | 4.25 |
+| 4.27 | **Scheduler dla gazetek** | Backend | 3h | Cron co 6h sprawdza nowe gazetki | 4.24-4.26 |
+| 4.28 | **Parser Wikipedii dla osób** | Backend | 5h | Ekstrakcja infobox, daty urodzenia, miejsca, zdjęcia | 4.6 |
+| 4.29 | **AI Processor dla biografii** | Backend | 6h | Wysyłanie do OpenAI, parsowanie JSON, zapisywanie wyników | 4.28, 3.31 |
+| 4.30 | **Scheduler dla sławnych osób** | Backend | 3h | Cron do przetwarzania kolejki osób, batch processing | 4.29 |
+| 4.31 | **System kolejkowania AI** | Backend | 4h | Kolejka osób do przetworzenia, retry mechanism, logi | 4.29 |
 
 **Deliverables Etapu 4:**
 - [ ] Scraper działa i pobiera dane z policja.gov.pl
@@ -1965,10 +2000,34 @@ Szczegółowy podział prac dla zespołu deweloperskiego. Każdy task zawiera es
 | 5.20 | **Lazy loading obrazków** | Frontend | 4h | Blur placeholder, lazy loading działa, Lighthouse performance > 80 | 5.7 |
 | 5.21 | **Responsywność (mobile)** | Frontend | 8h | Wszystkie strony działają na mobile (320px+), testowane | Cały etap |
 | 5.22 | **Optymalizacja Core Web Vitals** | Frontend | 6h | LCP < 2.5s, FID < 100ms, CLS < 0.1, testy w PageSpeed Insights | Cały etap |
+| 5.23 | **Komponent TeamLogo (piłka nożna)** | Frontend | 2h | Logo drużyny z obsługą różnych rozmiarów, lazy loading | 5.1 |
+| 5.24 | **Komponent MatchCard** | Frontend | 4h | Karta meczu z datą, wynikiem, drużynami, statusami | 5.23 |
+| 5.25 | **Komponent MatchesList** | Frontend | 4h | Lista meczów z paginacją, filtrowaniem per turniej | 5.24 |
+| 5.26 | **Komponent StandingsTable** | Frontend | 6h | Tabela ligowa z pozycjami, formą, kolorowaniem statusów | 5.1 |
+| 5.27 | **Komponent FormChart (SVG)** | Frontend | 6h | Wykres formy drużyny (pozycja w czasie), interaktywny | 5.1 |
+| 5.28 | **Strona drużyny (/druzyna/:slug)** | Frontend | 6h | Hero, mecze, tabela, forma, skład - wszystko w zakładkach | 5.25-5.27 |
+| 5.29 | **Widget NextMatch (strona główna)** | Frontend | 3h | Najbliższy mecz z odliczaniem, na stronie głównej | 5.24 |
+| 5.30 | **Widget LastResult** | Frontend | 3h | Ostatni wynik z wyróżnieniem W/D/L | 5.24 |
+| 5.31 | **Sekcja Sport na stronie głównej** | Frontend | 4h | Widgety meczowe + mini-tabela, konfigurowalne | 5.29, 5.30 |
+| 5.32 | **Komponent ShopIcon (gazetki)** | Frontend | 2h | Logo sklepu z efektem hover (scale + shadow) | 5.1 |
+| 5.33 | **Komponent ShopIconsGrid** | Frontend | 3h | Siatka logotypów sklepów, scrollowana, klikalna | 5.32 |
+| 5.34 | **Komponent LeafletCard** | Frontend | 3h | Karta gazetki z okładką, badge'em statusu, datą | 5.1 |
+| 5.35 | **Komponent LeafletCarousel** | Frontend | 4h | Karuzela gazetek z auto-scroll, nawigacją | 5.34 |
+| 5.36 | **Przeglądarka gazetki (Viewer)** | Frontend | 8h | Zoom, fullscreen, miniaturki stron, nawigacja | 5.34 |
+| 5.37 | **Strona /gazetki i /gazetki/sklep/:slug** | Frontend | 4h | Lista gazetek z filtrami, archiwum | 5.33, 5.35 |
+| 5.38 | **Sekcja Gazetek na stronie głównej** | Frontend | 3h | Grid sklepów + karuzela gazetek | 5.33, 5.35 |
+| 5.39 | **Komponent PersonCard (sławni ludzie)** | Frontend | 3h | Karta osoby ze zdjęciem, zawodem, opisem | 5.1 |
+| 5.40 | **Komponent BornHereWidget** | Frontend | 4h | Widget "Sławni urodzeni w mieście" na stronę główną | 5.39 |
+| 5.41 | **Strona /slawni-urodzeni** | Frontend | 4h | Lista osób z filtrem i sortowaniem | 5.39 |
+| 5.42 | **Strona /slawni-urodzeni/:slug** | Frontend | 5h | Szczegóły osoby, biografia, osiągnięcia, related | 5.41 |
+| 5.43 | **Sekcja Sławni Ludzie na stronie głównej** | Frontend | 3h | Featured person + grid miniatur | 5.40 |
 
 **Deliverables Etapu 5:**
 - [ ] Strona 4torun.pl działa publicznie
 - [ ] Wszystkie sekcje wyglądają jak na zrzutach
+- [ ] Sekcja Sport działa (mecze, tabela, forma)
+- [ ] Sekcja Gazetek działa (sklepy, przeglądarka)
+- [ ] Sekcja Sławni Ludzie działa (profile, lista)
 - [ ] Responsywność działa
 - [ ] SEO meta tagi są poprawne
 - [ ] Core Web Vitals na zielono
@@ -1994,12 +2053,23 @@ Szczegółowy podział prac dla zespołu deweloperskiego. Każdy task zawiera es
 | 6.11 | **Ustawienia serwisu (ogólne)** | Frontend | 6h | Nazwa, opis, kontakt, social media, kolory (podstawowe) | 6.1 |
 | 6.12 | **Edytor motywu (zaawansowany)** | Frontend | 8h | Color pickery, wybór fontów, podgląd na żywo, eksport/import | 6.11 |
 | 6.13 | **Ustawienia SEO per serwis** | Frontend | 6h | Globalne meta tagi, robots.txt, struktura permalinków | 6.11 |
+| 6.14 | **Konfiguracja modułu piłki nożnej** | Frontend | 4h | Wybór drużyny, daty wyświetlania, włączanie widgetów | 6.11 |
+| 6.15 | **Podgląd tabeli ligowej** | Frontend | 3h | Podgląd live tabeli w panelu admina | 6.14 |
+| 6.16 | **Zarządzanie sklepami (gazetki)** | Frontend | 4h | Lista sklepów, przypisywanie do domeny, kolejność | 6.1 |
+| 6.17 | **Podgląd gazetek** | Frontend | 4h | Lista gazetek, status, ręczna archiwizacja, podgląd | 6.16 |
+| 6.18 | **Zarządzanie składem drużyny** | Frontend | 3h | Tabela zawodników, edycja pozycji, wyróżnianie | 6.15 |
+| 6.19 | **Konfiguracja modułu sławnych osób** | Frontend | 3h | Zakres dat, źródła Wikipedii, limity AI | 6.1 |
+| 6.20 | **Panel weryfikacji AI** | Frontend | 6h | Lista osób do weryfikacji, approve/reject, edycja | 6.19 |
+| 6.21 | **Podgląd osoby przed publikacją** | Frontend | 3h | Full preview z confidence score | 6.20 |
 
 **Deliverables Etapu 6:**
 - [ ] Panel /admin działa na 4torun.pl
 - [ ] Można dodać, edytować, usunąć wpis
 - [ ] Media library działa
 - [ ] Można zmienić motyw kolorystyczny
+- [ ] Moduł piłki nożnej skonfigurowany (drużyna, widgety)
+- [ ] Moduł gazetek skonfigurowany (sklepy, archiwizacja)
+- [ ] Moduł sławnych osób działa (scraping, weryfikacja AI)
 
 ---
 
@@ -2013,6 +2083,12 @@ Szczegółowy podział prac dla zespołu deweloperskiego. Każdy task zawiera es
 | 7.2 | **Import początkowych danych** | Backend | 4h | Przykładowe wpisy dodane, kategorie utworzone, menu skonfigurowane | 7.1 |
 | 7.3 | **Konfiguracja źródeł scrapingu dla 4torun.pl** | Backend | 3h | Policja i Urząd Miasta dodane jako źródła, pierwszy scraping wykonany | 4.16, 7.1 |
 | 7.4 | **Konfiguracja SSL dla 4torun.pl** | DevOps | 2h | Certyfikat działa, redirect HTTP→HTTPS działa | 1.10, 7.1 |
+| 7.11 | **Konfiguracja drużyny piłkarskiej** | Backend | 2h | Wyszukanie ID drużyny w Sofascore, konfiguracja w panelu | 4.19, 7.1 |
+| 7.12 | **Pierwszy scraping meczów piłkarskich** | Backend | 1h | Mecze w bazie, widgety się wyświetlają | 7.11 |
+| 7.13 | **Konfiguracja sklepów dla gazetek** | Backend | 1h | Wybrane sklepy przypisane do 4torun.pl | 4.24, 7.1 |
+| 7.14 | **Pierwszy scraping gazetek** | Backend | 1h | Gazetki w bazie, pokazują się na stronie | 7.13 |
+| 7.15 | **Konfiguracja AI dla sławnych osób** | Backend | 2h | Klucz OpenAI, zakres dat (1840-1980) | 4.29, 7.1 |
+| 7.16 | **Testowy scraping osób z Wikipedii** | Backend | 1h | Osoby w kolejce AI, pierwsze przetworzenia | 7.15 |
 | 7.5 | **Testy end-to-end (E2E)** | QA | 8h | Testy w Cypress/Playwright przechodzą (logowanie, dodanie wpisu, scraping) | Cały etap |
 | 7.6 | **Testy wydajnościowe** | DevOps | 4h | Load testing (100 równoczesnych użytkowników), odpowiedź < 200ms | Cały etap |
 | 7.7 | **Testy bezpieczeństwa (podstawowe)** | DevOps | 4h | Brak krytycznych podatności w npm audit, headers bezpieczeństwa działają | Cały etap |
@@ -2022,7 +2098,10 @@ Szczegółowy podział prac dla zespołu deweloperskiego. Każdy task zawiera es
 
 **Deliverables Etapu 7:**
 - [ ] 4torun.pl działa produkcyjnie
-- [ ] Testy E2E przechodzą
+- [ ] Sekcja Sport działa (mecze, tabela, forma)
+- [ ] Sekcja Gazetek działa (sklepy, przeglądarka)
+- [ ] Sekcja Sławni Ludzie działa (AI scraping, weryfikacja)
+- [ ] Testy E2E przechodzą (w tym nowe moduły)
 - [ ] Wydajność jest akceptowalna
 - [ ] Backup działa
 
@@ -2037,6 +2116,9 @@ Szczegółowy podział prac dla zespołu deweloperskiego. Każdy task zawiera es
 | 8.1 | **Dokumentacja techniczna** | Backend | 8h | Architektura, API, deployment opisane, diagramy aktualne | Cały etap |
 | 8.2 | **Dokumentacja użytkownika (panel centralny)** | Frontend | 6h | Instrukcja obsługi panelu centralnego ze zrzutami ekranu | 8.1 |
 | 8.3 | **Dokumentacja użytkownika (panel serwisu)** | Frontend | 6h | Instrukcja dodawania wpisów, zarządzania treścią | 8.1 |
+| 8.10 | **Dokumentacja modułu piłki nożnej** | Backend | 3h | Konfiguracja drużyny, edycja składu, troubleshooting | 8.1 |
+| 8.11 | **Dokumentacja modułu gazetek** | Frontend | 2h | Dodawanie sklepów, archiwizacja, podgląd | 8.1 |
+| 8.12 | **Dokumentacja modułu sławnych osób** | Backend | 3h | Konfiguracja AI, weryfikacja wyników, koszty API | 8.1 |
 | 8.4 | **Szkolenie administratorów** | Cały zespół | 4h | Szkolenie przeprowadzone, materiały przekazane, pytania omówione | 8.2 |
 | 8.5 | **Szkolenie redaktorów** | Frontend | 4h | Szkolenie z edytora wpisów, publikowania, zarządzania mediami | 8.3 |
 | 8.6 | **Przekazanie dostępów i haseł** | DevOps | 2h | Hasła przekazane bezpiecznym kanałem, lista kont i uprawnień | Cały etap |
@@ -2056,7 +2138,7 @@ Szczegółowy podział prac dla zespołu deweloperskiego. Każdy task zawiera es
 
 ```mermaid
 gantt
-    title Project Timeline
+    title Project Timeline (z nowymi modułami)
     dateFormat  YYYY-MM-DD
     section Infrastructure
     Setup hosting            :done, infra1, 2026-02-17, 10d
@@ -2065,6 +2147,8 @@ gantt
     section Database and API
     Database design          :active, db1, after infra2, 5d
     API implementation       :db2, after db1, 9d
+    New module models        :db3, after db2, 3d
+    New module API endpoints :db4, after db3, 4d
     
     section Admin Panel
     Frontend setup           :admin1, after db2, 2d
@@ -2073,33 +2157,152 @@ gantt
     section Scraping
     Worker implementation    :scrap1, after db2, 10d
     Cron configuration       :scrap2, after scrap1, 4d
+    Football scraper         :scrap3, after scrap2, 5d
+    Leaflet scraper          :scrap4, after scrap2, 4d
+    Famous people scraper    :scrap5, after scrap2, 6d
     
     section Frontend
     UI Components            :front1, after admin1, 14d
     Public pages             :front2, after front1, 14d
+    Football widgets         :front3, after front2, 5d
+    Leaflet components       :front4, after front2, 4d
+    Famous people views      :front5, after front2, 5d
     
     section Site Panel
     Edytor i funkcje         :site1, after front1, 10d
+    Football config          :site2, after site1, 3d
+    Leaflet config           :site3, after site1, 2d
+    Famous people config     :site4, after site1, 3d
     
     section Deployment
     Testy i wdrożenie        :deploy1, after front2, 5d
+    Module deployment        :deploy2, after deploy1, 3d
     
     section Dokumentacja
-    Docs i szkolenia         :doc1, after deploy1, 5d
+    Docs i szkolenia         :doc1, after deploy2, 5d
 ```
 
 **Ścieżka krytyczna:**
-Infrastruktura → Baza + API → Panel Centralny (Setup) → Frontend (Komponenty) → Frontend (Strony) → Deployment
+Infrastruktura → Baza + API (oryginalne + nowe modele) → Panel Centralny (Setup) → Frontend (Komponenty + Strony) → Frontend (Nowe moduły) → Deployment
 
-**Całkowity czas:** 17 tygodni (ok. 4 miesiące)
+**Całkowity czas:** ~21 tygodni (ok. 5 miesięcy) z nowymi modułami, 17 tygodni bez
 
 ---
 
-## 9. MODUŁ PIŁKI NOŻNEJ ⚽
+### 15.5 Pełna Lista Zadań - Wszystkie Etapy
+
+**Podsumowanie statystyk (oryginalne + nowe moduły):**
+- **Etap 1 (Infrastruktura):** 10 zadań → 10 zadań
+- **Etap 2 (Baza danych):** 12 zadań → 17 zadań (+modele dla modułów)
+- **Etap 3 (Backend API):** 15 zadań → 24 zadań (+endpointy dla modułów)
+- **Etap 4 (Scraping):** 16 zadań → 31 zadań (+scrapery piłki, gazetek, osób)
+- **Etap 5 (Frontend publiczny):** 22 zadania → 43 zadania (+komponenty modułów)
+- **Etap 6 (Panel admina):** 13 zadań → 21 zadań (+konfiguracja modułów)
+- **Etap 7 (Deployment):** 10 zadań → 16 zadań (+konfiguracja modułów)
+- **Etap 8 (Dokumentacja):** 9 zadań → 12 zadań (+dokumentacja modułów)
+- **RAZEM:** 107 zadań → 164 zadań (~140h dodatkowych = ~17-18 dni roboczych)
+
+#### Lista zadań z nowych modułów (do przypisania webdev):
+
+**Moduł Piłki Nożnej (17 zadań):**
+```
+[ ] 2.13 - Model football_teams (tabela, migracje, indeksy)
+[ ] 2.14 - Model football_matches (relacje, constraints)
+[ ] 2.15 - Model football_standings (pozycje w tabeli)
+[ ] 3.17 - API GET /football/teams/:id (dane drużyny)
+[ ] 3.18 - API GET /football/matches (lista meczów z filtrowaniem)
+[ ] 3.19 - API GET /football/standings (tabela ligowa)
+[ ] 3.20 - API GET /football/form/:teamId (forma drużyny)
+[ ] 4.17 - Parser Sofascore HTML (wykrywanie struktury)
+[ ] 4.18 - Ekstrakcja meczów (BeautifulSoup, parsowanie dat)
+[ ] 4.19 - Ekstrakcja tabeli ligowej (pozycja, punkty)
+[ ] 4.20 - Ekstrakcja składu (zawodnicy, numery)
+[ ] 4.21 - Scheduler meczów (cron co 1h przed meczem)
+[ ] 5.23 - Komponent TeamLogo (logo drużyny)
+[ ] 5.24 - Komponent MatchCard (karta meczu)
+[ ] 5.25 - Komponent MatchesList (lista meczów)
+[ ] 5.26 - Komponent StandingsTable (tabela ligowa)
+[ ] 5.27 - Komponent FormChart (wykres formy SVG)
+[ ] 5.28 - Strona drużyny (/druzyna/:slug)
+[ ] 5.29 - Widget NextMatch (najbliższy mecz)
+[ ] 5.30 - Widget LastResult (ostatni wynik)
+[ ] 5.31 - Sekcja Sport na stronie głównej
+[ ] 6.14 - Konfiguracja modułu piłki nożnej (panel)
+[ ] 6.15 - Podgląd tabeli ligowej w panelu
+[ ] 6.18 - Zarządzanie składem drużyny
+[ ] 7.11 - Konfiguracja drużyny piłkarskiej
+[ ] 7.12 - Pierwszy scraping meczów
+[ ] 8.10 - Dokumentacja modułu piłki nożnej
+```
+
+**Moduł Gazetek (12 zadań):**
+```
+[ ] 2.16 - Model promotional_leaflets (tabele, JSON pages)
+[ ] 2.17 - Model shops (globalna lista sklepów)
+[ ] 2.18 - Model domain_shops (przypisanie do domen)
+[ ] 3.21 - API GET /leaflets (lista gazetek z filtrowaniem)
+[ ] 3.22 - API GET /leaflets/:id/pages (strony gazetki)
+[ ] 3.23 - API GET /shops (lista sklepów per domena)
+[ ] 4.22 - Scraper Blix.pl (lista sklepów)
+[ ] 4.23 - Parser gazetek (strony, okładki, daty ważności)
+[ ] 4.24 - Scheduler gazetek (cron co 6h)
+[ ] 4.25 - Archiwizacja gazetek (auto po 20 dniach)
+[ ] 5.32 - Komponent ShopIcon (logo sklepu)
+[ ] 5.33 - Komponent ShopIconsGrid (siatka sklepów)
+[ ] 5.34 - Komponent LeafletCard (karta gazetki)
+[ ] 5.35 - Komponent LeafletCarousel (karuzela)
+[ ] 5.36 - Przeglądarka gazetki (viewer fullscreen)
+[ ] 5.37 - Strona /gazetki i /gazetki/sklep/:slug
+[ ] 5.38 - Sekcja Gazetek na stronie głównej
+[ ] 6.16 - Zarządzanie sklepami (panel admina)
+[ ] 6.17 - Podgląd gazetek w panelu
+[ ] 7.13 - Konfiguracja sklepów dla gazetek
+[ ] 7.14 - Pierwszy scraping gazetek
+[ ] 8.11 - Dokumentacja modułu gazetek
+```
+
+**Moduł Sławnych Osób (18 zadań):**
+```
+[ ] 2.19 - Model famous_people (tabele, indeksy wyszukiwania)
+[ ] 2.20 - Model person_processing_queue (kolejka AI)
+[ ] 3.24 - API GET /famous-people (lista osób)
+[ ] 3.25 - API GET /famous-people/:slug (szczegóły osoby)
+[ ] 3.26 - API POST /admin/people/:id/approve (weryfikacja)
+[ ] 3.27 - API POST /admin/people/:id/reject (odrzucenie)
+[ ] 3.28 - API GET /admin/people/queue (kolejka do weryfikacji)
+[ ] 4.26 - Scraper listy Wikipedii (lista sławnych z miasta)
+[ ] 4.27 - Pobieranie stron osobnych (biografie)
+[ ] 4.28 - Parser Wikipedii (ekstrakcja infobox)
+[ ] 4.29 - AI Processor (OpenAI GPT-4o, prompt engineering)
+[ ] 4.30 - Scheduler dla osób (cron, batch processing)
+[ ] 4.31 - System kolejkowania AI (retry mechanism)
+[ ] 5.39 - Komponent PersonCard (karta osoby)
+[ ] 5.40 - Widget BornHereWidget (urodzeni w mieście)
+[ ] 5.41 - Strona /slawni-urodzeni (lista)
+[ ] 5.42 - Strona /slawni-urodzeni/:slug (szczegóły)
+[ ] 5.43 - Sekcja Sławni Ludzie na stronie głównej
+[ ] 6.19 - Konfiguracja modułu sławnych osób
+[ ] 6.20 - Panel weryfikacji AI (lista, akcje)
+[ ] 6.21 - Podgląd osoby przed publikacją
+[ ] 7.15 - Konfiguracja AI dla sławnych osób
+[ ] 7.16 - Testowy scraping osób z Wikipedii
+[ ] 8.12 - Dokumentacja modułu sławnych osób
+```
+
+#### Ścieżka wdrożenia nowych modułów (fazy):
+**Faza 1 (Etap 2-3):** Modele + API → 4-5 dni
+**Faza 2 (Etap 4):** Scrapery + Schedulery → 5-7 dni  
+**Faza 3 (Etap 5):** Frontend komponenty → 7-10 dni
+**Faza 4 (Etap 6):** Panel admina → 3-5 dni
+**Faza 5 (Etap 7-8):** Konfiguracja + dokumentacja → 2-3 dni
+
+---
+
+## 17. MODUŁ PIŁKI NOŻNEJ ⚽
 
 Rozszerzenie systemu o moduł sportowy - automatyczne pobieranie i wyświetlanie danych piłkarskich dla drużyn regionalnych (na podstawie Sofascore).
 
-### 9.1 Architektura Modułu
+### 17.1 Architektura Modułu
 
 ```mermaid
 flowchart TB
@@ -2143,7 +2346,7 @@ flowchart TB
     DB_MATCHES --> PAGE_TEAM
 ```
 
-### 9.2 Struktura Danych
+### 17.2 Struktura Danych
 
 #### Model: FootballTeam
 ```typescript
@@ -2269,7 +2472,7 @@ interface FootballPlayer {
 }
 ```
 
-### 9.3 Schemat Bazy Danych (SQL)
+### 17.3 Schemat Bazy Danych (SQL)
 
 ```sql
 -- Tabela drużyn
@@ -2372,7 +2575,7 @@ CREATE INDEX idx_football_matches_featured ON football_matches(is_featured) WHER
 CREATE INDEX idx_football_standings_position ON football_standings(tournament_id, season, position);
 ```
 
-### 9.4 Konfiguracja Scrapera
+### 17.4 Konfiguracja Scrapera
 
 #### Nowy typ scrapera: `SOFASCORE_FOOTBALL`
 
@@ -2439,7 +2642,7 @@ SOFASCORE_SELECTORS = {
 }
 ```
 
-### 9.5 Komponenty Frontend
+### 17.5 Komponenty Frontend
 
 #### A. Widgety na Stronie Głównej
 
@@ -2516,7 +2719,7 @@ interface SquadDisplayProps {
 }
 ```
 
-### 9.6 Design System - Piłka Nożna
+### 17.6 Design System - Piłka Nożna
 
 #### Kolory Statusów
 ```css
@@ -2555,7 +2758,7 @@ interface SquadDisplayProps {
 --score-font-weight: 700;
 ```
 
-### 9.7 API Endpoints
+### 17.7 API Endpoints
 
 ```typescript
 // Drużyny
@@ -2582,7 +2785,7 @@ GET   /api/v1/football/squads?team={teamId}
 GET   /api/v1/football/form?team={teamId}&weeks={n}
 ```
 
-### 9.8 Struktura Podstron
+### 17.8 Struktura Podstron
 
 #### URL: `/pilka-nozna` lub `/sport`
 Lista wszystkich drużyn przypisanych do domeny.
@@ -2603,7 +2806,7 @@ Szczegóły drużyny z zakładkami:
 6. **Wykres pozycji** - SVG pokazujący zmiany pozycji w czasie
 7. **O drużynie** - opis SEO
 
-### 9.9 Integracja z Panelem Admina
+### 17.9 Integracja z Panelem Admina
 
 #### Nowe uprawnienia:
 ```typescript
@@ -2634,7 +2837,7 @@ Szczegóły drużyny z zakładkami:
     └── Konfiguracja
 ```
 
-### 9.10 Zadania Implementacyjne (Dodatkowe do Planu)
+### 17.10 Zadania Implementacyjne (Dodatkowe do Planu)
 
 #### Nowe zadania w Etapie 3 (Backend API):
 
@@ -2686,11 +2889,1155 @@ Szczegóły drużyny z zakładkami:
 | 6.18 | **Podgląd tabeli ligowej** | 3h | 6.1, 3.20 |
 | 6.19 | **Konfiguracja scrapera piłkarskiego** | 4h | 6.15 |
 
+## 18. MODUŁ GAZETEK PROMOCYJNYCH 🛍️
+
+System zarządzania i wyświetlania gazetek promocyjnych sklepów. Moduł umożliwia przypisanie wybranych sklepów do konkretnej domeny, automatyczne scrapowanie gazetek oraz efektowne przeglądanie na stronie.
+
+### 18.1 Architektura Modułu
+
+```mermaid
+flowchart TB
+    subgraph External["External Sources"]
+        BLIX[Blix.pl / Promocyjni.pl]
+    end
+    
+    subgraph ScrapingLayer["Scraping Layer"]
+        SW[Leaflet Scraper Worker]
+        IMG[Image Downloader]
+    end
+    
+    subgraph DataLayer["Data Layer"]
+        DB_SHOPS[(leaflet_shops)]
+        DB_LEAFLETS[(leaflets)]
+        DB_PAGES[(leaflet_pages)]
+        DB_DOMAIN_SHOPS[(domain_shops)]
+    end
+    
+    subgraph FrontendLayer["Frontend"]
+        W_SHOPS[Shop Icons Grid]
+        CAROUSEL[Leaflet Carousel]
+        VIEWER[PDF/Image Viewer]
+        ARCHIVE[Archive Page]
+    end
+    
+    BLIX -->|HTML Scraping| SW
+    SW -->|Download| IMG
+    SW --> DB_SHOPS
+    SW --> DB_LEAFLETS
+    IMG --> DB_PAGES
+    
+    DB_DOMAIN_SHOPS --> W_SHOPS
+    DB_LEAFLETS --> CAROUSEL
+    DB_PAGES --> VIEWER
+    DB_LEAFLETS --> ARCHIVE
+```
+
+### 18.2 Struktura Danych
+
+#### Model: LeafletShop (Sklep)
+```typescript
+interface LeafletShop {
+  id: string;                    // UUID
+  external_id: number;           // ID z Blix (np. 10026)
+  slug: string;                  // "4f"
+  name: string;                  // "4F"
+  logo_url: string;              // URL logo sklepu
+  category: string;              // "Sport", "Spożywcze", "AGD"
+  website_url?: string;          // Strona sklepu
+  is_active: boolean;            // Czy sklep jest aktywny w systemie
+  auto_scrape: boolean;          // Czy scrapować automatycznie
+  created_at: Date;
+  updated_at: Date;
+}
+```
+
+#### Model: DomainShop (Przypisanie sklepu do domeny)
+```typescript
+interface DomainShop {
+  id: string;
+  domain_id: string;             // FK do domains
+  shop_id: string;               // FK do leaflet_shops
+  display_order: number;         // Kolejność wyświetlania
+  is_featured: boolean;          // Czy wyróżnić na stronie głównej
+  custom_name?: string;          // Niestandardowa nazwa (opcjonalnie)
+  created_at: Date;
+  
+  // Relacja
+  shop: LeafletShop;
+}
+```
+
+#### Model: Leaflet (Gazetka)
+```typescript
+interface Leaflet {
+  id: string;                    // UUID
+  external_id: number;           // ID z Blix (np. 477759)
+  shop_id: string;               // FK do leaflet_shops
+  title: string;                 // "Trekking do -50% – ubierz się na szlak!"
+  slug: string;                  // "trekking-do-50"
+  
+  // Daty
+  valid_from: Date;              // Data początkowa
+  valid_to: Date;                // Data końcowa
+  
+  // Status
+  status: 'active' | 'upcoming' | 'expired' | 'archived';
+  availability: 'new' | 'available' | 'ending_soon' | 'last_day';
+  
+  // Okładka
+  cover_image_url: string;       // URL okładki (360x510 lub większy)
+  cover_image_local?: string;    // Lokalna ścieżka do pobranego pliku
+  
+  // Metadane
+  page_count: number;            // Liczba stron
+  external_url: string;          // URL do pełnej gazetki na Blix
+  
+  // Flagi
+  is_featured: boolean;          // Wyróżniona
+  download_count: number;        // Licznik pobrań/preview
+  
+  created_at: Date;
+  updated_at: Date;
+}
+```
+
+#### Model: LeafletPage (Strona gazetki)
+```typescript
+interface LeafletPage {
+  id: string;
+  leaflet_id: string;            // FK do leaflets
+  page_number: number;           // 1, 2, 3...
+  image_url: string;             // URL obrazka strony (800x1200)
+  image_local?: string;          // Lokalna ścieżka
+  image_size: {                  // Wymiary
+    width: number;               // 786
+    height: number;              // 1200
+  };
+  created_at: Date;
+}
+```
+
+### 18.3 Schemat Bazy Danych (SQL)
+
+```sql
+-- Tabela sklepów
+CREATE TABLE leaflet_shops (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    external_id INTEGER UNIQUE,
+    slug VARCHAR(50) NOT NULL UNIQUE,
+    name VARCHAR(100) NOT NULL,
+    logo_url VARCHAR(500),
+    category VARCHAR(50),
+    website_url VARCHAR(500),
+    is_active BOOLEAN DEFAULT true,
+    auto_scrape BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabela przypisań sklepów do domen
+CREATE TABLE domain_shops (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    domain_id UUID NOT NULL REFERENCES domains(id) ON DELETE CASCADE,
+    shop_id UUID NOT NULL REFERENCES leaflet_shops(id) ON DELETE CASCADE,
+    display_order INTEGER DEFAULT 0,
+    is_featured BOOLEAN DEFAULT false,
+    custom_name VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(domain_id, shop_id)
+);
+
+-- Tabela gazetek
+CREATE TABLE leaflets (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    external_id INTEGER UNIQUE,
+    shop_id UUID NOT NULL REFERENCES leaflet_shops(id) ON DELETE CASCADE,
+    title VARCHAR(255) NOT NULL,
+    slug VARCHAR(255) NOT NULL,
+    valid_from DATE NOT NULL,
+    valid_to DATE NOT NULL,
+    status VARCHAR(20) DEFAULT 'active',
+    availability VARCHAR(20) DEFAULT 'available',
+    cover_image_url VARCHAR(500) NOT NULL,
+    cover_image_local VARCHAR(500),
+    page_count INTEGER DEFAULT 1,
+    external_url VARCHAR(500),
+    is_featured BOOLEAN DEFAULT false,
+    download_count INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabela stron gazetek
+CREATE TABLE leaflet_pages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    leaflet_id UUID NOT NULL REFERENCES leaflets(id) ON DELETE CASCADE,
+    page_number INTEGER NOT NULL,
+    image_url VARCHAR(500) NOT NULL,
+    image_local VARCHAR(500),
+    image_width INTEGER,
+    image_height INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(leaflet_id, page_number)
+);
+
+-- Indeksy
+CREATE INDEX idx_leaflets_shop ON leaflets(shop_id);
+CREATE INDEX idx_leaflets_dates ON leaflets(valid_from, valid_to);
+CREATE INDEX idx_leaflets_status ON leaflets(status);
+CREATE INDEX idx_domain_shops_domain ON domain_shops(domain_id);
+CREATE INDEX idx_leaflet_pages_leaflet ON leaflet_pages(leaflet_id);
+```
+
+### 18.4 Konfiguracja Scrapera
+
+#### Typ: `BLIX_LEAFLETS`
+
+```typescript
+interface BlixLeafletScraperConfig {
+  type: 'BLIX_LEAFLETS';
+  
+  // Lista sklepów do scrapowania (pusta = wszystkie aktywne)
+  shopIds?: number[];
+  
+  // Opcje scrapowania
+  options: {
+    scrapePages: boolean;          // Czy pobierać wszystkie strony
+    maxPagesPerLeaflet: number;    // Maksymalna liczba stron (0 = wszystkie)
+    downloadImages: boolean;       // Czy pobierać obrazki lokalnie
+    imageQuality: 'low' | 'medium' | 'high';  // 400, 800, 1200px
+  };
+  
+  // Archiwizacja
+  archive: {
+    enabled: boolean;              // Czy archiwizować stare gazetki
+    archiveAfterDays: number;      // Po ilu dniach przenieść do archiwum
+    deleteAfterDays?: number;      // Usunąć całkowicie po X dniach (opcjonalnie)
+  };
+  
+  // Harmonogram
+  schedule: {
+    frequency: 'hourly' | 'twice_daily' | 'daily';
+    time?: string;                 // "06:00,18:00" dla twice_daily
+  };
+}
+```
+
+#### Parser - selektory CSS (Blix.pl)
+
+```python
+BLIX_SELECTORS = {
+    # Lista sklepów
+    'shops_list': '.section-n__items--brands',
+    'shop_item': '.brand.section-n__item',
+    'shop_name': '.brand__name',
+    'shop_logo': '.brand__logo',
+    'shop_count': '.brand__count',
+    'shop_link': 'a[href*="/sklep/"]',
+    
+    # Kategorie
+    'category_list': '.pills',
+    'category_item': '.pill',
+    'category_name': '.pill__brand-name',
+    
+    # Lista gazetek w sklepie
+    'leaflets_list': '.section-n__items--leaflets',
+    'leaflet_item': '.leaflet.section-n__item',
+    'leaflet_id': '[data-leaflet-id]',
+    'leaflet_name': '[data-leaflet-name]',
+    'leaflet_title': '.leaflet__leaflet-name',
+    'leaflet_cover': '.leaflet__cover img',
+    'leaflet_availability': '.availability__label',
+    'leaflet_date_start': '[data-date-start]',
+    'leaflet_date_end': '[data-date-end]',
+    
+    # Szczegóły gazetki (podstrona)
+    'page_count': '.page-count',
+    'current_page': '.current-page',
+    'page_image': '.page-img',
+    'leaflet_title_full': '.leaflet-data__name',
+}
+```
+
+### 18.5 API Endpoints
+
+```typescript
+// Sklepy
+GET    /api/v1/leaflet-shops                          // Lista wszystkich sklepów
+POST   /api/v1/leaflet-shops                          // Dodaj sklep ręcznie
+GET    /api/v1/leaflet-shops/:id
+PUT    /api/v1/leaflet-shops/:id
+DELETE /api/v1/leaflet-shops/:id
+POST   /api/v1/leaflet-shops/sync                     // Synchronizuj z Blix
+
+// Przypisania do domeny
+GET    /api/v1/domains/:domainId/shops                // Sklepy przypisane do domeny
+POST   /api/v1/domains/:domainId/shops                // Przypisz sklep
+PUT    /api/v1/domains/:domainId/shops/:shopId        // Aktualizuj przypisanie
+DELETE /api/v1/domains/:domainId/shops/:shopId        // Usuń przypisanie
+POST   /api/v1/domains/:domainId/shops/reorder        // Zmień kolejność
+
+// Gazetki
+GET    /api/v1/leaflets?shop=:shopId&status=:status   // Lista gazetek
+GET    /api/v1/leaflets/featured                      // Wyróżnione gazetki
+GET    /api/v1/leaflets/current                       // Aktualne gazetki
+GET    /api/v1/leaflets/upcoming                      // Nadchodzące gazetki
+GET    /api/v1/leaflets/archived                      // Archiwum
+GET    /api/v1/leaflets/:id
+GET    /api/v1/leaflets/:id/pages                     // Strony gazetki
+POST   /api/v1/leaflets/:id/view                      // Zapisz wyświetlenie
+
+// Publiczne (dla konkretnej domeny)
+GET    /api/v1/public/:domain/leaflets                // Gazetki dla domeny
+GET    /api/v1/public/:domain/shops                   // Sklepy dla domeny
+GET    /api/v1/public/:domain/leaflets/:slug          // Szczegóły gazetki
+```
+
+### 18.6 Komponenty Frontend
+
+#### A. Widgety na Stronie Głównej
+
+```typescript
+// Grid ikon sklepów (jak na Blix)
+interface ShopIconsGridProps {
+  shops: DomainShop[];
+  maxIcons?: number;             // Maksymalna liczba ikon (np. 12)
+  showMoreButton?: boolean;      // Przycisk "Więcej sklepów"
+  iconSize?: 'sm' | 'md' | 'lg'; // 48px, 64px, 78px
+  onShopClick?: (shop: LeafletShop) => void;
+}
+
+// Karuzela gazetek
+interface LeafletCarouselProps {
+  leaflets: Leaflet[];
+  autoPlay?: boolean;
+  interval?: number;             // ms
+  slidesToShow?: number;         // 1, 2, 3, 4, 6
+  showNavigation?: boolean;
+  showPagination?: boolean;
+}
+
+// Karta gazetki
+interface LeafletCardProps {
+  leaflet: Leaflet;
+  variant: 'default' | 'compact' | 'featured';
+  showBadge?: boolean;           // "Nowa", "Ostatni dzień", "Od jutra"
+  onClick?: () => void;
+}
+```
+
+#### B. Komponenty Podstron
+
+```typescript
+// Strona gazetki (/gazetki)
+interface LeafletsPageProps {
+  domainId: string;
+  viewMode: 'grid' | 'list' | 'shops';
+  filterBy?: 'all' | 'active' | 'upcoming' | 'shop';
+  shopFilter?: string;
+}
+
+// Przeglądarka gazetki (/gazetki/:slug)
+interface LeafletViewerProps {
+  leaflet: Leaflet;
+  pages: LeafletPage[];
+  
+  // Opcje przeglądania
+  initialPage?: number;
+  allowZoom?: boolean;
+  allowFullscreen?: boolean;
+  showThumbnails?: boolean;
+  showPageNavigation?: boolean;
+}
+
+// Strona sklepu (/gazetki/sklep/:slug)
+interface ShopLeafletsPageProps {
+  shop: LeafletShop;
+  leaflets: Leaflet[];
+  currentLeaflet?: Leaflet;
+  upcomingLeaflets: Leaflet[];
+  archivedLeaflets: Leaflet[];
+}
+```
+
+### 18.7 Design System - Gazetki
+
+#### Rozmiary i Proporcje
+```css
+:root {
+  /* Ikony sklepów */
+  --shop-icon-sm: 48px;
+  --shop-icon-md: 64px;
+  --shop-icon-lg: 78px;
+  
+  /* Karty gazetek */
+  --leaflet-card-width: 220px;
+  --leaflet-card-height: 310px;  /* Proporcja ~0.71 (A4) */
+  --leaflet-card-gap: 16px;
+  
+  /* Okładka w karcie */
+  --leaflet-cover-ratio: 0.71;    /* 360:510 */
+  
+  /* Viewer */
+  --leaflet-viewer-max-width: 800px;
+  --leaflet-viewer-max-height: 1200px;
+}
+```
+
+#### Style Karty Gazetki
+```
+┌─────────────────────────────┐
+│                             │
+│      [OKŁADKA GAZETKI]      │
+│      (object-fit: cover)    │
+│                             │
+│  ┌─────────────────────┐    │
+│  │ 🔴 Nowa             │    │  <- Badge (opcjonalny)
+│  └─────────────────────┘    │
+│                             │
+├─────────────────────────────┤
+│ [LOGO 4F]  Nazwa sklepu     │
+│ Tytuł gazetki - promocja    │
+│                             │
+│ Ważna do: 19.02.2026        │
+└─────────────────────────────┘
+```
+
+#### Badges Statusu
+```css
+.badge-new { background: #22c55e; color: white; }        /* Od dziś */
+.badge-available { background: #3b82f6; color: white; }  /* Aktualna */
+.badge-ending { background: #f59e0b; color: white; }     /* Kończy się */
+.badge-last-day { background: #ef4444; color: white; }  /* Ostatni dzień */
+.badge-upcoming { background: #6b7280; color: white; }   /* Od jutra */
+```
+
+#### Efekty Interakcji
+```css
+/* Hover na karcie */
+.leaflet-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0,0,0,0.15);
+}
+
+/* Hover na logo sklepu */
+.shop-icon:hover {
+  transform: scale(1.1);
+  filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));
+}
+
+/* Przejścia */
+.leaflet-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+```
+
+### 18.8 Struktura Podstron
+
+#### URL: `/gazetki` - Lista wszystkich gazetek
+```
+┌─────────────────────────────────────────────────────────────┐
+│  🛍️ GAZETKI PROMOCYJNE                                      │
+├─────────────────────────────────────────────────────────────┤
+│  [Wszystkie] [Spożywcze] [AGD] [Odzież] [Budowlane]        │
+├─────────────────────────────────────────────────────────────┤
+│  Sortuj: [Najnowsze ▼]     Widok: [□] [≡]                   │
+├─────────────────────────────────────────────────────────────┤
+│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐           │
+│  │ GAZETKA │ │ GAZETKA │ │ GAZETKA │ │ GAZETKA │           │
+│  │   4F    │ │ BIEDRO  │ │  LIDL   │ │ CASTO   │           │
+│  │ -50%    │ │ OFERTA  │ │ TYGODN  │ │ RABATY  │           │
+│  │ 🔴 Nowa │ │ 4 dni   │ │ 2 dni   │ │ Od jutra│           │
+│  └─────────┘ └─────────┘ └─────────┘ └─────────┘           │
+│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐           │
+│  │ ...     │ │ ...     │ │ ...     │ │ ...     │           │
+│  └─────────┘ └─────────┘ └─────────┘ └─────────┘           │
+├─────────────────────────────────────────────────────────────┤
+│  [Poprzednie]  Strona 1 z 5  [Następne]                     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### URL: `/gazetki/sklep/4f` - Gazetki konkretnego sklepu
+```
+┌─────────────────────────────────────────────────────────────┐
+│  🛍️ 4F - Gazetki Promocyjne                                 │
+│  [Logo 4F]  Aktualne oferty i promocje                      │
+├─────────────────────────────────────────────────────────────┤
+│  ▶ AKTUALNA GAZETKA                                         │
+│  ┌─────────────────────────────────────┐                    │
+│  │                                     │                    │
+│  │      [OKŁADKA - WIĘKSZA]            │                    │
+│  │      Trekking do -50%               │                    │
+│  │                                     │                    │
+│  │  Ważna: 12.02 - 19.02.2026          │                    │
+│  │  [Zobacz gazetkę →]                 │                    │
+│  └─────────────────────────────────────┘                    │
+├─────────────────────────────────────────────────────────────┤
+│  NADCHODZĄCE                                                │
+│  ┌─────────┐ ┌─────────┐                                    │
+│  │ ...     │ │ ...     │                                    │
+│  └─────────┘ └─────────┘                                    │
+├─────────────────────────────────────────────────────────────┤
+│  ARCHIWUM 2026                                              │
+│  [Styczeń ▼]                                                │
+│  ┌─────────┐ ┌─────────┐ ┌─────────┐                        │
+│  │ ...     │ │ ...     │ │ ...     │                        │
+│  └─────────┘ └─────────┘ └─────────┘                        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### URL: `/gazetki/4f/trekking-do-50` - Przeglądarka gazetki
+```
+┌─────────────────────────────────────────────────────────────┐
+│  [← Wróć do gazetek]  4F - Trekking do -50%  [✕ Zamknij]   │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│                    ┌─────────────────┐                      │
+│                    │                 │                      │
+│      [←]          │   STRONA 1/10   │         [→]          │
+│                    │                 │                      │
+│                    │  [OBRAZ GAZETKI]│                      │
+│                    │                 │                      │
+│                    │  786 × 1200 px  │                      │
+│                    │                 │                      │
+│                    └─────────────────┘                      │
+│                                                             │
+├─────────────────────────────────────────────────────────────┤
+│  🔍 [+] [-]  |  ⛶ Pełny ekran  |  📄 Pobierz PDF  |  🖨️ Druk│
+│                                                             │
+│  ┌──┐ ┌──┐ ┌──┐ ┌──┐ ┌──┐ ┌──┐ ┌──┐ ┌──┐ ┌──┐ ┌──┐       │
+│  │ 1│ │ 2│ │ 3│ │ 4│ │ 5│ │ 6│ │ 7│ │ 8│ │ 9│ │10│       │
+│  └──┘ └──┘ └──┘ └──┘ └──┘ └──┘ └──┘ └──┘ └──┘ └──┘       │
+│  [Miniatury stron - klikalne]                               │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 18.9 Integracja z Panelem Admina
+
+#### Nowe uprawnienia:
+```typescript
+'leaflets:manage'              // Dostęp do modułu gazetek
+'leaflets:shops:create'        // Dodawanie sklepów
+'leaflets:shops:assign'        // Przypisywanie sklepów do domen
+'leaflets:edit'                // Edycja gazetek
+'leaflets:scraper:manage'      // Zarządzanie scraperem
+```
+
+#### Nowe menu w Panelu:
+```
+🛍️ Gazetki Promocyjne
+├── 🏪 Sklepy
+│   ├── Lista sklepów
+│   ├── Dodaj sklep
+│   └── Synchronizuj z Blix
+├── 📰 Gazetki
+│   ├── Wszystkie gazetki
+│   ├── Aktualne
+│   ├── Nadchodzące
+│   └── Archiwum
+├── 🎯 Przypisania
+│   └── Sklepy per domena
+└── ⚙️ Scraper
+    ├── Konfiguracja
+    ├── Logi
+    └── Ręczne uruchomienie
+```
+
+### 18.10 Sekcja na Stronie Głównej
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  🛍️ GAZETKI PROMOCYJNE                    [Zobacz wszystkie]│
+├─────────────────────────────────────────────────────────────┤
+│  Popularne sklepy:                                          │
+│  ┌────┐ ┌────┐ ┌────┐ ┌────┐ ┌────┐ ┌────┐ ┌────┐          │
+│  │ 🏪 │ │ 🏪 │ │ 🏪 │ │ 🏪 │ │ 🏪 │ │ 🏪 │ │ +12│          │
+│  │4F  │ │Bied│ │Lidl│ │Cast│ │Pepc│ │Auch│ │    │          │
+│  └────┘ └────┘ └────┘ └────┘ └────┘ └────┘ └────┘          │
+│  [Klikalne loga sklepów - przekierowują do sklepu]          │
+├─────────────────────────────────────────────────────────────┤
+│  🔥 Aktualne promocje:                                      │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐       │
+│  │ GAZETKA  │ │ GAZETKA  │ │ GAZETKA  │ │ GAZETKA  │       │
+│  │ 🔴 Nowa  │ │ 3 dni    │ │ Od jutra │ │ 1 dzień  │       │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────┘       │
+│  [←] [Karuzela gazetek - auto scroll co 5s] [→]             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 19. MODUŁ SŁAWNYCH OSÓB URODZONYCH W MIEŚCIE ⭐
+
+Moduł prezentujący sławne osoby urodzone w danym mieście. Dane pobierane z Wikipedii i przetwarzane przez AI (OpenAI) do ustrukturyzowanego formatu JSON.
+
+> **💰 Szacowane koszty OpenAI:**
+> - GPT-4o: ~$0.01-0.03 za stronę Wikipedii (przy 1000 osób = $10-30 jednorazowo)
+> - Przy działaniu ciągłym: ~$5-10/miesiąc na nowe osoby
+> - Można ograniczyć koszty przez batch processing i cachowanie
+
+### 19.1 Architektura Modułu
+
+```mermaid
+flowchart TB
+    subgraph External["External Sources"]
+        WIKI[Wikipedia.pl]
+        OPENAI[OpenAI API]
+    end
+    
+    subgraph ScrapingLayer["Processing Layer"]
+        SW[Wikipedia Scraper]
+        AI[AI Parser & Normalizer]
+    end
+    
+    subgraph DataLayer["Data Layer"]
+        DB_PEOPLE[(famous_people)]
+        DB_SOURCES[(person_sources)]
+        DB_DOMAIN_PEOPLE[(domain_people)]
+    end
+    
+    subgraph FrontendLayer["Frontend"]
+        WIDGET[Born Here Widget]
+        PAGE[Person Detail Page]
+        LIST[Famous People List]
+    end
+    
+    WIKI -->|HTML| SW
+    SW -->|Raw Text| AI
+    OPENAI <-->|GPT-4o| AI
+    AI -->|Structured JSON| DB_PEOPLE
+    SW -->|Source URLs| DB_SOURCES
+    
+    DB_PEOPLE --> WIDGET
+    DB_PEOPLE --> PAGE
+    DB_PEOPLE --> LIST
+```
+
+### 19.2 Struktura Danych
+
+#### Model: FamousPerson
+```typescript
+interface FamousPerson {
+  id: string;                    // UUID
+  
+  // Dane podstawowe (z Wikipedii)
+  wikipedia_url: string;         // https://pl.wikipedia.org/wiki/Natalia_Aleksiun
+  full_name: string;             // "Natalia Aleksiun-Mądrzak"
+  short_name: string;            // "Natalia Aleksiun"
+  slug: string;                  // "natalia-aleksiun"
+  
+  // Miejsce urodzenia (automatycznie lub manualnie)
+  birth_city: string;            // "Wrocław"
+  birth_city_slug: string;       // "wroclaw"
+  birth_date?: string;           // "1971-01-21"
+  birth_date_text?: string;      // "21 stycznia 1971"
+  
+  // Przyimek dla miasta ("we" vs "w")
+  city_preposition: 'w' | 'we';  // "we Wrocławiu" vs "w Warszawie"
+  
+  // Dane z AI
+  profession: string[];          // ["historyczka", "profesor"]
+  short_description: string;     // "Polska historyczka pochodzenia żydowskiego"
+  biography_summary: string;     // Skrócony życiorys (2-3 akapity)
+  achievements: string[];        // Lista osiągnięć
+  
+  // Obrazek
+  image_url?: string;            // URL zdjęcia z Wikimedia
+  image_local?: string;          // Lokalna ścieżka
+  image_attribution?: string;    // Autor zdjęcia
+  
+  // Status
+  status: 'active' | 'draft' | 'archived';
+  ai_processed: boolean;         // Czy przetworzone przez AI
+  ai_confidence: number;         // Pewność AI (0-1)
+  
+  // Metadane
+  view_count: number;
+  created_at: Date;
+  updated_at: Date;
+}
+```
+
+#### Model: DomainFamousPerson
+```typescript
+interface DomainFamousPerson {
+  id: string;
+  domain_id: string;
+  person_id: string;
+  
+  // Wyświetlanie
+  display_order: number;
+  is_featured: boolean;          // Wyróżniona na stronie głównej
+  custom_description?: string;   // Niestandardowy opis dla domeny
+  
+  // Categorization per domain
+  local_category?: string;       // "Honorowy Obywatel", "Znani absolwenci"
+  
+  created_at: Date;
+  
+  // Relacje
+  person: FamousPerson;
+}
+```
+
+#### Model: PersonSource (Historia źródeł)
+```typescript
+interface PersonSource {
+  id: string;
+  person_id: string;
+  source_type: 'wikipedia' | 'manual' | 'import';
+  source_url: string;
+  raw_content?: string;          // Surowy HTML/text (do debuggingu)
+  processed_at: Date;
+  ai_response?: JSON;            // Pełna odpowiedź AI
+}
+```
+
+### 19.3 Schemat Bazy Danych (SQL)
+
+```sql
+-- Tabela sławnych osób
+CREATE TABLE famous_people (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    wikipedia_url VARCHAR(500) UNIQUE,
+    full_name VARCHAR(200) NOT NULL,
+    short_name VARCHAR(150),
+    slug VARCHAR(150) NOT NULL UNIQUE,
+    
+    -- Miejsce urodzenia
+    birth_city VARCHAR(100) NOT NULL,
+    birth_city_slug VARCHAR(100) NOT NULL,
+    birth_date DATE,
+    birth_date_text VARCHAR(50),
+    city_preposition VARCHAR(2) DEFAULT 'w',
+    
+    -- Dane AI
+    profession JSONB,             -- Array of strings
+    short_description TEXT,
+    biography_summary TEXT,
+    achievements JSONB,           -- Array of strings
+    
+    -- Obrazek
+    image_url VARCHAR(500),
+    image_local VARCHAR(500),
+    image_attribution VARCHAR(200),
+    
+    -- Status
+    status VARCHAR(20) DEFAULT 'draft',
+    ai_processed BOOLEAN DEFAULT false,
+    ai_confidence DECIMAL(3,2),
+    
+    -- Metadane
+    view_count INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabela przypisań do domen
+CREATE TABLE domain_famous_people (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    domain_id UUID NOT NULL REFERENCES domains(id) ON DELETE CASCADE,
+    person_id UUID NOT NULL REFERENCES famous_people(id) ON DELETE CASCADE,
+    display_order INTEGER DEFAULT 0,
+    is_featured BOOLEAN DEFAULT false,
+    custom_description TEXT,
+    local_category VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(domain_id, person_id)
+);
+
+-- Tabela źródeł
+CREATE TABLE person_sources (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    person_id UUID NOT NULL REFERENCES famous_people(id) ON DELETE CASCADE,
+    source_type VARCHAR(20) NOT NULL,
+    source_url VARCHAR(500) NOT NULL,
+    raw_content TEXT,
+    ai_response JSONB,
+    processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Indeksy
+CREATE INDEX idx_famous_people_city ON famous_people(birth_city_slug);
+CREATE INDEX idx_famous_people_status ON famous_people(status) WHERE status = 'active';
+CREATE INDEX idx_domain_famous_people_domain ON domain_famous_people(domain_id);
+CREATE INDEX idx_domain_famous_people_featured ON domain_famous_people(domain_id, is_featured) WHERE is_featured = true;
+```
+
+### 19.4 Prompt AI (OpenAI)
+
+#### System Prompt
+```
+Jesteś asystentem do ekstrakcji informacji biograficznych. 
+Twoim zadaniem jest przeanalizowanie tekstu z Wikipedii i wyodrębnienie kluczowych informacji o osobie w formacie JSON.
+Bądź dokładny, ale zwięzły. Jeśli jakiejś informacji brakuje, użyj null.
+```
+
+#### User Prompt Template
+```typescript
+const AI_PROMPT_TEMPLATE = `
+Przeanalizuj poniższy tekst z Wikipedii i wyodrębnij informacje o osobie.
+
+TEKST Z WIKIPEDII:
+---
+{{WIKIPEDIA_CONTENT}}
+---
+
+Zwróć odpowiedź w formacie JSON zgodnie z poniższym schematem:
+
+{
+  "full_name": "Pełne imię i nazwisko (z uwzględnieniem nazwiska panieńskiego, przydomków)",
+  "short_name": "Skrócona wersja do wyświetlania (bez drugiego imienia jeśli niepotrzebne)",
+  "birth_date": "YYYY-MM-DD lub null jeśli nieznana",
+  "birth_date_text": "Data w formacie polskim np. '21 stycznia 1971'",
+  "birth_place": "Miejsce urodzenia (tylko miasto, bez województwa)",
+  "profession": ["Tablica zawodów/profesji w dopełniaczu liczby pojedynczej, np. ['historyczka', 'profesor', 'pisarz']"],
+  "short_description": "Jednozdaniowy opis osoby (max 120 znaków)",
+  "biography_summary": "Skrócony życiorys w 2-3 zdaniach, bez dat szczegółowych",
+  "achievements": ["Tablica najważniejszych osiągnięć, nagród, tytułów (max 5 elementów)"],
+  "is_born_in_target_city": true/false,  // Czy potwierdzasz urodzenie w {{TARGET_CITY}}?
+  "confidence": 0.0-1.0  // Pewność co do poprawności danych (1.0 = pewny, 0.5 = niepewny)
+}
+
+Wskazówki:
+- Jeśli osoba nie urodziła się w {{TARGET_CITY}}, zwróć is_born_in_target_city: false
+- Profession powinno być w formie dopełniacza liczby pojedynczej ("historyczka", nie "historyk")
+- Short_description powinno zaczynać się od wielkiej litery i kończyć kropką
+- Biography_summary powinno być neutralne, encyklopedyczne
+- Achievements: wybierz najważniejsze, konkretne fakty (nagrody, stanowiska, publikacje)
+`;
+```
+
+### 19.5 Konfiguracja Scrapera
+
+#### Typ: `WIKIPEDIA_FAMOUS_PEOPLE`
+
+```typescript
+interface WikipediaFamousPeopleConfig {
+  type: 'WIKIPEDIA_FAMOUS_PEOPLE';
+  
+  // Miasto docelowe
+  targetCity: {
+    name: string;                // "Wrocław"
+    slug: string;                // "wroclaw"
+    preposition: 'w' | 'we';     // "we" dla Wrocław, Warszawa itp.
+  };
+  
+  // Lista URLi do przetworzenia
+  wikipediaUrls: string[];       // Lista URLi z osobami
+  
+  // Opcje AI
+  aiOptions: {
+    model: 'gpt-4o' | 'gpt-4o-mini';
+    temperature: number;         // 0.1 - 0.3 (niskie dla precyzji)
+    maxTokens: number;           // 1000-1500
+  };
+  
+  // Opcje przetwarzania
+  processing: {
+    batchSize: number;           // Ile osób przetwarzać naraz (5-10)
+    delayBetweenRequests: number; // ms (aby nie przeciążyć API)
+    autoApproveConfidence: number; // Automatycznie akceptuj jeśli confidence >= 0.85
+    requireManualApproval: boolean; // Czy wymagać ręcznej akceptacji
+  };
+  
+  // Pobieranie zdjęć
+  images: {
+    download: boolean;
+    preferredSize: '250px' | '500px' | 'max';
+    fallbackToPlaceholder: boolean;
+  };
+}
+```
+
+#### Parser - selektory CSS (Wikipedia)
+
+```python
+WIKIPEDIA_SELECTORS = {
+    # Główne dane
+    'title': 'h1.firstHeading .mw-page-title-main',
+    'content': '#mw-content-text .mw-parser-output',
+    
+    # Infobox
+    'infobox': 'table.infobox',
+    'infobox_caption': 'table.infobox caption',
+    'infobox_rows': 'table.infobox tr',
+    
+    # Data i miejsce urodzenia
+    'birth_date': 'th:contains("Data i miejsce urodzenia") + td, th:contains("Urodzenie") + td',
+    'birth_place': 'th:contains("Data i miejsce urodzenia") + td a[href*="/wiki/"], th:contains("Miejsce urodzenia") + td',
+    
+    # Zdjęcie
+    'main_image': 'table.infobox img, .mw-parser-output > figure img',
+    'image_caption': 'table.infobox .infobox-caption, figure figcaption',
+    
+    # Treść artykułu
+    'intro_paragraph': '#mw-content-text .mw-parser-output > p:not(.mw-empty-elt)',
+    'sections': '#mw-content-text .mw-parser-output > h2, #mw-content-text .mw-parser-output > h3',
+    
+    # Kategorie
+    'categories': '#catlinks li a',
+}
+```
+
+### 19.6 API Endpoints
+
+```typescript
+// Osoby (Admin)
+GET    /api/v1/famous-people
+POST   /api/v1/famous-people                          // Dodaj ręcznie
+GET    /api/v1/famous-people/:id
+PUT    /api/v1/famous-people/:id
+DELETE /api/v1/famous-people/:id
+POST   /api/v1/famous-people/:id/process-ai          // Przetwórz przez AI
+POST   /api/v1/famous-people/bulk-import             // Import zbiorczy z URLi
+GET    /api/v1/famous-people/by-city/:citySlug
+
+// Przypisania do domeny
+GET    /api/v1/domains/:domainId/famous-people
+POST   /api/v1/domains/:domainId/famous-people        // Przypisz osobę
+PUT    /api/v1/domains/:domainId/famous-people/:id
+DELETE /api/v1/domains/:domainId/famous-people/:id
+POST   /api/v1/domains/:domainId/famous-people/reorder
+
+// Publiczne
+GET    /api/v1/public/:domain/famous-people           // Lista dla domeny
+GET    /api/v1/public/:domain/famous-people/featured  // Wyróżnione
+GET    /api/v1/public/:domain/famous-people/:slug     // Szczegóły osoby
+POST   /api/v1/public/famous-people/:id/view          // Zapisz wyświetlenie
+```
+
+### 19.7 Komponenty Frontend
+
+#### A. Widget na Stronie Głównej
+
+```typescript
+// Widget "Sławni urodzeni we Wrocławiu"
+interface BornHereWidgetProps {
+  city: {
+    name: string;              // "Wrocław"
+    preposition: 'w' | 'we';   // "we"
+  };
+  people: FamousPerson[];
+  featuredCount?: number;      // Ilu wyróżnionych pokazać (3-5)
+  showViewAll?: boolean;
+}
+
+// Karta osoby
+interface PersonCardProps {
+  person: FamousPerson;
+  variant: 'horizontal' | 'vertical' | 'compact';
+  showImage?: boolean;
+  showProfession?: boolean;
+}
+```
+
+#### B. Podstrony
+
+```typescript
+// Lista osób (/slawni-urodzeni)
+interface FamousPeoplePageProps {
+  city: {
+    name: string;
+    preposition: 'w' | 'we';
+  };
+  people: FamousPerson[];
+  filterBy?: 'all' | 'profession' | 'alphabetical';
+  sortBy?: 'alphabetical' | 'popularity' | 'birth_date';
+}
+
+// Strona osoby (/slawni-urodzeni/:slug)
+interface PersonDetailPageProps {
+  person: FamousPerson;
+  relatedPeople?: FamousPerson[];  // Inni z tego samego miasta
+  prevPerson?: FamousPerson;       // Poprzedni alfabetycznie
+  nextPerson?: FamousPerson;       // Następny alfabetycznie
+}
+```
+
+### 19.8 Design System - Sławne Osoby
+
+#### Layout Widgetu na Stronie Głównej
+```
+┌─────────────────────────────────────────────────────────────┐
+│  ⭐ SŁAWNI URODZENI WE WROCŁAWIU         [Zobacz wszystkich]│
+├─────────────────────────────────────────────────────────────┤
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │ ┌────┐                                              │   │
+│  │ │ 👤 │  Natalia Aleksiun                           │   │
+│  │ │IMG │  Historyczka, profesor                      │   │
+│  │ └────┘  Polska historyczka pochodzenia żydowskiego│   │
+│  │         [Czytaj więcej →]                           │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                                                             │
+│  ┌────┐ ┌────┐ ┌────┐ ┌────┐                               │
+│  │ 👤 │ │ 👤 │ │ 👤 │ │ 👤 │                               │
+│  │IMG │ │IMG │ │IMG │ │IMG │                               │
+│  └────┘ └────┘ └────┘ └────┘                               │
+│  Piotr A.  Jan K.  Maria B.  Anna C.                       │
+│  [Klikalne miniaturki]                                      │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### Strona Szczegółów Osoby
+```
+┌─────────────────────────────────────────────────────────────┐
+│  [Strona główna] > [Sławni urodzeni] > Natalia Aleksiun    │
+├─────────────────────────────────────────────────────────────┤
+│  ┌────┐                                                     │
+│  │    │  Natalia Aleksiun-Mądrzak                          │
+│  │IMG │  ⭐ Historyczka, profesor                           │
+│  │    │                                                     │
+│  └────┘  📅 Urodzona: 21 stycznia 1971                     │
+│          📍 Miejsce: Wrocław                               │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  Osobie                                                     │
+│  ─────────────────────────────────────────────────────────  │
+│                                                             │
+│  Polska historyczka pochodzenia żydowskiego. Specjalizuje   │
+│  się w historii najnowszej Polski, dziejach Żydów polskich  │
+│  w XIX i XX wieku oraz stosunkach polsko-żydowskich.        │
+│                                                             │
+│  Jest córką malarki Miry Żelechower-Aleksiun i Jana         │
+│  Jaromira Aleksiuna. Studiowała na Wydziale Historycznym    │
+│  Uniwersytetu Warszawskiego...                              │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │ 🏆 OSIĄGNIĘCIA                                      │   │
+│  │ • Laureatka Nagrody Fundacji Nauki Polskiej         │   │
+│  │ • Stypendystka Fulbrighta                           │   │
+│  │ • Profesor NYU                                      │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                                                             │
+│  [Źródło: Wikipedia] [Zobacz w Wikipedii ↗]                │
+├─────────────────────────────────────────────────────────────┤
+│  Inni sławni urodzeni we Wrocławiu:                        │
+│  [← Piotr Adamczyk]  [Natalia Aleksiun]  [Jan Kowalski →]  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### Style
+```css
+:root {
+  /* Karty osób */
+  --person-card-bg: var(--bg-primary);
+  --person-card-border: var(--border-subtle);
+  --person-card-radius: 12px;
+  --person-card-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  
+  /* Zdjęcie */
+  --person-image-size-sm: 64px;
+  --person-image-size-md: 120px;
+  --person-image-size-lg: 200px;
+  --person-image-radius: 50%;    /* Okrągłe */
+  --person-image-border: 3px solid var(--primary-color);
+  
+  /* Cytaty/deskryptory */
+  --person-quote-font: 'Merriweather', serif;
+  --person-quote-size: 1.1rem;
+  --person-quote-style: italic;
+}
+```
+
+### 19.9 Integracja z Panelem Admina
+
+#### Nowe uprawnienia:
+```typescript
+'famous_people:manage'         // Dostęp do modułu
+'famous_people:create'         // Dodawanie osób
+'famous_people:edit'           // Edycja osób
+'famous_people:ai_process'     // Przetwarzanie przez AI
+'famous_people:assign'         // Przypisywanie do domen
+```
+
+#### Menu w Panelu:
+```
+⭐ Sławni Urodzeni
+├── 👥 Lista osób
+│   ├── Wszyscy
+│   ├── Aktywni
+│   ├── Do przetworzenia
+│   └── Archiwum
+├── ➕ Dodaj osobę
+│   ├── Ręcznie
+│   └── Import z Wikipedii
+├── 🤖 Przetwarzanie AI
+│   ├── Kolejka przetwarzania
+│   └── Wyniki AI
+├── 🎯 Przypisania
+│   └── Osoby per domena
+└── ⚙️ Konfiguracja
+    ├── Miasto domyślne
+    └── Ustawienia AI
+```
+
+### 19.10 Zadania Implementacyjne
+
+#### Etap 3 (Backend API):
+
+| # | Zadanie | Estymacja | Zależności |
+|---|---------|-----------|------------|
+| 3.22 | **Modele bazy leaflet_shops** | 2h | 3.1 |
+| 3.23 | **Modele bazy leaflets i pages** | 3h | 3.22 |
+| 3.24 | **Modele bazy domain_shops** | 2h | 3.22 |
+| 3.25 | **API endpoints dla sklepów** | 4h | 3.22 |
+| 3.26 | **API endpoints dla gazetek** | 4h | 3.23 |
+| 3.27 | **Modele bazy famous_people** | 2h | 3.1 |
+| 3.28 | **Modele bazy domain_famous_people** | 2h | 3.27 |
+| 3.29 | **API endpoints dla sławnych osób** | 4h | 3.27 |
+| 3.30 | **Integracja z OpenAI API** | 6h | 3.27 |
+
+#### Etap 4 (Scraping):
+
+| # | Zadanie | Estymacja | Zależności |
+|---|---------|-----------|------------|
+| 4.23 | **Parser Blix.pl - lista sklepów** | 6h | 4.1 |
+| 4.24 | **Parser Blix.pl - gazetki** | 6h | 4.23 |
+| 4.25 | **Downloader obrazków gazetek** | 4h | 4.24 |
+| 4.26 | **Archiwizacja starych gazetek** | 3h | 4.25 |
+| 4.27 | **Parser Wikipedii dla osób** | 5h | 4.1 |
+| 4.28 | **AI Processor dla biografii** | 6h | 4.27, 3.30 |
+| 4.29 | **Scheduler dla gazetek** | 3h | 4.24-4.26 |
+| 4.30 | **Scheduler dla sławnych osób** | 3h | 4.27-4.28 |
+
+#### Etap 5 (Frontend Publiczny):
+
+| # | Zadanie | Estymacja | Zależności |
+|---|---------|-----------|------------|
+| 5.25 | **Komponent ShopIcon** | 2h | 5.1 |
+| 5.26 | **Komponent ShopIconsGrid** | 3h | 5.25 |
+| 5.27 | **Komponent LeafletCard** | 3h | 5.1 |
+| 5.28 | **Komponent LeafletCarousel** | 4h | 5.27 |
+| 5.29 | **Przeglądarka gazetki (Viewer)** | 8h | 5.27 |
+| 5.30 | **Strona /gazetki** | 4h | 5.26, 5.28 |
+| 5.31 | **Strona /gazetki/sklep/:slug** | 4h | 5.30 |
+| 5.32 | **Komponent PersonCard** | 3h | 5.1 |
+| 5.33 | **Komponent BornHereWidget** | 4h | 5.32 |
+| 5.34 | **Strona /slawni-urodzeni** | 4h | 5.32 |
+| 5.35 | **Strona /slawni-urodzeni/:slug** | 5h | 5.34 |
+| 5.36 | **Sekcja gazetek na stronie głównej** | 3h | 5.26, 5.28 |
+| 5.37 | **Sekcja sławnych osób na stronie głównej** | 3h | 5.33 |
+
+#### Etap 6 (Panel Admina):
+
+| # | Zadanie | Estymacja | Zależności |
+|---|---------|-----------|------------|
+| 6.20 | **Lista sklepów w panelu** | 3h | 6.1, 3.25 |
+| 6.21 | **Formularz przypisania sklepów** | 4h | 6.20 |
+| 6.22 | **Zarządzanie gazetkami** | 4h | 6.1, 3.26 |
+| 6.23 | **Konfiguracja scrapera gazetek** | 3h | 6.22 |
+| 6.24 | **Lista sławnych osób** | 4h | 6.1, 3.29 |
+| 6.25 | **Formularz dodawania osoby (z URL Wikipedii)** | 4h | 6.24 |
+| 6.26 | **Widok podglądu AI dla osoby** | 4h | 6.25 |
+| 6.27 | **Kolejka przetwarzania AI** | 4h | 6.26 |
+| 6.28 | **Przypisywanie osób do domen** | 3h | 6.24 |
+
 ---
 
 **KONIEC DOKUMENTACJI**
 
-*Wersja: 3.1 (Zintegrowana z modułem Piłkarskim)*  
+*Wersja: 3.2 (Zintegrowana z modułami: Piłka Nożna, Gazetki, Sławni)*  
 *Data: 12 lutego 2026*  
 *Autor: System Architect*  
 *Status: Ready for Implementation*
