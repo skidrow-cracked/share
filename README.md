@@ -1,303 +1,450 @@
-# REGIONALNE SERWISY - KOMPLETNY MASTERPLAN SYSTEMU
+# REGIONALNE SERWISY - MASTERPLAN ARCHITEKTURY SYSTEMU
 
-**Multi-Tenant Regional Portal Management System z Ultra UX Frontend**
-
-**Wersja:** 3.0 (Zintegrowana)  
-**Data:** 12 lutego 2026  
-**Autor:** System Architect  
-**Status:** Ready for Implementation
+**Multi-Tenant Regional Portal Management System**
 
 ---
 
 ## SPIS TRESCI
 
-1. [Wizja i Architektura Systemu](#1-wizja-i-architektura-systemu)
-2. [Struktura Domen i Routing](#2-struktura-domen-i-routing)
+### Podstawowa Dokumentacja
+
+1. [Architektura Systemu - Wprowadzenie](#1-architektura-systemu---wprowadzenie)
+2. [Struktura Domen i Hosting](#2-struktura-domen-i-hosting)
 3. [Baza Danych - Architektura Multi-Tenant](#3-baza-danych---architektura-multi-tenant)
-4. [System Uprawnień RBAC](#4-system-uprawnień-rbac)
+4. [System Uprawnien (RBAC)](#4-system-uprawnien-rbac)
 5. [API - Specyfikacja Kompletna](#5-api---specyfikacja-kompletna)
-6. [Frontend - UI/UX Design System](#6-frontend---uiux-design-system)
-7. [Komponenty Frontend (Na podstawie 4torun.pl)](#7-komponenty-frontend-na-podstawie-4torunpl)
-8. [Panel Administracyjny - Centralny](#8-panel-administracyjny---centralny)
-9. [Panel Administracyjny - Per Serwis](#9-panel-administracyjny---per-serwis)
-10. [System Motywów i Personalizacji](#10-system-motywów-i-personalizacji)
-11. [System Scrapingu i Cron Jobs](#11-system-scrapingu-i-cron-jobs)
-12. [SEO i Struktury Danych](#12-seo-i-struktury-danych)
-13. [Monitoring, Logi i Raportowanie](#13-monitoring-logi-i-raportowanie)
-14. [Deployment i Dodawanie Nowych Portali](#14-deployment-i-dodawanie-nowych-portali)
-15. [Wdrożenie - Plan Etapowy](#15-wdrożenie---plan-etapowy)
-16. [Bezpieczeństwo](#16-bezpieczeństwo)
-17. [Moduł Piłki Nożnej ⚽](#17-moduł-piłki-nożnej-)
-18. [Moduł Gazetek Promocyjnych 🛍️](#18-moduł-gazetek-promocyjnych-)
-19. [Moduł Sławnych Osób ⭐](#19-moduł-sławnych-osób-urodzonych-w-mieście-)
-20. [Standardy Danych i Struktury CPT 📊](#20-standardy-danych-i-struktury-cpt-)
+6. [Panel Administracyjny - Centralny](#6-panel-administracyjny---centralny)
+7. [Panel Administracyjny - Per Serwis](#7-panel-administracyjny---per-serwis)
+8. [System Scrapingu i Cron Jobs](#8-system-scrapingu-i-cron-jobs)
+9. [SEO i Struktury Danych](#9-seo-i-struktury-danych)
+10. [Monitoring, Logi i Raportowanie](#10-monitoring-logi-i-raportowanie)
+11. [Wdrozenie - Plan Etapowy](#11-wdrozenie---plan-etapowy)
+12. [Bezpieczenstwo](#12-bezpieczenstwo)
+13. [Zaleznosci i Korelacje](#13-zaleznosci-i-korelacje)
+14. [Podsumowanie](#14-podsumowanie)
+
+### Rozszerzona Dokumentacja (Nowe Sekcje)
+
+21. [Strategia Testowania](#21-strategia-testowania-)
+22. [CI/CD i DevOps](#22-cicd-i-devops-)
+23. [Dokumentacja API (OpenAPI/Swagger)](#23-dokumentacja-api-openapiswagger-)
+24. [Troubleshooting i FAQ](#24-troubleshooting-i-faq-)
+25. [Backup i Disaster Recovery](#25-backup-i-disaster-recovery-)
 
 ---
 
-## 1. WIZJA I ARCHITEKTURA SYSTEMU
+## 1. ARCHITEKTURA SYSTEMU - WPROWADZENIE
 
 ### 1.1 Wizja Systemu
 
-System **Regionalne Serwisy** to zaawansowana platforma multi-tenant pozwalająca na zarządzanie wieloma niezależnymi serwisami regionalnymi z jednego centralnego panelu administracyjnego.
+System **Regionalne Serwisy** to zaawansowana platforma multi-tenant pozwalajaca na zarzadzanie wieloma niezaleznymi serwisami regionalnymi z jednego centralnego panelu administracyjnego.
 
-### 1.2 Diagram Architektury High-Level
-
-```mermaid
-graph TB
-    subgraph "System Users"
-        UA[Super Admin]
-        UB[Domain Admin]
-        UC[Editor]
-        UD[Moderator]
-        UE[User]
-    end
-
-    subgraph "Panel Centralny"
-        PC[serwisy-lokalne-sterowanie.pl]
-        PC_API[/API Gateway/]
-        PC_DB[(PostgreSQL<br/>Schema: public)]
-    end
-
-    subgraph "Domeny Regionalne"
-        D1[4torun.pl<br/>Next.js + React]
-        D2[4bydgoszcz.pl]
-        D3[4warszawa.pl]
-        D4[...]
-    end
-
-    subgraph "Shared Infrastructure"
-        REDIS[(Redis Cache)]
-        RMQ[(RabbitMQ)]
-        ES[(Elasticsearch)]
-        MINIO[(MinIO Storage)]
-    end
-
-    subgraph "Python Workers"
-        W1[Scraper Worker]
-        W2[Cron Worker]
-        W3[Email Worker]
-    end
-
-    UA --> PC
-    UB --> PC
-    UB --> D1
-    UB --> D2
-    UC --> D1
-    UD --> D1
-    UE --> D1
-    UE --> D2
-    UE --> D3
-
-    PC --> PC_API
-    PC_API --> PC_DB
-    PC_API --> REDIS
-    PC_API --> RMQ
-    
-    D1 --> PC_DB
-    D2 --> PC_DB
-    
-    PC --> W1
-    RMQ --> W1
-    W1 --> D1
-    W1 --> MINIO
-```
-
-### 1.3 Główne Założenia
+### 1.2 Glowne Zalozenia
 
 | Aspekt | Opis |
 |--------|------|
-| **Multi-Tenancy** | Każdy serwis to oddzielny tenant z własnym schema PostgreSQL |
-| **Centralne Zarządzanie** | Jeden panel do sterowania wszystkimi serwisami |
-| **Współdzielenie Zasobów** | Wspólne szablony, moduły, źródła danych |
-| **Skalowalność** | Łatwe dodawanie nowych serwisów (automatyczny deployment) |
-| **Elastyczność** | Możliwość indywidualnej konfiguracji każdego serwisu (kolory, logo, motyw) |
+| **Multi-Tenancy** | Kazdy serwis to oddzielny tenant z wlasnymi danymi |
+| **Centralne Zarzadzanie** | Jeden panel do sterowania wszystkimi serwisami |
+| **Izolacja Danych** | Dane kazdego serwisu sa logicznie odseparowane |
+| **Wspoldzielenie Zasobow** | Wspolne szablony, moduly, zrodla danych |
+| **Skalowalnosc** | Latwe dodawanie nowych serwisow |
+| **Elastycznosc** | Mozliwosc indywidualnej konfiguracji kazdego serwisu |
+
+### 1.3 Diagram Architektury High-Level
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         UZYTKOWNICY SYSTEMU                             │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────────┐ │
+│  │ Super Admin │  │   Admin     │  │  Redaktor   │  │   Uzytkownik    │ │
+│  │ (System)    │  │ (Serwis)    │  │ (Content)   │  │   (Public)      │ │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └─────────────────┘ │
+└─────────┼────────────────┼────────────────┼─────────────────────────────┘
+          │                │                │
+          ▼                ▼                ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    CENTRALNY PANEL STEROWANIA                           │
+│                    serwisy-lokalne-sterowanie.pl                        │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │  Dashboard │ Domeny │ Uzytkownicy │ Uprawnienia │ Ustawienia    │  │
+│  │  Szablony  │ Moduly │ Zrodla      │ Cron        │ Logi          │  │
+│  │  Statystyki│ Raporty│ SEO Global  │ Backup      │ Monitoring    │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+└───────────────────────────────┬─────────────────────────────────────────┘
+                                │
+          ┌─────────────────────┼─────────────────────┐
+          │                     │                     │
+          ▼                     ▼                     ▼
+┌─────────────────┐   ┌─────────────────┐   ┌─────────────────┐
+│  SERWIS 1       │   │  SERWIS 2       │   │  SERWIS N       │
+│ 4torun.pl       │   │ 4bydgoszcz.pl   │   │ 4warszawa.pl    │
+├─────────────────┤   ├─────────────────┤   ├─────────────────┤
+│ - Wiadomosci    │   │ - Wiadomosci    │   │ - Wiadomosci    │
+│ - Kronika       │   │ - Kronika       │   │ - Kronika       │
+│ - Firmy         │   │ - Firmy         │   │ - Firmy         │
+│ - Praca         │   │ - Praca         │   │ - Praca         │
+│ - Nekrologi     │   │ - Nekrologi     │   │ - Nekrologi     │
+│ - Przewodnik    │   │ - Przewodnik    │   │ - Przewodnik    │
+└─────────────────┘   └─────────────────┘   └─────────────────┘
+          │                     │                     │
+          └─────────────────────┼─────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                      WSPOLNA INFRASTRUKTURA                             │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐ │
+│  │  PostgreSQL  │  │    Redis     │  │ Elasticsearch│  │   MinIO      │ │
+│  │  (Database)  │  │   (Cache)    │  │   (Search)   │  │  (Storage)   │ │
+│  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘ │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐ │
+│  │  RabbitMQ    │  │   Puppeteer  │  │   Python     │  │   Node.js    │ │
+│  │  (Queue)     │  │  (Scraper)   │  │  (Workers)   │  │    (API)     │ │
+│  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘ │
+└─────────────────────────────────────────────────────────────────────────┘
+```
 
 ### 1.4 Struktura Katalogów na Hosting
 
 ```
 /home/host988956/
 ├── domains/
-│   ├── serwisy-lokalne-sterowanie.pl/    # Panel centralny (Next.js)
-│   │   ├── public_html/
-│   │   │   ├── .next/                    # Build output
-│   │   │   ├── src/
-│   │   │   │   ├── app/                  # Next.js App Router
-│   │   │   │   ├── components/
-│   │   │   │   └── lib/
-│   │   │   └── package.json
-│   │   ├── logs/
+│   ├── serwisy-lokalne-sterowanie.pl/
+│   │   ├── public_html/           # Panel centralny (Next.js/React)
+│   │   ├── private/
+│   │   │   ├── config/
+│   │   │   ├── logs/
+│   │   │   └── temp/
 │   │   └── backup/
 │   │
-│   ├── 4torun.pl/                        # Serwis regionalny (Next.js)
-│   │   ├── public_html/
-│   │   │   ├── .next/
-│   │   │   ├── src/
-│   │   │   │   ├── app/
-│   │   │   │   │   ├── page.tsx          # Home
-│   │   │   │   │   ├── [type]/           # CPT routes
-│   │   │   │   │   └── admin/            # Panel serwisu
-│   │   │   │   ├── components/
-│   │   │   │   │   ├── layout/           # Header, Footer
-│   │   │   │   │   ├── content/          # NewsCard, Hero
-│   │   │   │   │   └── ui/               # shadcn/ui
-│   │   │   │   ├── hooks/
-│   │   │   │   └── lib/
-│   │   │   ├── public/
-│   │   │   │   ├── uploads/              # User uploads
-│   │   │   │   └── images/
-│   │   │   ├── .env.local                # Konfiguracja DB
-│   │   │   ├── next.config.js
-│   │   │   └── tailwind.config.ts
-│   │   ├── logs/
+│   ├── 4torun.pl/
+│   │   ├── public_html/           # Frontend serwisu (SSG/SSR)
+│   │   ├── private/
+│   │   │   ├── cache/
+│   │   │   ├── uploads/
+│   │   │   └── logs/
 │   │   └── backup/
 │   │
-│   └── [nowa-domena.pl]/                 # Nowa domena (auto-created z template)
-│       └── public_html/                  # Klon template/default/
+│   ├── 4bydgoszcz.pl/
+│   │   ├── public_html/
+│   │   └── ...
+│   │
+│   └── [n-domen-regionalnych]/
 │
-├── shared/
-│   ├── templates/
-│   │   └── default/                      # Szablon do klonowania
-│   ├── assets/                           # Wspólne grafiki, fonty
-│   └── scripts/                          # Skrypty deploymentu
+├── shared/                        # Wspolne zasoby
+│   ├── templates/                 # Szablony wspolne
+│   ├── modules/                   # Moduly wspolne
+│   ├── assets/                    # Grafiki, fonty
+│   └── scripts/                   # Skrypty wspolne
 │
-├── workers/                              # Python workers
-│   ├── scraper/
-│   ├── cron/
-│   └── venv/
+├── workers/                       # Python workers
+│   ├── scrapers/
+│   ├── processors/
+│   └── cron/
 │
-└── logs/                                 # Logi systemowe
+├── logs/                          # Logi systemowe
+│   ├── system/
+│   ├── access/
+│   └── error/
+│
+└── config/                        # Konfiguracja globalna
+    ├── database.yml
+    ├── services.yml
+    └── security.yml
 ```
 
 ---
 
-## 2. STRUKTURA DOMEN I ROUTING
+## 2. STRUKTURA DOMEN I HOSTING
 
 ### 2.1 Konfiguracja Domen
 
-| Domena | Typ | Technologia | Opis |
-|--------|-----|-------------|------|
-| `serwisy-lokalne-sterowanie.pl` | Panel Centralny | Next.js 14 + React 18 | Zarządzanie wszystkimi serwisami |
-| `4torun.pl` | Serwis Regionalny | Next.js 14 + React 18 | Frontend publiczny + panel admina |
-| `4bydgoszcz.pl` | Serwis Regionalny | Next.js 14 + React 18 | Inny tenant, ten sam kod |
-| `[nowa-domena.pl]` | Serwis Regionalny | Next.js 14 + React 18 | Auto-deployment z template |
+#### Domena Centralna (Panel Sterowania)
+```
+Domena: serwisy-lokalne-sterowanie.pl
+Typ: Aplikacja administracyjna (SPA/SSR)
+Technologia: Next.js 14 + React 18
+```
 
-### 2.2 Routing Panelu Centralnego
+#### Domeny Regionalne (Serwisy)
+```
+Przyklady:
+- 4torun.pl
+- 4bydgoszcz.pl
+- 4warszawa.pl
+- 4gdansk.pl
+- itp.
+
+Typ: Serwisy publiczne (SSG/SSR)
+Technologia: Next.js 14 + React 18
+```
+
+### 2.2 Struktura URL - Panel Centralny
 
 ```
-# Dashboard
-GET  /                                    # Dashboard główny systemu
-GET  /dashboard                           # Statystyki wszystkich serwisów
+# DASHBOARD
+GET  /                                    # Dashboard glowny
+GET  /dashboard                           # Statystyki wszystkich serwisow
+GET  /dashboard/metrics                   # Metryki systemowe
+GET  /dashboard/alerts                    # Alerty i powiadomienia
 
-# Zarządzanie Domenami
+# ZARZADZANIE DOMENAMI
 GET  /admin/domeny                        # Lista wszystkich domen
-POST /admin/domeny                        # Dodaj nową domenę
-GET  /admin/domeny/:domainId              # Szczegóły domeny
-GET  /admin/domeny/:domainId/dashboard    # Dashboard konkretnej domeny
-GET  /admin/domeny/:domainId/content/*    # Zarządzanie treścią domeny
+POST /admin/domeny                        # Dodaj nowa domene
+GET  /admin/domeny/:domainId              # Szczegoly domeny
+PUT  /admin/domeny/:domainId              # Edytuj domene
+DELETE /admin/domeny/:domainId            # Usun domene
+GET  /admin/domeny/:domainId/dashboard    # Dashboard domeny
+GET  /admin/domeny/:domainId/statystyki   # Statystyki domeny
+GET  /admin/domeny/:domainId/logi         # Logi domeny
 
-# Masowe Operacje
+# PRZEKIEROWANIE DO ZARZADZANIA KONKRETNA DOMENA
+GET  /admin/domeny/:domainId/content/*    # Zarzadzanie trescia
+GET  /admin/domeny/:domainId/users/*      # Zarzadzanie uzytkownikami
+GET  /admin/domeny/:domainId/settings/*   # Ustawienia domeny
+GET  /admin/domeny/:domainId/seo/*        # SEO domeny
+GET  /admin/domeny/:domainy/design/*      # Wyglad i szablony
+
+# GLOBALNE USTAWIENIA (WSZYSTKIE DOMENY)
+GET  /admin/global/banners                # Globalne bannery
+POST /admin/global/banners                # Dodaj globalny banner
+GET  /admin/global/menus                  # Globalne menu
+POST /admin/global/menus                  # Dodaj globalne menu
+GET  /admin/global/widgets                # Globalne widgety
+POST /admin/global/widgets                # Dodaj globalny widget
+GET  /admin/global/sources                # Globalne zrodla danych
+POST /admin/global/sources                # Dodaj globalne zrodlo
+
+# MASOWE OPERACJE
 POST /admin/mass/banners                  # Dodaj banner do wielu domen
 POST /admin/mass/menus                    # Dodaj menu do wielu domen
-POST /admin/mass/content                  # Dodaj treść do wielu domen
+POST /admin/mass/content                  # Dodaj tresc do wielu domen
+POST /admin/mass/updates                  # Aktualizacja wielu domen
+POST /admin/mass/backup                   # Backup wielu domen
 
-# Źródła Danych
-GET  /admin/sources                       # Lista źródeł scrapingu
-POST /admin/sources                       # Dodaj źródło
+# ZRODLA DANYCH (SCRAPING)
+GET  /admin/sources                       # Lista zrodel
+POST /admin/sources                       # Dodaj zrodlo
+GET  /admin/sources/:sourceId             # Szczegoly zrodla
+PUT  /admin/sources/:sourceId             # Edytuj zrodlo
+DELETE /admin/sources/:sourceId           # Usun zrodlo
+GET  /admin/sources/:sourceId/logs        # Logi scrapingu
 POST /admin/sources/:sourceId/run         # Uruchom scraping
+GET  /admin/sources/:sourceId/schedule    # Harmonogram
 
-# Cron Jobs
-GET  /admin/cron                          # Lista zadań cron
+# CRON JOBS
+GET  /admin/cron                          # Lista zadan cron
 POST /admin/cron                          # Dodaj zadanie
+GET  /admin/cron/:jobId                   # Szczegoly zadania
+PUT  /admin/cron/:jobId                   # Edytuj zadanie
+DELETE /admin/cron/:jobId                 # Usun zadanie
+GET  /admin/cron/:jobId/logs              # Logi wykonania
+POST /admin/cron/:jobId/run               # Uruchom recznie
 
-# Użytkownicy i Uprawnienia
-GET  /admin/users                         # Lista użytkowników systemu
-GET  /admin/roles                         # Role i uprawnienia
+# UZYTKOWNICY SYSTEMU
+GET  /admin/users                         # Lista uzytkownikow
+POST /admin/users                         # Dodaj uzytkownika
+GET  /admin/users/:userId                 # Szczegoly uzytkownika
+PUT  /admin/users/:userId                 # Edytuj uzytkownika
+DELETE /admin/users/:userId               # Usun uzytkownika
+GET  /admin/users/:userId/permissions     # Uprawnienia uzytkownika
+PUT  /admin/users/:userId/permissions     # Zmien uprawnienia
+GET  /admin/users/:userId/activity        # Aktywnosc uzytkownika
 
-# Szablony i Motywy
-GET  /admin/templates                     # Lista szablonów
+# ROLE I UPRAWNIENIA
+GET  /admin/roles                         # Lista rol
+POST /admin/roles                         # Dodaj role
+GET  /admin/roles/:roleId                 # Szczegoly roli
+PUT  /admin/roles/:roleId                 # Edytuj role
+DELETE /admin/roles/:roleId               # Usun role
+GET  /admin/permissions                   # Lista uprawnien
+
+# SZABLONY
+GET  /admin/templates                     # Lista szablonow
+POST /admin/templates                     # Dodaj szablon
+GET  /admin/templates/:templateId         # Szczegoly szablonu
+PUT  /admin/templates/:templateId         # Edytuj szablon
+DELETE /admin/templates/:templateId       # Usun szablon
 POST /admin/templates/:templateId/apply   # Zastosuj do domen
 
-# Logi
+# MODULY
+GET  /admin/modules                       # Lista modulow
+POST /admin/modules                       # Dodaj modul
+GET  /admin/modules/:moduleId             # Szczegoly modulu
+PUT  /admin/modules/:moduleId             # Edytuj modul
+DELETE /admin/modules/:moduleId           # Usun modul
+POST /admin/modules/:moduleId/activate    # Aktywuj w domenach
+
+# STATYSTYKI I RAPORTY
+GET  /admin/statistics                    # Statystyki ogolne
+GET  /admin/statistics/traffic            # Ruch na stronach
+GET  /admin/statistics/content            # Statystyki tresci
+GET  /admin/statistics/users              # Aktywnosc uzytkownikow
+GET  /admin/statistics/seo                # Wyniki SEO
+GET  /admin/reports                       # Raporty
+POST /admin/reports/generate              # Generuj raport
+GET  /admin/reports/:reportId             # Pobierz raport
+
+# LOGI SYSTEMOWE
 GET  /admin/logs                          # Logi systemowe
+GET  /admin/logs/system                   # Logi aplikacji
+GET  /admin/logs/access                   # Logi dostepu
+GET  /admin/logs/error                    # Logi bledow
+GET  /admin/logs/scraper                  # Logi scrapera
+GET  /admin/logs/cron                     # Logi cron
+
+# BACKUP I RESTORE
+GET  /admin/backup                        # Lista backupow
+POST /admin/backup/create                 # Utworz backup
+POST /admin/backup/:backupId/restore      # Przywroc backup
+DELETE /admin/backup/:backupId            # Usun backup
+POST /admin/backup/schedule               # Harmonogram backup
+
+# USTAWIENIA SYSTEMU
+GET  /admin/settings                      # Ustawienia globalne
+PUT  /admin/settings                      # Zapisz ustawienia
+GET  /admin/settings/email                # Ustawienia email
+PUT  /admin/settings/email                # Zapisz ustawienia email
+GET  /admin/settings/security             # Ustawienia bezpieczenstwa
+PUT  /admin/settings/security             # Zapisz ustawienia security
+GET  /admin/settings/integrations         # Integracje zewnetrzne
+PUT  /admin/settings/integrations         # Zapisz integracje
+
+# API TOKENS
+GET  /admin/api-tokens                    # Lista tokenow
+POST /admin/api-tokens                    # Generuj token
+DELETE /admin/api-tokens/:tokenId         # Uniewaznij token
 ```
 
-### 2.3 Routing Serwisu Regionalnego (Frontend Publiczny)
+### 2.3 Struktura URL - Serwis Regionalny (Przyklad)
 
 ```
-# Strony Główne
-GET  /                                    # Home Page
-GET  /wiadomosci                          # Archiwum wiadomości
-GET  /wiadomosci/:slug                    # Pojedyncza wiadomość
-GET  /kronika-policyjna                   # Archiwum kroniki
+# STRONA GLOWNA
+GET  /                                    # Strona glowna
+GET  /wiadomosci                          # Lista wiadomosci
+GET  /wiadomosci/:slug                    # Pojedyncza wiadomosc
+GET  /kronika-policyjna                   # Kronika policyjna
 GET  /kronika-policyjna/:slug             # Pojedynczy wpis
 GET  /firmy                               # Katalog firm
 GET  /firmy/:category/:slug               # Profil firmy
-GET  /ogloszenia                          # Ogłoszenia
+GET  /ogloszenia                          # Ogloszenia
+GET  /ogloszenia/:slug                    # Ogloszenie
 GET  /praca                               # Oferty pracy
+GET  /praca/:slug                         # Oferta pracy
 GET  /nekrologi                           # Nekrologi
+GET  /nekrologi/:slug                     # Nekrolog
 GET  /przewodnik                          # Przewodnik
-GET  /ludzie                              # Ludzie urodzeni w mieście
-GET  /pogoda                              # Szczegółowa pogoda
+GET  /przewodnik/:slug                    # Miejsce w przewodniku
+GET  /ludzie                              # Ludzie
+GET  /ludzie/:slug                        # Profil osoby
 
-# Panel Admina Serwisu
+# PANEL ADMINISTRACYJNY SERWISU
 GET  /admin                               # Dashboard serwisu
-GET  /admin/posts                         # Lista wpisów
-GET  /admin/posts/create                  # Tworzenie wpisu
-GET  /admin/posts/:id/edit                # Edycja wpisu
+GET  /admin/wiadomosci                    # Lista wpisow
+POST /admin/wiadomosci                    # Dodaj wpis
+GET  /admin/wiadomosci/:id                # Edytuj wpis
+PUT  /admin/wiadomosci/:id                # Zapisz zmiany
+DELETE /admin/wiadomosci/:id              # Usun wpis
+GET  /admin/kronika-policyjna             # Lista (analogicznie)
+GET  /admin/firmy                         # Lista firm
+GET  /admin/ogloszenia                    # Lista ogloszen
+GET  /admin/praca                         # Lista ofert pracy
+GET  /admin/nekrologi                     # Lista nekrologow
+GET  /admin/przewodnik                    # Lista miejsc
+GET  /admin/ludzie                        # Lista osob
+
+# USTAWIENIA SERWISU
 GET  /admin/settings                      # Ustawienia serwisu
-GET  /admin/settings/theme                # Edytor motywu
+PUT  /admin/settings                      # Zapisz ustawienia
 GET  /admin/settings/seo                  # Ustawienia SEO
-GET  /admin/media                         # Biblioteka mediów
+GET  /admin/settings/design               # Wyglad
+GET  /admin/settings/banners              # Bannery
+GET  /admin/settings/menus                # Menu
+GET  /admin/settings/widgets              # Widgety
+
+# UZYTKOWNICY SERWISU
+GET  /admin/users                         # Lista uzytkownikow serwisu
+POST /admin/users                         # Dodaj uzytkownika
+GET  /admin/users/:userId                 # Szczegoly
+PUT  /admin/users/:userId                 # Edytuj
+DELETE /admin/users/:userId               # Usun
+
+# STATYSTYKI SERWISU
+GET  /admin/statistics                    # Statystyki
+GET  /admin/statistics/traffic            # Ruch
+GET  /admin/statistics/content            # Tresci
+GET  /admin/statistics/seo                # SEO
+
+# LOGI SERWISU
+GET  /admin/logs                          # Logi
+GET  /admin/logs/content                  # Logi tresci
+GET  /admin/logs/users                    # Logi uzytkownikow
 ```
 
 ---
 
 ## 3. BAZA DANYCH - ARCHITEKTURA MULTI-TENANT
 
-### 3.1 Strategia Multi-Tenancy: Shared Database, Separate Schema per Tenant
+### 3.1 Strategia Multi-Tenancy
 
-```mermaid
-graph TB
-    subgraph "PostgreSQL Database"
-        subgraph "Schema: public (Centrala)"
-            T1[users]
-            T2[roles]
-            T3[permissions]
-            T4[domains]
-            T5[sources]
-            T6[cron_jobs]
-            T7[templates]
-            T8[modules]
-        end
-        
-        subgraph "Schema: tenant_4torun_pl"
-            P1[posts]
-            P2[categories]
-            P3[tags]
-            P4[comments]
-            P5[banners]
-            P6[companies]
-            P7[jobs]
-            P8[obituaries]
-        end
-        
-        subgraph "Schema: tenant_4bydgoszcz_pl"
-            B1[posts]
-            B2[categories]
-            B3[comments]
-        end
-    end
+Wybrana strategia: **Shared Database, Separate Schema per Tenant**
 
-    T4 -.->|konfiguruje| P1
-    T4 -.->|konfiguruje| B1
-    T5 -.->|zasilają| P1
-    T5 -.->|zasilają| B1
+```
+Database: regional_services
+│
+├── Schema: public                          # Dane wspolne (centrala)
+│   ├── users                               # Uzytkownicy systemu
+│   ├── roles                               # Role globalne
+│   ├── permissions                         # Uprawnienia
+│   ├── user_roles                          # Powiazania user-role
+│   ├── role_permissions                    # Powiazania role-permission
+│   ├── templates                           # Szablony wspolne
+│   ├── modules                             # Moduly systemu
+│   ├── sources                             # Zrodla danych (scraping)
+│   ├── cron_jobs                           # Zadania cron
+│   ├── api_tokens                          # Tokeny API
+│   ├── system_logs                         # Logi systemowe
+│   └── global_settings                     # Ustawienia globalne
+│
+├── Schema: tenant_4torun_pl                # Dane 4torun.pl
+│   ├── posts                               # Wpisy (CPT)
+│   ├── post_meta                           # Meta dane wpisow
+│   ├── categories                          # Kategorie
+│   ├── tags                                # Tagi
+│   ├── comments                            # Komentarze
+│   ├── ratings                             # Oceny
+│   ├── banners                             # Bannery
+│   ├── menus                               # Menu
+│   ├── menu_items                          # Pozycje menu
+│   ├── widgets                             # Widgety
+│   ├── companies                           # Firmy
+│   ├── jobs                                # Oferty pracy
+│   ├── obituaries                          # Nekrologi
+│   ├── guide_items                         # Przewodnik
+│   ├── people                              # Ludzie
+│   ├── attachments                         # Zalaczniki
+│   ├── seo_meta                            # Meta dane SEO
+│   ├── redirects                           # Przekierowania
+│   ├── custom_fields                       # Pola niestandardowe
+│   ├── audit_logs                          # Logi audytowe
+│   └── domain_settings                     # Ustawienia domeny
+│
+├── Schema: tenant_4bydgoszcz_pl            # Dane 4bydgoszcz.pl
+│   └── [analogiczne tabele]
+│
+└── Schema: tenant_[n]                      # Dane kolejnych domen
+    └── [analogiczne tabele]
 ```
 
-### 3.2 Schemat SQL - Schema: public (Centrala)
+
+
+### 3.2 Schemat Bazy Danych - SQL DDL
 
 ```sql
--- Tabela użytkowników systemu (globalna)
+-- =====================================================
+-- SCHEMA: PUBLIC (DANE CENTRALNE)
+-- =====================================================
+
+-- Tabela uzytkownikow systemu (globalna)
 CREATE TABLE public.users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email VARCHAR(255) UNIQUE NOT NULL,
@@ -308,162 +455,1961 @@ CREATE TABLE public.users (
     phone VARCHAR(20),
     is_active BOOLEAN DEFAULT true,
     is_super_admin BOOLEAN DEFAULT false,
+    email_verified_at TIMESTAMP,
     last_login_at TIMESTAMP,
+    login_count INTEGER DEFAULT 0,
     failed_login_attempts INTEGER DEFAULT 0,
+    locked_until TIMESTAMP,
+    preferences JSONB DEFAULT '{}',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP
 );
 
--- Tabela domen/serwisów
+-- Tabela rol (globalna)
+CREATE TABLE public.roles (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(50) UNIQUE NOT NULL,
+    slug VARCHAR(50) UNIQUE NOT NULL,
+    description TEXT,
+    level INTEGER DEFAULT 0, -- 0=super_admin, 1=admin, 2=editor, 3=moderator, 4=user
+    is_system BOOLEAN DEFAULT false,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Wstawienie domyslnych rol
+INSERT INTO public.roles (name, slug, description, level, is_system) VALUES
+('Super Administrator', 'super_admin', 'Pelny dostep do calego systemu', 0, true),
+('Administrator Domeny', 'domain_admin', 'Zarzadzanie konkretna domena', 1, true),
+('Redaktor', 'editor', 'Zarzadzanie trescia', 2, true),
+('Moderator', 'moderator', 'Moderacja komentarzy i ocen', 3, true),
+('Uzytkownik', 'user', 'Standardowy uzytkownik', 4, true);
+
+-- Tabela uprawnien (globalna)
+CREATE TABLE public.permissions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(100) UNIQUE NOT NULL,
+    slug VARCHAR(100) UNIQUE NOT NULL,
+    resource VARCHAR(50) NOT NULL, -- np. 'posts', 'users', 'domains'
+    action VARCHAR(50) NOT NULL,   -- np. 'create', 'read', 'update', 'delete', 'manage'
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabela powiazan uzytkownik-rola (z wskazaniem domeny)
+CREATE TABLE public.user_roles (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    role_id UUID NOT NULL REFERENCES public.roles(id) ON DELETE CASCADE,
+    domain_id VARCHAR(100), -- NULL = globalna rola, '4torun.pl' = rola w domenie
+    granted_by UUID REFERENCES public.users(id),
+    expires_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, role_id, domain_id)
+);
+
+-- Tabela powiazan rola-uprawnienie
+CREATE TABLE public.role_permissions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    role_id UUID NOT NULL REFERENCES public.roles(id) ON DELETE CASCADE,
+    permission_id UUID NOT NULL REFERENCES public.permissions(id) ON DELETE CASCADE,
+    domain_id VARCHAR(100), -- NULL = globalnie, lub konkretna domena
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(role_id, permission_id, domain_id)
+);
+
+-- Tabela domen/serwisow
 CREATE TABLE public.domains (
     id VARCHAR(100) PRIMARY KEY, -- np. '4torun.pl'
     name VARCHAR(100) NOT NULL,
     slug VARCHAR(100) UNIQUE NOT NULL,
+    description TEXT,
     city VARCHAR(100) NOT NULL,
     region VARCHAR(100),
+    country VARCHAR(100) DEFAULT 'Polska',
+    language VARCHAR(10) DEFAULT 'pl',
+    timezone VARCHAR(50) DEFAULT 'Europe/Warsaw',
+    currency VARCHAR(10) DEFAULT 'PLN',
     is_active BOOLEAN DEFAULT true,
-    schema_name VARCHAR(100) NOT NULL,
-    theme_config JSONB DEFAULT '{}',
+    is_maintenance BOOLEAN DEFAULT false,
+    maintenance_message TEXT,
+    schema_name VARCHAR(100) NOT NULL, -- np. 'tenant_4torun_pl'
+    database_connection VARCHAR(100) DEFAULT 'default',
+    template_id UUID,
+    primary_color VARCHAR(7) DEFAULT '#1e3a5f',
+    secondary_color VARCHAR(7) DEFAULT '#dd6b20',
+    logo_url TEXT,
+    favicon_url TEXT,
+    social_links JSONB DEFAULT '{}',
+    contact_info JSONB DEFAULT '{}',
     seo_settings JSONB DEFAULT '{}',
-    features_enabled JSONB DEFAULT '{}',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    analytics_settings JSONB DEFAULT '{}',
+    scraping_settings JSONB DEFAULT '{}',
+    features_enabled JSONB DEFAULT '{}', -- { "comments": true, "ratings": true }
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by UUID REFERENCES public.users(id),
+    expires_at TIMESTAMP
 );
 
--- Tabela źródeł danych (scraping)
+-- Tabela szablonow
+CREATE TABLE public.templates (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(100) NOT NULL,
+    slug VARCHAR(100) UNIQUE NOT NULL,
+    description TEXT,
+    version VARCHAR(20) DEFAULT '1.0.0',
+    is_active BOOLEAN DEFAULT true,
+    is_default BOOLEAN DEFAULT false,
+    structure JSONB NOT NULL, -- definicja struktury szablonu
+    styles JSONB DEFAULT '{}', -- zmienne CSS
+    components JSONB DEFAULT '{}', -- dostepne komponenty
+    files_path TEXT, -- sciezka do plikow szablonu
+    preview_image_url TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by UUID REFERENCES public.users(id)
+);
+
+-- Tabela modulow
+CREATE TABLE public.modules (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(100) NOT NULL,
+    slug VARCHAR(100) UNIQUE NOT NULL,
+    description TEXT,
+    version VARCHAR(20) DEFAULT '1.0.0',
+    is_active BOOLEAN DEFAULT true,
+    is_core BOOLEAN DEFAULT false, -- czy modul jest wymagany
+    config_schema JSONB, -- schema konfiguracji
+    default_config JSONB DEFAULT '{}',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabela powiazan domena-modul
+CREATE TABLE public.domain_modules (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    domain_id VARCHAR(100) NOT NULL REFERENCES public.domains(id) ON DELETE CASCADE,
+    module_id UUID NOT NULL REFERENCES public.modules(id) ON DELETE CASCADE,
+    config JSONB DEFAULT '{}',
+    is_active BOOLEAN DEFAULT true,
+    order_index INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(domain_id, module_id)
+);
+
+-- Tabela zrodel danych (scraping)
 CREATE TABLE public.sources (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(100) NOT NULL,
-    type VARCHAR(50) NOT NULL, -- 'rss', 'api', 'html'
+    slug VARCHAR(100) UNIQUE NOT NULL,
+    description TEXT,
+    type VARCHAR(50) NOT NULL, -- 'rss', 'api', 'scraper', 'xml', 'json'
     url TEXT NOT NULL,
-    parser_config JSONB NOT NULL,
-    mapping_config JSONB NOT NULL,
-    schedule VARCHAR(100) DEFAULT '0 */6 * * *',
+    method VARCHAR(10) DEFAULT 'GET',
+    headers JSONB DEFAULT '{}',
+    auth_type VARCHAR(20), -- 'none', 'basic', 'bearer', 'api_key'
+    auth_config JSONB,
+    fetch_config JSONB DEFAULT '{}', -- { "timeout": 30, "retries": 3 }
+    parser_config JSONB NOT NULL, -- konfiguracja parsera
+    mapping_config JSONB NOT NULL, -- mapowanie pol
+    schedule VARCHAR(100) DEFAULT '0 */6 * * *', -- cron expression
     is_active BOOLEAN DEFAULT true,
+    last_run_at TIMESTAMP,
+    last_run_status VARCHAR(20), -- 'success', 'error', 'running'
+    last_run_message TEXT,
+    last_run_items_count INTEGER DEFAULT 0,
+    total_runs INTEGER DEFAULT 0,
+    total_items_fetched INTEGER DEFAULT 0,
+    error_count INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by UUID REFERENCES public.users(id)
+);
+
+-- Tabela powiazan zrodlo-domena (ktore domeny uzywaja zrodla)
+CREATE TABLE public.source_domains (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    source_id UUID NOT NULL REFERENCES public.sources(id) ON DELETE CASCADE,
+    domain_id VARCHAR(100) NOT NULL REFERENCES public.domains(id) ON DELETE CASCADE,
+    is_active BOOLEAN DEFAULT true,
+    custom_config JSONB DEFAULT '{}',
+    last_run_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(source_id, domain_id)
+);
+
+-- Tabela zadan cron
+CREATE TABLE public.cron_jobs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(100) NOT NULL,
+    slug VARCHAR(100) UNIQUE NOT NULL,
+    description TEXT,
+    schedule VARCHAR(100) NOT NULL, -- cron expression
+    command TEXT NOT NULL, -- komenda do wykonania
+    arguments JSONB DEFAULT '{}',
+    is_active BOOLEAN DEFAULT true,
+    run_as_user VARCHAR(100) DEFAULT 'www-data',
+    timeout_seconds INTEGER DEFAULT 300,
+    retry_count INTEGER DEFAULT 0,
+    retry_delay_seconds INTEGER DEFAULT 60,
+    notify_on_failure BOOLEAN DEFAULT true,
+    notify_emails TEXT[],
+    last_run_at TIMESTAMP,
+    last_run_status VARCHAR(20),
+    last_run_duration_ms INTEGER,
+    last_run_output TEXT,
+    last_run_error TEXT,
+    next_run_at TIMESTAMP,
+    run_count INTEGER DEFAULT 0,
+    fail_count INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by UUID REFERENCES public.users(id)
+);
+
+-- Tabela logow zadan cron
+CREATE TABLE public.cron_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    cron_job_id UUID NOT NULL REFERENCES public.cron_jobs(id) ON DELETE CASCADE,
+    started_at TIMESTAMP NOT NULL,
+    finished_at TIMESTAMP,
+    status VARCHAR(20) NOT NULL, -- 'running', 'success', 'error', 'timeout'
+    duration_ms INTEGER,
+    output TEXT,
+    error TEXT,
+    triggered_by VARCHAR(50) DEFAULT 'scheduler' -- 'scheduler', 'manual'
+);
+
+-- Tabela tokenow API
+CREATE TABLE public.api_tokens (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
+    domain_id VARCHAR(100) REFERENCES public.domains(id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL,
+    token_hash VARCHAR(255) UNIQUE NOT NULL,
+    token_preview VARCHAR(20) NOT NULL, -- pierwsze 20 znakow tokena
+    scopes TEXT[] DEFAULT '{}',
+    expires_at TIMESTAMP,
+    last_used_at TIMESTAMP,
+    use_count INTEGER DEFAULT 0,
+    ip_restrictions TEXT[],
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by UUID REFERENCES public.users(id)
+);
+
+-- Tabela logow systemowych (centralna)
+CREATE TABLE public.system_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    level VARCHAR(20) NOT NULL, -- 'debug', 'info', 'warning', 'error', 'critical'
+    category VARCHAR(50) NOT NULL, -- 'auth', 'database', 'scraper', 'api', 'system'
+    domain_id VARCHAR(100) REFERENCES public.domains(id),
+    user_id UUID REFERENCES public.users(id),
+    action VARCHAR(100) NOT NULL,
+    message TEXT NOT NULL,
+    context JSONB DEFAULT '{}',
+    ip_address INET,
+    user_agent TEXT,
+    request_id UUID,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Tabela powiązań źródło-domena
-CREATE TABLE public.source_domains (
-    source_id UUID REFERENCES public.sources(id),
-    domain_id VARCHAR(100) REFERENCES public.domains(id),
-    PRIMARY KEY (source_id, domain_id)
+-- Indeksy dla system_logs
+CREATE INDEX idx_system_logs_level ON public.system_logs(level);
+CREATE INDEX idx_system_logs_category ON public.system_logs(category);
+CREATE INDEX idx_system_logs_domain ON public.system_logs(domain_id);
+CREATE INDEX idx_system_logs_user ON public.system_logs(user_id);
+CREATE INDEX idx_system_logs_created ON public.system_logs(created_at);
+CREATE INDEX idx_system_logs_action ON public.system_logs(action);
+
+-- Tabela ustawien globalnych
+CREATE TABLE public.global_settings (
+    id VARCHAR(100) PRIMARY KEY,
+    category VARCHAR(50) NOT NULL,
+    key VARCHAR(100) NOT NULL,
+    value JSONB,
+    description TEXT,
+    is_editable BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_by UUID REFERENCES public.users(id),
+    UNIQUE(category, key)
 );
+
+-- Partycjonowanie system_logs po miesiacach
+CREATE TABLE public.system_logs_y2024m01 PARTITION OF public.system_logs
+    FOR VALUES FROM ('2024-01-01') TO ('2024-02-01');
+CREATE TABLE public.system_logs_y2024m02 PARTITION OF public.system_logs
+    FOR VALUES FROM ('2024-02-01') TO ('2024-03-01');
+-- ... i tak dalej dla kolejnych miesiecy
+
 ```
 
-### 3.3 Schemat SQL - Schema: tenant (Pojedynczy Serwis)
+
+
+### 3.3 Schemat Bazy Danych - Tenant (Pojedynczy Serwis)
 
 ```sql
--- Wpisy (Custom Post Types)
+-- =====================================================
+-- SCHEMA: TENANT (DANE POJEDYNCZEGO SERWISU)
+-- Uwaga: Ta struktura jest tworzona dla kazdej domeny
+-- =====================================================
+
+-- Tabela wpisow (Custom Post Types)
 CREATE TABLE posts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    post_type VARCHAR(50) NOT NULL, -- 'wiadomosci', 'kronika-policyjna', etc.
+    post_type VARCHAR(50) NOT NULL, -- 'wiadomosci', 'kronika-policyjna', 'firmy', itp.
     title VARCHAR(500) NOT NULL,
     slug VARCHAR(500) UNIQUE NOT NULL,
     excerpt TEXT,
     content TEXT NOT NULL,
-    status VARCHAR(20) DEFAULT 'draft',
+    content_rendered TEXT, -- przetworzony HTML
+    status VARCHAR(20) DEFAULT 'draft', -- 'draft', 'published', 'scheduled', 'archived'
+    visibility VARCHAR(20) DEFAULT 'public', -- 'public', 'private', 'password'
+    password_hash VARCHAR(255),
     featured BOOLEAN DEFAULT false,
+    sticky BOOLEAN DEFAULT false,
+    allow_comments BOOLEAN DEFAULT true,
+    allow_ratings BOOLEAN DEFAULT true,
     view_count INTEGER DEFAULT 0,
+    unique_view_count INTEGER DEFAULT 0,
+    rating_sum INTEGER DEFAULT 0,
+    rating_count INTEGER DEFAULT 0,
     rating_average DECIMAL(3,2) DEFAULT 0,
+    comment_count INTEGER DEFAULT 0,
+    author_id UUID,
     published_at TIMESTAMP,
+    scheduled_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP,
+    created_by UUID REFERENCES public.users(id),
+    updated_by UUID REFERENCES public.users(id),
+    published_by UUID REFERENCES public.users(id),
+    source_id UUID REFERENCES public.sources(id),
     source_url TEXT,
-    external_id VARCHAR(255)
+    source_data JSONB, -- oryginalne dane ze zrodla
+    external_id VARCHAR(255), -- ID w zewnetrznym systemie
+    seo_title VARCHAR(500),
+    seo_description TEXT,
+    seo_keywords TEXT[],
+    og_title VARCHAR(500),
+    og_description TEXT,
+    og_image_url TEXT,
+    schema_type VARCHAR(50) DEFAULT 'NewsArticle',
+    schema_data JSONB,
+    template VARCHAR(100) DEFAULT 'default',
+    sort_order INTEGER DEFAULT 0,
+    lang VARCHAR(10) DEFAULT 'pl'
 );
 
--- Kategorie
+-- Indeksy dla posts
+CREATE INDEX idx_posts_type ON posts(post_type);
+CREATE INDEX idx_posts_status ON posts(status);
+CREATE INDEX idx_posts_slug ON posts(slug);
+CREATE INDEX idx_posts_featured ON posts(featured) WHERE featured = true;
+CREATE INDEX idx_posts_sticky ON posts(sticky) WHERE sticky = true;
+CREATE INDEX idx_posts_published ON posts(published_at);
+CREATE INDEX idx_posts_created ON posts(created_at);
+CREATE INDEX idx_posts_search ON posts USING gin(to_tsvector('polish', title || ' ' || COALESCE(content, '')));
+
+-- Tabela meta danych wpisow
+CREATE TABLE post_meta (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    post_id UUID NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+    meta_key VARCHAR(100) NOT NULL,
+    meta_value JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(post_id, meta_key)
+);
+
+CREATE INDEX idx_post_meta_key ON post_meta(meta_key);
+CREATE INDEX idx_post_meta_post ON post_meta(post_id);
+
+-- Tabela kategorii
 CREATE TABLE categories (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(100) NOT NULL,
     slug VARCHAR(100) UNIQUE NOT NULL,
-    post_type VARCHAR(50) NOT NULL,
+    description TEXT,
+    parent_id UUID REFERENCES categories(id),
+    post_type VARCHAR(50) NOT NULL, -- dla jakiego CPT
     color VARCHAR(7),
     icon VARCHAR(50),
-    sort_order INTEGER DEFAULT 0
+    image_url TEXT,
+    seo_title VARCHAR(500),
+    seo_description TEXT,
+    sort_order INTEGER DEFAULT 0,
+    is_active BOOLEAN DEFAULT true,
+    item_count INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Bannery
+CREATE INDEX idx_categories_type ON categories(post_type);
+CREATE INDEX idx_categories_slug ON categories(slug);
+CREATE INDEX idx_categories_parent ON categories(parent_id);
+
+-- Tabela powiazan wpis-kategoria
+CREATE TABLE post_categories (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    post_id UUID NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+    category_id UUID NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+    is_primary BOOLEAN DEFAULT false,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(post_id, category_id)
+);
+
+CREATE INDEX idx_post_categories_post ON post_categories(post_id);
+CREATE INDEX idx_post_categories_cat ON post_categories(category_id);
+
+-- Tabela tagow
+CREATE TABLE tags (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(100) NOT NULL,
+    slug VARCHAR(100) UNIQUE NOT NULL,
+    description TEXT,
+    color VARCHAR(7),
+    seo_title VARCHAR(500),
+    seo_description TEXT,
+    item_count INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_tags_slug ON tags(slug);
+CREATE INDEX idx_tags_search ON tags USING gin(to_tsvector('polish', name));
+
+-- Tabela powiazan wpis-tag
+CREATE TABLE post_tags (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    post_id UUID NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+    tag_id UUID NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(post_id, tag_id)
+);
+
+CREATE INDEX idx_post_tags_post ON post_tags(post_id);
+CREATE INDEX idx_post_tags_tag ON post_tags(tag_id);
+
+-- Tabela komentarzy
+CREATE TABLE comments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    post_id UUID NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+    parent_id UUID REFERENCES comments(id),
+    author_name VARCHAR(100),
+    author_email VARCHAR(255),
+    author_ip INET,
+    author_user_agent TEXT,
+    content TEXT NOT NULL,
+    status VARCHAR(20) DEFAULT 'pending', -- 'pending', 'approved', 'rejected', 'spam'
+    is_verified BOOLEAN DEFAULT false,
+    like_count INTEGER DEFAULT 0,
+    dislike_count INTEGER DEFAULT 0,
+    reply_count INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    moderated_at TIMESTAMP,
+    moderated_by UUID REFERENCES public.users(id)
+);
+
+CREATE INDEX idx_comments_post ON comments(post_id);
+CREATE INDEX idx_comments_status ON comments(status);
+CREATE INDEX idx_comments_parent ON comments(parent_id);
+CREATE INDEX idx_comments_created ON comments(created_at);
+
+-- Tabela ocen/ratingow
+CREATE TABLE ratings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    post_id UUID NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+    user_id UUID, -- NULL = anonimowy
+    ip_address INET,
+    user_agent TEXT,
+    rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+    comment TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(post_id, user_id) WHERE user_id IS NOT NULL,
+    UNIQUE(post_id, ip_address) WHERE user_id IS NULL
+);
+
+CREATE INDEX idx_ratings_post ON ratings(post_id);
+CREATE INDEX idx_ratings_user ON ratings(user_id);
+
+-- Tabela bannerow
 CREATE TABLE banners (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(100) NOT NULL,
-    position VARCHAR(50) NOT NULL, -- 'header', 'sidebar', 'footer'
-    content TEXT NOT NULL,
+    type VARCHAR(50) NOT NULL, -- 'image', 'html', 'script'
+    position VARCHAR(50) NOT NULL, -- 'header', 'sidebar_top', 'sidebar_bottom', 'content_top', 'content_bottom', 'footer', 'popup'
+    content TEXT NOT NULL, -- HTML, URL obrazka lub kod skryptu
     image_url TEXT,
     link_url TEXT,
+    alt_text VARCHAR(255),
+    target VARCHAR(20) DEFAULT '_blank', -- '_blank', '_self'
+    weight INTEGER DEFAULT 0, -- priorytet wyswietlania
     start_date TIMESTAMP,
     end_date TIMESTAMP,
-    is_active BOOLEAN DEFAULT true
+    display_rules JSONB DEFAULT '{}', -- { "pages": ["home", "post"], "post_types": ["wiadomosci"], "devices": ["desktop", "mobile"] }
+    impression_limit INTEGER,
+    click_limit INTEGER,
+    impression_count INTEGER DEFAULT 0,
+    click_count INTEGER DEFAULT 0,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by UUID REFERENCES public.users(id)
 );
 
--- Menu
+CREATE INDEX idx_banners_position ON banners(position);
+CREATE INDEX idx_banners_active ON banners(is_active) WHERE is_active = true;
+
+-- Tabela menu
 CREATE TABLE menus (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(100) NOT NULL,
-    location VARCHAR(50) NOT NULL, -- 'header', 'footer', 'mobile'
-    is_active BOOLEAN DEFAULT true
+    slug VARCHAR(100) UNIQUE NOT NULL,
+    location VARCHAR(50) NOT NULL, -- 'header', 'footer', 'sidebar', 'mobile'
+    description TEXT,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Tabela pozycji menu
 CREATE TABLE menu_items (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    menu_id UUID REFERENCES menus(id),
+    menu_id UUID NOT NULL REFERENCES menus(id) ON DELETE CASCADE,
     parent_id UUID REFERENCES menu_items(id),
     title VARCHAR(200) NOT NULL,
     url TEXT NOT NULL,
-    sort_order INTEGER DEFAULT 0
+    target VARCHAR(20) DEFAULT '_self',
+    icon VARCHAR(50),
+    css_class VARCHAR(100),
+    sort_order INTEGER DEFAULT 0,
+    is_active BOOLEAN DEFAULT true,
+    display_rules JSONB DEFAULT '{}',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_menu_items_menu ON menu_items(menu_id);
+CREATE INDEX idx_menu_items_parent ON menu_items(parent_id);
+CREATE INDEX idx_menu_items_order ON menu_items(sort_order);
+
+-- Tabela widgetow
+CREATE TABLE widgets (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(100) NOT NULL,
+    type VARCHAR(50) NOT NULL, -- 'recent_posts', 'popular_posts', 'categories', 'tags', 'custom_html', 'weather', 'air_quality', 'social', 'newsletter', 'search'
+    position VARCHAR(50) NOT NULL, -- 'sidebar', 'header', 'footer', 'content'
+    area VARCHAR(50) NOT NULL, -- 'sidebar_main', 'sidebar_secondary', 'footer_1', 'footer_2', etc.
+    config JSONB DEFAULT '{}', -- konfiguracja specyficzna dla typu
+    content TEXT, -- dla typu custom_html
+    sort_order INTEGER DEFAULT 0,
+    display_rules JSONB DEFAULT '{}',
+    cache_time INTEGER DEFAULT 3600, -- czas cache w sekundach
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_widgets_position ON widgets(position);
+CREATE INDEX idx_widgets_area ON widgets(area);
+CREATE INDEX idx_widgets_active ON widgets(is_active) WHERE is_active = true;
+
+-- Tabela firm (rozszerzone pola dla CPT 'firmy')
+CREATE TABLE companies (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    post_id UUID NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+    name VARCHAR(200) NOT NULL,
+    slug VARCHAR(200) UNIQUE NOT NULL,
+    category_id UUID REFERENCES categories(id),
+    description TEXT,
+    address JSONB, -- { "street": "", "city": "", "postal": "", "country": "" }
+    phone VARCHAR(50)[],
+    email VARCHAR(255)[],
+    website VARCHAR(255),
+    social_links JSONB,
+    opening_hours JSONB, -- { "monday": { "open": "08:00", "close": "16:00" } }
+    logo_url TEXT,
+    gallery_urls TEXT[],
+    coordinates POINT, -- [lat, lng]
+    is_verified BOOLEAN DEFAULT false,
+    is_premium BOOLEAN DEFAULT false,
+    premium_expires_at TIMESTAMP,
+    rating_average DECIMAL(3,2) DEFAULT 0,
+    rating_count INTEGER DEFAULT 0,
+    view_count INTEGER DEFAULT 0,
+    metadata JSONB, -- dodatkowe pola niestandardowe
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_companies_category ON companies(category_id);
+CREATE INDEX idx_companies_premium ON companies(is_premium) WHERE is_premium = true;
+CREATE INDEX idx_companies_location ON companies USING gist(coordinates);
+
+-- Tabela ofert pracy (rozszerzone pola dla CPT 'praca')
+CREATE TABLE jobs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    post_id UUID NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+    title VARCHAR(300) NOT NULL,
+    slug VARCHAR(300) UNIQUE NOT NULL,
+    company_id UUID REFERENCES companies(id),
+    company_name VARCHAR(200),
+    company_logo_url TEXT,
+    location JSONB, -- { "city": "", "region": "", "country": "", "remote": false }
+    job_type VARCHAR(50), -- 'full_time', 'part_time', 'contract', 'internship', 'remote'
+    salary JSONB, -- { "min": 5000, "max": 8000, "currency": "PLN", "period": "month", "negotiable": true }
+    description TEXT,
+    requirements TEXT[],
+    responsibilities TEXT[],
+    benefits TEXT[],
+    application_url TEXT,
+    application_email VARCHAR(255),
+    application_deadline TIMESTAMP,
+    external_id VARCHAR(255),
+    external_source VARCHAR(100),
+    external_url TEXT,
+    is_featured BOOLEAN DEFAULT false,
+    view_count INTEGER DEFAULT 0,
+    application_count INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_jobs_company ON jobs(company_id);
+CREATE INDEX idx_jobs_type ON jobs(job_type);
+CREATE INDEX idx_jobs_featured ON jobs(is_featured) WHERE is_featured = true;
+CREATE INDEX idx_jobs_deadline ON jobs(application_deadline);
+
+-- Tabela nekrologow (rozszerzone pola dla CPT 'nekrologi')
+CREATE TABLE obituaries (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    post_id UUID NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+    person_name VARCHAR(200) NOT NULL,
+    slug VARCHAR(200) UNIQUE NOT NULL,
+    birth_date DATE,
+    death_date DATE NOT NULL,
+    age INTEGER,
+    photo_url TEXT,
+    biography TEXT,
+    funeral_info JSONB, -- { "location": "", "date": "", "address": "" }
+    condolences_enabled BOOLEAN DEFAULT true,
+    condolences_count INTEGER DEFAULT 0,
+    condolences TEXT[],
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_obituaries_death ON obituaries(death_date);
+
+-- Tabela miejsc w przewodniku (rozszerzone pola dla CPT 'przewodnik')
+CREATE TABLE guide_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    post_id UUID NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+    name VARCHAR(200) NOT NULL,
+    slug VARCHAR(200) UNIQUE NOT NULL,
+    category_id UUID REFERENCES categories(id),
+    description TEXT,
+    address JSONB,
+    coordinates POINT,
+    phone VARCHAR(50),
+    email VARCHAR(255),
+    website VARCHAR(255),
+    opening_hours JSONB,
+    admission JSONB, -- { "price": "", "free": false, "currency": "PLN" }
+    gallery_urls TEXT[],
+    features JSONB, -- { "parking": true, "wheelchair_access": true, "wifi": true }
+    rating_average DECIMAL(3,2) DEFAULT 0,
+    rating_count INTEGER DEFAULT 0,
+    view_count INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_guide_category ON guide_items(category_id);
+CREATE INDEX idx_guide_location ON guide_items USING gist(coordinates);
+
+-- Tabela osob (rozszerzone pola dla CPT 'ludzie')
+CREATE TABLE people (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    post_id UUID NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+    first_name VARCHAR(100) NOT NULL,
+    last_name VARCHAR(100) NOT NULL,
+    slug VARCHAR(200) UNIQUE NOT NULL,
+    birth_date DATE,
+    birth_place VARCHAR(100),
+    death_date DATE,
+    biography TEXT,
+    profession VARCHAR(200),
+    company_id UUID REFERENCES companies(id),
+    photo_url TEXT,
+    gallery_urls TEXT[],
+    social_links JSONB,
+    website VARCHAR(255),
+    achievements TEXT[],
+    education TEXT[],
+    career TEXT[],
+    external_source_url TEXT,
+    view_count INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_people_profession ON people(profession);
+CREATE INDEX idx_people_company ON people(company_id);
+
+-- Tabela zalacznikow (media)
+CREATE TABLE attachments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    post_id UUID REFERENCES posts(id) ON DELETE SET NULL,
+    filename VARCHAR(255) NOT NULL,
+    original_name VARCHAR(255) NOT NULL,
+    file_path TEXT NOT NULL,
+    file_url TEXT NOT NULL,
+    file_size INTEGER NOT NULL, -- w bajtach
+    mime_type VARCHAR(100) NOT NULL,
+    width INTEGER, -- dla obrazow
+    height INTEGER,
+    alt_text VARCHAR(255),
+    caption TEXT,
+    description TEXT,
+    is_featured BOOLEAN DEFAULT false,
+    sort_order INTEGER DEFAULT 0,
+    metadata JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by UUID REFERENCES public.users(id)
+);
+
+CREATE INDEX idx_attachments_post ON attachments(post_id);
+CREATE INDEX idx_attachments_type ON attachments(mime_type);
+
+-- Tabela SEO meta danych
+CREATE TABLE seo_meta (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    entity_type VARCHAR(50) NOT NULL, -- 'post', 'category', 'tag', 'page'
+    entity_id UUID NOT NULL,
+    url_path VARCHAR(500) NOT NULL,
+    title VARCHAR(500),
+    description TEXT,
+    keywords TEXT[],
+    og_title VARCHAR(500),
+    og_description TEXT,
+    og_image_url TEXT,
+    og_type VARCHAR(50) DEFAULT 'website',
+    twitter_card VARCHAR(20) DEFAULT 'summary_large_image',
+    twitter_title VARCHAR(500),
+    twitter_description TEXT,
+    twitter_image_url TEXT,
+    canonical_url TEXT,
+    robots_meta VARCHAR(100), -- 'index,follow', 'noindex,nofollow', etc.
+    schema_type VARCHAR(50),
+    schema_data JSONB,
+    hreflang JSONB, -- { "pl": "/pl/post", "en": "/en/post" }
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(entity_type, entity_id),
+    UNIQUE(url_path)
+);
+
+CREATE INDEX idx_seo_entity ON seo_meta(entity_type, entity_id);
+CREATE INDEX idx_seo_path ON seo_meta(url_path);
+
+-- Tabela przekierowan
+CREATE TABLE redirects (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    source_path VARCHAR(500) NOT NULL,
+    target_path VARCHAR(500) NOT NULL,
+    type VARCHAR(20) DEFAULT '301', -- '301', '302', '307'
+    is_active BOOLEAN DEFAULT true,
+    hit_count INTEGER DEFAULT 0,
+    last_hit_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_redirects_source ON redirects(source_path);
+
+-- Tabela pol niestandardowych (ACF-like)
+CREATE TABLE custom_fields (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(100) NOT NULL,
+    slug VARCHAR(100) NOT NULL,
+    label VARCHAR(200),
+    description TEXT,
+    type VARCHAR(50) NOT NULL, -- 'text', 'textarea', 'number', 'select', 'checkbox', 'radio', 'date', 'image', 'gallery', 'repeater'
+    config JSONB, -- konfiguracja pola
+    default_value JSONB,
+    validation_rules JSONB,
+    applicable_to VARCHAR(50)[], -- dla jakich CPT
+    is_active BOOLEAN DEFAULT true,
+    sort_order INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabela wartosci pol niestandardowych
+CREATE TABLE custom_field_values (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    field_id UUID NOT NULL REFERENCES custom_fields(id) ON DELETE CASCADE,
+    post_id UUID NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+    value JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(field_id, post_id)
+);
+
+CREATE INDEX idx_cfv_field ON custom_field_values(field_id);
+CREATE INDEX idx_cfv_post ON custom_field_values(post_id);
+
+-- Tabela logow audytowych (per tenant)
+CREATE TABLE audit_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES public.users(id),
+    action VARCHAR(100) NOT NULL, -- 'create', 'update', 'delete', 'publish', 'unpublish'
+    entity_type VARCHAR(50) NOT NULL, -- 'post', 'category', 'user', 'settings'
+    entity_id UUID,
+    entity_title VARCHAR(500),
+    changes JSONB, -- { "before": {}, "after": {} }
+    ip_address INET,
+    user_agent TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_audit_user ON audit_logs(user_id);
+CREATE INDEX idx_audit_entity ON audit_logs(entity_type, entity_id);
+CREATE INDEX idx_audit_created ON audit_logs(created_at);
+
+-- Tabela ustawien domeny
+CREATE TABLE domain_settings (
+    id VARCHAR(100) PRIMARY KEY,
+    category VARCHAR(50) NOT NULL,
+    key VARCHAR(100) NOT NULL,
+    value JSONB,
+    description TEXT,
+    is_editable BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_by UUID REFERENCES public.users(id),
+    UNIQUE(category, key)
+);
+
+-- Funkcja aktualizacji timestamp
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Triggery dla aktualizacji timestamp
+CREATE TRIGGER update_posts_updated_at BEFORE UPDATE ON posts FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_categories_updated_at BEFORE UPDATE ON categories FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_tags_updated_at BEFORE UPDATE ON tags FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_banners_updated_at BEFORE UPDATE ON banners FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_menus_updated_at BEFORE UPDATE ON menus FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_menu_items_updated_at BEFORE UPDATE ON menu_items FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_widgets_updated_at BEFORE UPDATE ON widgets FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_companies_updated_at BEFORE UPDATE ON companies FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_jobs_updated_at BEFORE UPDATE ON jobs FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_guide_items_updated_at BEFORE UPDATE ON guide_items FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_people_updated_at BEFORE UPDATE ON people FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+```
+
+---
+
+### 3.4 Diagramy ERD (Entity Relationship Diagram)
+
+#### ERD Schematu Public (Centralnego)
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                 ERD: SCHEMA PUBLIC (DANE CENTRALNE)                     │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  ┌──────────┐       ┌──────────────┐       ┌──────────┐                │
+│  │  users   │◄─────►│  user_roles  │◄─────►│  roles   │                │
+│  └──────────┘  1:N  └──────────────┘  N:1  └──────────┘                │
+│       │                                            │                    │
+│       │ 1:N                                        │ 1:N                │
+│       ▼                                            ▼                    │
+│  ┌──────────┐                              ┌──────────────┐            │
+│  │audit_logs│                              │role_permissions│           │
+│  └──────────┘                              └──────────────┘            │
+│                                                   │                     │
+│                                                   │ N:1                │
+│                                                   ▼                     │
+│                                            ┌─────────────┐             │
+│                                            │ permissions │             │
+│                                            └─────────────┘             │
+│                                                                         │
+│  ┌──────────┐       ┌─────────────┐       ┌──────────────┐             │
+│  │ domains  │◄─────►│domain_users │◄─────►│    users     │             │
+│  └──────────┘  1:N  └─────────────┘  N:1  └──────────────┘             │
+│       │                                                                │
+│       │ 1:N                                                            │
+│       ├───► sources                                                    │
+│       │       (scraping config)                                        │
+│       │                                                                │
+│       ├───► cron_jobs                                                  │
+│       │       (scheduled tasks)                                        │
+│       │                                                                │
+│       └───► domain_settings                                            │
+│               (configuration)                                          │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+#### ERD Schematu Tenant (Per Domena)
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                ERD: SCHEMA TENANT (PER DOMENA)                          │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  ┌──────────┐       ┌─────────────────┐       ┌─────────────┐          │
+│  │  posts   │◄─────►│ post_categories │◄─────►│ categories  │          │
+│  └──────────┘  1:N  └─────────────────┘  N:1  └─────────────┘          │
+│       │                                                               │
+│       │ 1:N                                                           │
+│       ├───► post_tags ◄─────► tags                                    │
+│       │                                                               │
+│       ├───► comments                                                  │
+│       │                                                               │
+│       ├───► ratings                                                   │
+│       │                                                               │
+│       └───► custom_field_values                                       │
+│                                                                         │
+│  ┌─────────────┐     ┌─────────────┐     ┌─────────────┐              │
+│  │  companies  │◄───►│   jobs      │◄───►│applications │              │
+│  └─────────────┘     └─────────────┘     └─────────────┘              │
+│       │                                                               │
+│       ├───► company_reviews                                           │
+│       └───► company_categories ◄────► categories                      │
+│                                                                         │
+│  ┌─────────────┐     ┌─────────────┐                                 │
+│  │ obituaries  │◄───►│ condolences │                                 │
+│  └─────────────┘     └─────────────┘                                 │
+│                                                                         │
+│  ┌──────────┐       ┌──────────┐       ┌──────────┐                   │
+│  │ banners  │       │  menus   │◄─────►│menu_items│                   │
+│  └──────────┘       └──────────┘       └──────────┘                   │
+│                                                                         │
+│  ┌──────────┐       ┌──────────┐                                     │
+│  │ widgets  │       │  media   │                                     │
+│  └──────────┘       └──────────┘                                     │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Relacje Między Schematami
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    RELACJE MIEDZY SCHEMATAMI                            │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   SCHEMA: public              SCHEMA: tenant_{domain}                   │
+│   ──────────────              ─────────────────────                     │
+│                                                                         │
+│   ┌──────────┐                ┌──────────┐                             │
+│   │  users   │────────────────►│  posts   │                             │
+│   │  (id)    │   author_id    │ (author) │                             │
+│   └──────────┘                └──────────┘                             │
+│                                                                         │
+│   ┌──────────┐                ┌──────────┐                             │
+│   │  domains │────────────────►│  tables  │                             │
+│   │  (id)    │   FK reference │ (domain) │                             │
+│   └──────────┘                └──────────┘                             │
+│                                                                         │
+│   ┌──────────┐                ┌──────────┐                             │
+│   │ sources  │────────────────►│  posts   │                             │
+│   │  (id)    │   source_id    │ (source) │                             │
+│   └──────────┘                └──────────┘                             │
+│                                                                         │
+│                                                                         │
+│   MECHANIZM ROUTINGU:                                                   │
+│   ───────────────────                                                   │
+│                                                                         │
+│   Request: 4torun.pl/api/posts                                          │
+│       │                                                                 │
+│       ▼                                                                 │
+│   Nginx (server_name 4torun.pl)                                         │
+│       │                                                                 │
+│       ▼                                                                 │
+│   Middleware: detectDomain('4torun.pl')                                 │
+│       │                                                                 │
+│       ▼                                                                 │
+│   Prisma: SET search_path = tenant_4torun_pl, public                   │
+│       │                                                                 │
+│       ▼                                                                 │
+│   SQL queries use tenant_4torun_pl.posts                                │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### 3.5 Klucze Obcie (Foreign Keys) - Podsumowanie
+
+| Tabela Źródłowa | Tabela Docelowa | Kolumna FK | Zachowanie ON DELETE |
+|-----------------|-----------------|------------|---------------------|
+| user_roles | users | user_id | CASCADE |
+| user_roles | roles | role_id | CASCADE |
+| user_roles | domains | domain_id | SET NULL |
+| role_permissions | roles | role_id | CASCADE |
+| role_permissions | permissions | permission_id | CASCADE |
+| domain_users | domains | domain_id | CASCADE |
+| domain_users | users | user_id | CASCADE |
+| sources | domains | domain_id | CASCADE |
+| posts (tenant) | users (public) | author_id | SET NULL |
+| posts (tenant) | sources (public) | source_id | SET NULL |
+| comments | posts | post_id | CASCADE |
+| comments | users | user_id | SET NULL |
+| post_categories | posts | post_id | CASCADE |
+| post_categories | categories | category_id | CASCADE |
+| media | users | uploaded_by | SET NULL |
+
+---
+
+## 4. SYSTEM UPRAWNIEN (RBAC)
+
+### 4.1 Model RBAC (Role-Based Access Control)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    HIERARCHIA ROL                               │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  Level 0: SUPER ADMIN                                           │
+│  ├── Dostep do wszystkich domen                                 │
+│  ├── Zarzadzanie uzytkownikami systemu                          │
+│  ├── Zarzadzanie rolami i uprawnieniami                         │
+│  ├── Konfiguracja globalna                                      │
+│  ├── Dostep do logow systemowych                                │
+│  └── Zarzadzanie szablonami i modulami                          │
+│                                                                 │
+│  Level 1: ADMIN DOMENY                                          │
+│  ├── Pelny dostep do przypisanej domeny                         │
+│  ├── Zarzadzanie uzytkownikami domeny                           │
+│  ├── Zarzadzanie trescia (CRUD)                                 │
+│  ├── Ustawienia domeny (SEO, wyglad)                            │
+│  └── Dostep do statystyk i logow domeny                         │
+│                                                                 │
+│  Level 2: REDAKTOR                                              │
+│  ├── Tworzenie i edycja wlasnych wpisow                         │
+│  ├── Publikowanie wlasnych wpisow                               │
+│  ├── Edycja wszystkich wpisow (jesli nadane)                    │
+│  ├── Zarzadzanie kategoriami i tagami                           │
+│  └── Moderacja komentarzy                                       │
+│                                                                 │
+│  Level 3: MODERATOR                                             │
+│  ├── Moderacja komentarzy                                       │
+│  ├── Moderacja ocen                                             │
+│  └── Raportowanie tresci                                        │
+│                                                                 │
+│  Level 4: UZYTKOWNIK                                            │
+│  ├── Dodawanie komentarzy                                       │
+│  ├── Ocenianie wpisow                                           │
+│  └── Edycja wlasnego profilu                                    │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 4.2 Szczegolowe Uprawnienia
+
+| Uprawnienie | Resource | Action | Opis |
+|-------------|----------|--------|------|
+| `domains:manage` | domains | manage | Zarzadzanie domenami (dodawanie, usuwanie) |
+| `domains:read` | domains | read | Podglad domen |
+| `users:manage:all` | users | manage | Zarzadzanie wszystkimi uzytkownikami |
+| `users:manage:domain` | users | manage | Zarzadzanie uzytkownikami wlasnej domeny |
+| `users:read` | users | read | Podglad uzytkownikow |
+| `roles:manage` | roles | manage | Zarzadzanie rolami |
+| `posts:create` | posts | create | Tworzenie wpisow |
+| `posts:read:all` | posts | read | Czytanie wszystkich wpisow |
+| `posts:read:own` | posts | read | Czytanie tylko wlasnych wpisow |
+| `posts:update:all` | posts | update | Edycja wszystkich wpisow |
+| `posts:update:own` | posts | update | Edycja tylko wlasnych wpisow |
+| `posts:delete:all` | posts | delete | Usuwanie wszystkich wpisow |
+| `posts:delete:own` | posts | delete | Usuwanie tylko wlasnych wpisow |
+| `posts:publish` | posts | publish | Publikowanie wpisow |
+| `categories:manage` | categories | manage | Zarzadzanie kategoriami |
+| `tags:manage` | tags | manage | Zarzadzanie tagami |
+| `comments:moderate` | comments | moderate | Moderacja komentarzy |
+| `comments:delete` | comments | delete | Usuwanie komentarzy |
+| `ratings:moderate` | ratings | moderate | Moderacja ocen |
+| `banners:manage` | banners | manage | Zarzadzanie bannerami |
+| `menus:manage` | menus | manage | Zarzadzanie menu |
+| `widgets:manage` | widgets | manage | Zarzadzanie widgetami |
+| `settings:manage` | settings | manage | Zarzadzanie ustawieniami |
+| `seo:manage` | seo | manage | Zarzadzanie SEO |
+| `sources:manage` | sources | manage | Zarzadzanie zrodlami danych |
+| `cron:manage` | cron | manage | Zarzadzanie cron jobs |
+| `logs:read` | logs | read | Podglad logow |
+| `statistics:read` | statistics | read | Podglad statystyk |
+| `backup:manage` | backup | manage | Zarzadzanie backupami |
+| `templates:manage` | templates | manage | Zarzadzanie szablonami |
+| `modules:manage` | modules | manage | Zarzadzanie modulami |
+| `mass_operations:execute` | mass_operations | execute | Wykonywanie operacji masowych |
+
+### 4.3 Przypisanie Uprawnien do Rol
+
+```sql
+-- SUPER ADMIN - wszystkie uprawnienia we wszystkich domenach
+INSERT INTO public.role_permissions (role_id, permission_id, domain_id)
+SELECT 
+    (SELECT id FROM public.roles WHERE slug = 'super_admin'),
+    id,
+    NULL
+FROM public.permissions;
+
+-- ADMIN DOMENY - wszystkie uprawnienia w przypisanej domenie
+-- (domena bedzie wskazana w user_roles)
+
+-- REDAKTOR - typowe uprawnienia do tresci
+INSERT INTO public.role_permissions (role_id, permission_id)
+SELECT 
+    (SELECT id FROM public.roles WHERE slug = 'editor'),
+    id
+FROM public.permissions
+WHERE slug IN (
+    'posts:create', 'posts:read:all', 'posts:update:own', 'posts:delete:own', 'posts:publish',
+    'categories:read', 'tags:read', 'comments:moderate', 'media:manage'
+);
+
+-- MODERATOR - uprawnienia do moderacji
+INSERT INTO public.role_permissions (role_id, permission_id)
+SELECT 
+    (SELECT id FROM public.roles WHERE slug = 'moderator'),
+    id
+FROM public.permissions
+WHERE slug IN (
+    'comments:moderate', 'comments:delete', 'ratings:moderate'
 );
 ```
 
----
+### 4.4 Implementacja Middleware - Express.js / Fastify
 
-## 4. SYSTEM UPRAWNIEŃ RBAC
+#### Middleware Autentykacji JWT
 
-### 4.1 Hierarchia Ról
+```typescript
+// middleware/auth.ts
+import jwt from 'jsonwebtoken';
+import { Request, Response, NextFunction } from 'express';
 
-```mermaid
-graph TD
-    A[Super Admin<br/>System Level] --> B[Domain Admin<br/>Domain Level]
-    B --> C[Editor<br/>Content Level]
-    C --> D[Moderator<br/>Moderation Level]
-    D --> E[User<br/>Public Level]
-    
-    A -.->|all domains| F[4torun.pl]
-    A -.->|all domains| G[4bydgoszcz.pl]
-    B -.->|assigned domains| F
-    C -.->|assigned domains| F
+interface AuthenticatedRequest extends Request {
+  user?: {
+    id: string;
+    email: string;
+    roles: string[];
+    permissions: string[];
+    domainId?: string;
+  };
+}
+
+export const authenticateJWT = (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  const authHeader = req.headers.authorization;
+  
+  if (!authHeader?.startsWith('Bearer ')) {
+    return res.status(401).json({
+      error: 'Unauthorized',
+      message: 'Brak tokena autentykacji'
+    });
+  }
+  
+  const token = authHeader.substring(7);
+  
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+    req.user = decoded;
+    next();
+  } catch (error) {
+    return res.status(401).json({
+      error: 'Unauthorized',
+      message: 'Nieprawidłowy lub wygasły token'
+    });
+  }
+};
 ```
 
-### 4.2 Role i Uprawnienia
+#### Middleware Autoryzacji - Sprawdzanie Uprawnień
 
-| Rola | Level | Zakres | Główne Uprawnienia |
-|------|-------|--------|-------------------|
-| **Super Admin** | 0 | Cały system | Wszystkie domeny, użytkownicy, ustawienia globalne |
-| **Admin Domeny** | 1 | Przypisane domeny | Zarządzanie treścią, użytkownikami, ustawieniami domeny |
-| **Redaktor** | 2 | Content | Tworzenie, edycja, publikowanie wpisów |
-| **Moderator** | 3 | Moderacja | Komentarze, oceny, zgłoszenia |
-| **Użytkownik** | 4 | Public | Komentowanie, ocenianie, profil |
+```typescript
+// middleware/authorization.ts
+import { Request, Response, NextFunction } from 'express';
+
+interface AuthenticatedRequest extends Request {
+  user?: {
+    id: string;
+    permissions: string[];
+    roles: string[];
+  };
+}
+
+/**
+ * Middleware sprawdzające czy użytkownik ma konkretne uprawnienie
+ */
+export const requirePermission = (permission: string) => {
+  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    
+    // Super admin ma wszystkie uprawnienia
+    if (req.user.roles.includes('super_admin')) {
+      return next();
+    }
+    
+    if (!req.user.permissions.includes(permission)) {
+      return res.status(403).json({
+        error: 'Forbidden',
+        message: `Brak uprawnienia: ${permission}`,
+        required: permission,
+        userPermissions: req.user.permissions
+      });
+    }
+    
+    next();
+  };
+};
+
+/**
+ * Middleware sprawdzające czy użytkownik ma jedno z uprawnień
+ */
+export const requireAnyPermission = (...permissions: string[]) => {
+  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    
+    if (req.user.roles.includes('super_admin')) {
+      return next();
+    }
+    
+    const hasAnyPermission = permissions.some(p => 
+      req.user!.permissions.includes(p)
+    );
+    
+    if (!hasAnyPermission) {
+      return res.status(403).json({
+        error: 'Forbidden',
+        message: 'Wymagane jedno z uprawnień: ' + permissions.join(', ')
+      });
+    }
+    
+    next();
+  };
+};
+
+/**
+ * Middleware sprawdzające własność zasobu (own vs all)
+ */
+export const requireOwnershipOrPermission = (
+  ownPermission: string,
+  allPermission: string
+) => {
+  return async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    
+    if (req.user.roles.includes('super_admin')) {
+      return next();
+    }
+    
+    // Jeśli ma uprawnienie do wszystkich - pozwól
+    if (req.user.permissions.includes(allPermission)) {
+      return next();
+    }
+    
+    // Jeśli ma uprawnienie do własnych - sprawdź własność
+    if (req.user.permissions.includes(ownPermission)) {
+      const resourceId = req.params.id;
+      const resource = await getResourceById(resourceId); // funkcja pomocnicza
+      
+      if (resource?.author_id === req.user.id) {
+        return next();
+      }
+      
+      return res.status(403).json({
+        error: 'Forbidden',
+        message: 'Nie jesteś właścicielem tego zasobu'
+      });
+    }
+    
+    return res.status(403).json({ error: 'Forbidden' });
+  };
+};
+```
+
+#### Middleware dla Ról
+
+```typescript
+// middleware/roles.ts
+export const requireRole = (...allowedRoles: string[]) => {
+  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    
+    const hasRole = req.user.roles.some(role => allowedRoles.includes(role));
+    
+    if (!hasRole) {
+      return res.status(403).json({
+        error: 'Forbidden',
+        message: `Wymagana rola: ${allowedRoles.join(' lub ')}`
+      });
+    }
+    
+    next();
+  };
+};
+```
+
+### 4.5 Implementacja Middleware - Next.js API Routes
+
+```typescript
+// app/api/middleware.ts (Next.js 13+ App Router)
+import { NextRequest, NextResponse } from 'next/server';
+import { verify } from 'jsonwebtoken';
+
+export async function middleware(request: NextRequest) {
+  // Sprawdź czy ścieżka wymaga autentykacji
+  const protectedPaths = ['/api/admin', '/api/protected'];
+  const isProtected = protectedPaths.some(path => 
+    request.nextUrl.pathname.startsWith(path)
+  );
+  
+  if (!isProtected) {
+    return NextResponse.next();
+  }
+  
+  const token = request.headers.get('authorization')?.replace('Bearer ', '');
+  
+  if (!token) {
+    return NextResponse.json(
+      { error: 'Unauthorized', message: 'Brak tokena' },
+      { status: 401 }
+    );
+  }
+  
+  try {
+    const decoded = verify(token, process.env.JWT_SECRET!);
+    
+    // Dodaj user do headers dla użycia w API
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set('x-user-id', decoded.sub as string);
+    requestHeaders.set('x-user-roles', JSON.stringify(decoded.roles));
+    requestHeaders.set('x-user-permissions', JSON.stringify(decoded.permissions));
+    
+    return NextResponse.next({
+      request: { headers: requestHeaders }
+    });
+  } catch {
+    return NextResponse.json(
+      { error: 'Unauthorized', message: 'Nieprawidłowy token' },
+      { status: 401 }
+    );
+  }
+}
+
+export const config = {
+  matcher: ['/api/:path*']
+};
+```
+
+### 4.6 Przykłady Użycia w Routing
+
+```typescript
+// routes/posts.ts
+import { Router } from 'express';
+import { authenticateJWT, requirePermission, requireOwnershipOrPermission } from '../middleware';
+import { PostController } from '../controllers';
+
+const router = Router();
+
+// Publiczne endpointy - nie wymagają autentykacji
+router.get('/posts', PostController.list);
+router.get('/posts/:id', PostController.getById);
+
+// Chronione endpointy - wymagają autentykacji
+router.post('/posts',
+  authenticateJWT,
+  requirePermission('posts:create'),
+  PostController.create
+);
+
+router.put('/posts/:id',
+  authenticateJWT,
+  requireOwnershipOrPermission('posts:update:own', 'posts:update:all'),
+  PostController.update
+);
+
+router.delete('/posts/:id',
+  authenticateJWT,
+  requireOwnershipOrPermission('posts:delete:own', 'posts:delete:all'),
+  PostController.remove
+);
+
+router.post('/posts/:id/publish',
+  authenticateJWT,
+  requirePermission('posts:publish'),
+  PostController.publish
+);
+
+export default router;
+```
+
+### 4.7 Komponenty React - Chronione UI
+
+```typescript
+// components/auth/ProtectedComponent.tsx
+import { useAuth } from '@/hooks/useAuth';
+
+interface ProtectedComponentProps {
+  permission?: string;
+  role?: string;
+  children: React.ReactNode;
+  fallback?: React.ReactNode;
+}
+
+export const ProtectedComponent: React.FC<ProtectedComponentProps> = ({
+  permission,
+  role,
+  children,
+  fallback = null
+}) => {
+  const { user, hasPermission, hasRole } = useAuth();
+  
+  if (!user) return fallback;
+  
+  if (permission && !hasPermission(permission)) {
+    return fallback;
+  }
+  
+  if (role && !hasRole(role)) {
+    return fallback;
+  }
+  
+  return <>{children}</>;
+};
+
+// components/auth/ProtectedRoute.tsx
+import { useRouter } from 'next/router';
+import { useAuth } from '@/hooks/useAuth';
+import { useEffect } from 'react';
+
+export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user, isLoading } = useAuth();
+  const router = useRouter();
+  
+  useEffect(() => {
+    if (!isLoading && !user) {
+      router.push('/login');
+    }
+  }, [user, isLoading, router]);
+  
+  if (isLoading) return <div>Ładowanie...</div>;
+  if (!user) return null;
+  
+  return <>{children}</>;
+};
+```
+
+### 4.8 Hook useAuth
+
+```typescript
+// hooks/useAuth.ts
+import { useContext, createContext, useState, useEffect } from 'react';
+
+interface AuthContextType {
+  user: {
+    id: string;
+    email: string;
+    roles: string[];
+    permissions: string[];
+  } | null;
+  hasPermission: (permission: string) => boolean;
+  hasRole: (role: string) => boolean;
+  isLoading: boolean;
+}
+
+const AuthContext = createContext<AuthContextType | null>(null);
+
+export const AuthProvider: React.FC = ({ children }) => {
+  const [user, setUser] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  useEffect(() => {
+    // Pobierz user z localStorage / API
+    const fetchUser = async () => {
+      const token = localStorage.getItem('access_token');
+      if (token) {
+        const response = await fetch('/api/auth/me', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const userData = await response.json();
+          setUser(userData);
+        }
+      }
+      setIsLoading(false);
+    };
+    fetchUser();
+  }, []);
+  
+  const hasPermission = (permission: string): boolean => {
+    if (!user) return false;
+    if (user.roles.includes('super_admin')) return true;
+    return user.permissions.includes(permission);
+  };
+  
+  const hasRole = (role: string): boolean => {
+    return user?.roles.includes(role) ?? false;
+  };
+  
+  return (
+    <AuthContext.Provider value={{ user, hasPermission, hasRole, isLoading }}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) throw new Error('useAuth must be used within AuthProvider');
+  return context;
+};
+```
 
 ---
-
-
 
 ## 5. API - SPECYFIKACJA KOMPLETNA
 
-### 5.1 Endpointy Autentykacji
+### 5.1 Architektura API
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    WARSTWY API                                  │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  1. API GATEWAY                                                 │
+│     ├── Routing do odpowiedniego serwisu                      │
+│     ├── Rate Limiting                                           │
+│     ├── Authentication (JWT)                                    │
+│     ├── Authorization (RBAC)                                    │
+│     ├── Request/Response Validation                             │
+│     ├── Caching                                                 │
+│     └── Logging                                                 │
+│                                                                 │
+│  2. CENTRAL API (serwisy-lokalne-sterowanie.pl/api)             │
+│     ├── /v1/admin/* - Zarzadzanie systemem                      │
+│     ├── /v1/domains/* - Zarzadzanie domenami                    │
+│     ├── /v1/users/* - Zarzadzanie uzytkownikami                 │
+│     ├── /v1/sources/* - Zarzadzanie zrodlami                    │
+│     ├── /v1/templates/* - Zarzadzanie szablonami                │
+│     ├── /v1/modules/* - Zarzadzanie modulami                    │
+│     └── /v1/metrics/* - Metryki i statystyki                    │
+│                                                                 │
+│  3. DOMAIN API (4torun.pl/api, 4bydgoszcz.pl/api)               │
+│     ├── /v1/content/* - Publikowane tresci                      │
+│     ├── /v1/public/* - Publiczne dane                           │
+│     └── /v1/webhook/* - Webhooki dla zewnetrznych systemow     │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 5.2 API - Centralne (Panel Sterowania)
+
+#### Autentykacja
 
 ```yaml
 POST /api/v1/auth/login
+Summary: Logowanie do systemu
 Request:
   body:
-    email: string
+    email: string (email)
     password: string
+    remember_me: boolean (optional)
 Response:
   200:
     access_token: string (JWT)
     refresh_token: string
+    expires_in: integer (seconds)
+    user:
+      id: uuid
+      email: string
+      first_name: string
+      last_name: string
+      roles: array
+      permissions: array
+  401:
+    error: "Invalid credentials"
+
+POST /api/v1/auth/refresh
+Summary: Odswiezenie tokenu
+Request:
+  body:
+    refresh_token: string
+Response:
+  200:
+    access_token: string
     expires_in: integer
-    user: object
+
+POST /api/v1/auth/logout
+Summary: Wylogowanie
+Headers:
+  Authorization: Bearer {token}
+Response:
+  200:
+    message: "Logged out successfully"
 
 GET /api/v1/auth/me
+Summary: Dane zalogowanego uzytkownika
+Headers:
+  Authorization: Bearer {token}
+Response:
+  200:
+    user:
+      id: uuid
+      email: string
+      first_name: string
+      last_name: string
+      avatar_url: string
+      roles: array
+      permissions: array
+      domains: array
+```
+
+#### Zarzadzanie Domenami
+
+```yaml
+GET /api/v1/domains
+Summary: Lista wszystkich domen
+Headers:
+  Authorization: Bearer {token}
+Query:
+  page: integer (default: 1)
+  limit: integer (default: 20, max: 100)
+  search: string (optional)
+  status: string (optional: active, inactive, maintenance)
+  sort: string (default: created_at, options: name, created_at, updated_at)
+  order: string (default: desc, options: asc, desc)
+Response:
+  200:
+    data:
+      - id: string
+        name: string
+        slug: string
+        city: string
+        is_active: boolean
+        is_maintenance: boolean
+        created_at: datetime
+        updated_at: datetime
+        posts_count: integer
+        users_count: integer
+    meta:
+      current_page: integer
+      last_page: integer
+      total: integer
+      per_page: integer
+
+POST /api/v1/domains
+Summary: Tworzenie nowej domeny
+Headers:
+  Authorization: Bearer {token}
+Request:
+  body:
+    name: string (required)
+    slug: string (required, unique)
+    city: string (required)
+    region: string
+    description: text
+    primary_color: string (hex)
+    secondary_color: string (hex)
+    template_id: uuid
+    admin_email: string (email)
+Response:
+  201:
+    domain:
+      id: string
+      name: string
+      slug: string
+      schema_name: string
+      status: string
+      created_at: datetime
+  400:
+    error: "Validation failed"
+    details: object
+
+GET /api/v1/domains/{domainId}
+Summary: Szczegoly domeny
+Headers:
+  Authorization: Bearer {token}
+Response:
+  200:
+    id: string
+    name: string
+    slug: string
+    description: text
+    city: string
+    region: string
+    country: string
+    language: string
+    timezone: string
+    is_active: boolean
+    is_maintenance: boolean
+    maintenance_message: text
+    template_id: uuid
+    template: object
+    primary_color: string
+    secondary_color: string
+    logo_url: string
+    favicon_url: string
+    social_links: object
+    contact_info: object
+    seo_settings: object
+    analytics_settings: object
+    features_enabled: object
+    posts_count: integer
+    users_count: integer
+    last_activity_at: datetime
+    created_at: datetime
+    updated_at: datetime
+
+PUT /api/v1/domains/{domainId}
+Summary: Aktualizacja domeny
+Headers:
+  Authorization: Bearer {token}
+Request:
+  body:
+    name: string
+    description: text
+    city: string
+    region: string
+    is_active: boolean
+    is_maintenance: boolean
+    maintenance_message: text
+    primary_color: string
+    secondary_color: string
+    seo_settings: object
+    features_enabled: object
+Response:
+  200:
+    domain: object
+
+DELETE /api/v1/domains/{domainId}
+Summary: Usuniecie domeny (soft delete)
+Headers:
+  Authorization: Bearer {token}
+Query:
+  force: boolean (default: false, czy usunac fizycznie)
+Response:
+  200:
+    message: "Domain deleted successfully"
+
+GET /api/v1/domains/{domainId}/dashboard
+Summary: Dashboard domeny (metryki)
+Headers:
+  Authorization: Bearer {token}
+Response:
+  200:
+    metrics:
+      posts:
+        total: integer
+        published: integer
+        draft: integer
+        by_type: object
+      users:
+        total: integer
+        active_today: integer
+        new_this_week: integer
+      traffic:
+        views_today: integer
+        views_this_week: integer
+        views_this_month: integer
+        unique_visitors: integer
+      engagement:
+        comments_count: integer
+        ratings_count: integer
+        average_rating: number
+    recent_activity:
+      - type: string
+        description: string
+        user: object
+        created_at: datetime
+    alerts:
+      - type: string
+        message: string
+        severity: string
+
+GET /api/v1/domains/{domainId}/statistics
+Summary: Szczegolowe statystyki domeny
+Headers:
+  Authorization: Bearer {token}
+Query:
+  from: date
+  to: date
+  group_by: string (day, week, month)
+Response:
+  200:
+    period:
+      from: date
+      to: date
+    traffic:
+      labels: array
+      views: array
+      unique_visitors: array
+    content:
+      posts_created: integer
+      posts_published: integer
+      comments_added: integer
+    engagement:
+      ratings_given: integer
+      average_rating: number
+      shares_count: integer
+    top_content:
+      - post_id: uuid
+        title: string
+        views: integer
+        rating: number
+
+GET /api/v1/domains/{domainId}/content/posts
+Summary: Lista wpisow w domenie
+Headers:
+  Authorization: Bearer {token}
+Query:
+  page: integer
+  limit: integer
+  type: string (wiadomosci, kronika-policyjna, firmy, etc.)
+  status: string (draft, published, scheduled, archived)
+  category: uuid
+  author: uuid
+  search: string
+  from: date
+  to: date
+  sort: string
+  order: string
+Response:
+  200:
+    data: array of posts
+    meta: pagination
+
+POST /api/v1/domains/{domainId}/content/posts
+Summary: Tworzenie wpisu w domenie
+Headers:
+  Authorization: Bearer {token}
+Request:
+  body:
+    post_type: string (required)
+    title: string (required)
+    slug: string (optional, auto-generate)
+    content: text (required)
+    excerpt: text
+    status: string (draft, published, scheduled)
+    published_at: datetime
+    categories: array of uuid
+    tags: array of string
+    featured: boolean
+    allow_comments: boolean
+    allow_ratings: boolean
+    seo_title: string
+    seo_description: text
+    og_image_url: string
+    custom_fields: object
+Response:
+  201:
+    post: object
+
+PUT /api/v1/domains/{domainId}/content/posts/{postId}
+Summary: Aktualizacja wpisu
+Headers:
+  Authorization: Bearer {token}
+Request:
+  body: (jak wyzej)
+Response:
+  200:
+    post: object
+
+DELETE /api/v1/domains/{domainId}/content/posts/{postId}
+Summary: Usuniecie wpisu
+Headers:
+  Authorization: Bearer {token}
+Query:
+  force: boolean
+Response:
+  200:
+    message: "Post deleted"
+
+POST /api/v1/domains/{domainId}/content/posts/{postId}/duplicate
+Summary: Duplikowanie wpisu
+Headers:
+  Authorization: Bearer {token}
+Response:
+  201:
+    post: object (nowy wpis)
+
+POST /api/v1/domains/{domainId}/content/posts/{postId}/publish
+Summary: Publikowanie wpisu
+Headers:
+  Authorization: Bearer {token}
+Response:
+  200:
+    post: object
+
+POST /api/v1/domains/{domainId}/content/posts/{postId}/unpublish
+Summary: Cofniecie publikacji
+Headers:
+  Authorization: Bearer {token}
+Response:
+  200:
+    post: object
+```
+
+#### Zarzadzanie Uzytkownikami
+
+```yaml
+GET /api/v1/users
+Summary: Lista uzytkownikow systemu
+Headers:
+  Authorization: Bearer {token}
+Query:
+  page: integer
+  limit: integer
+  search: string
+  role: string
+  domain: string
+  is_active: boolean
+Response:
+  200:
+    data: array of users
+    meta: pagination
+
+POST /api/v1/users
+Summary: Tworzenie uzytkownika
+Headers:
+  Authorization: Bearer {token}
+Request:
+  body:
+    email: string (required)
+    password: string (required)
+    first_name: string (required)
+    last_name: string (required)
+    phone: string
+    is_active: boolean
+    roles: array
+      - role_id: uuid
+        domain_id: string (optional)
+Response:
+  201:
+    user: object
+
+GET /api/v1/users/{userId}
+Summary: Szczegoly uzytkownika
 Headers:
   Authorization: Bearer {token}
 Response:
@@ -472,665 +2418,596 @@ Response:
     email: string
     first_name: string
     last_name: string
+    phone: string
+    avatar_url: string
+    is_active: boolean
+    is_super_admin: boolean
+    email_verified_at: datetime
+    last_login_at: datetime
+    login_count: integer
     roles: array
     permissions: array
-```
+    domains: array
+    created_at: datetime
 
-### 5.2 Endpointy Zarządzania Domenami
+PUT /api/v1/users/{userId}
+Summary: Aktualizacja uzytkownika
+Headers:
+  Authorization: Bearer {token}
+Request:
+  body:
+    first_name: string
+    last_name: string
+    phone: string
+    is_active: boolean
+Response:
+  200:
+    user: object
 
-```yaml
-GET /api/v1/domains
+DELETE /api/v1/users/{userId}
+Summary: Usuniecie uzytkownika
+Headers:
+  Authorization: Bearer {token}
+Response:
+  200:
+    message: "User deleted"
+
+PUT /api/v1/users/{userId}/roles
+Summary: Aktualizacja rol uzytkownika
+Headers:
+  Authorization: Bearer {token}
+Request:
+  body:
+    roles: array
+      - role_id: uuid
+        domain_id: string (null dla globalnych)
+Response:
+  200:
+    roles: array
+
+PUT /api/v1/users/{userId}/password
+Summary: Zmiana hasla uzytkownika
+Headers:
+  Authorization: Bearer {token}
+Request:
+  body:
+    password: string (required, min 8 znakow)
+    password_confirmation: string
+Response:
+  200:
+    message: "Password updated"
+
+GET /api/v1/users/{userId}/activity
+Summary: Aktywnosc uzytkownika
+Headers:
+  Authorization: Bearer {token}
+Query:
+  page: integer
+  limit: integer
+  from: date
+  to: date
 Response:
   200:
     data:
-      - id: string
-        name: string
-        city: string
-        is_active: boolean
-        posts_count: integer
+      - action: string
+        entity_type: string
+        entity_title: string
+        created_at: datetime
+    meta: pagination
+```
 
-POST /api/v1/domains
+#### Operacje Masowe
+
+```yaml
+POST /api/v1/mass/banners
+Summary: Dodanie banneru do wielu domen
+Headers:
+  Authorization: Bearer {token}
+Request:
+  body:
+    domains: array of string (domain IDs)
+    banner:
+      name: string
+      type: string
+      position: string
+      content: text
+      link_url: string
+      start_date: datetime
+      end_date: datetime
+      is_active: boolean
+Response:
+  200:
+    results:
+      - domain_id: string
+        banner_id: uuid
+        status: string (success, error)
+        message: string
+
+POST /api/v1/mass/menus
+Summary: Dodanie menu do wielu domen
+Headers:
+  Authorization: Bearer {token}
+Request:
+  body:
+    domains: array of string
+    menu:
+      name: string
+      location: string
+      items: array
+        - title: string
+          url: string
+          target: string
+Response:
+  200:
+    results: array
+
+POST /api/v1/mass/content
+Summary: Dodanie tresci do wielu domen
+Headers:
+  Authorization: Bearer {token}
+Request:
+  body:
+    domains: array of string
+    content:
+      post_type: string
+      title: string
+      content: text
+      status: string
+      categories: array
+      tags: array
+Response:
+  200:
+    results: array
+
+POST /api/v1/mass/updates
+Summary: Masowa aktualizacja wielu domen
+Headers:
+  Authorization: Bearer {token}
+Request:
+  body:
+    domains: array of string
+    updates:
+      settings: object (opcjonalnie)
+      template_id: uuid (opcjonalnie)
+      features_enabled: object (opcjonalnie)
+Response:
+  200:
+    results: array
+
+POST /api/v1/mass/backup
+Summary: Backup wielu domen
+Headers:
+  Authorization: Bearer {token}
+Request:
+  body:
+    domains: array of string
+    type: string (full, database, files)
+Response:
+  200:
+    backup_id: uuid
+    status: string
+    estimated_time: integer
+```
+
+#### Zrodla Danych (Scraping)
+
+```yaml
+GET /api/v1/sources
+Summary: Lista zrodel danych
+Headers:
+  Authorization: Bearer {token}
+Query:
+  page: integer
+  limit: integer
+  type: string
+  is_active: boolean
+Response:
+  200:
+    data: array of sources
+    meta: pagination
+
+POST /api/v1/sources
+Summary: Tworzenie zrodla danych
+Headers:
+  Authorization: Bearer {token}
 Request:
   body:
     name: string (required)
     slug: string (required)
-    city: string (required)
-    admin_email: string
-Response:
-  201:
-    domain: object
-    message: "Domain created. Deployment in progress..."
-
-GET /api/v1/domains/:domainId/content/posts
-Query:
-  type: string
-  status: string
-  page: integer
-  limit: integer
-Response:
-  200:
-    data: array of posts
-    meta: pagination
-
-POST /api/v1/domains/:domainId/content/posts
-Request:
-  body:
-    post_type: string
-    title: string
-    content: string
-    status: string
-Response:
-  201:
-    post: object
-```
-
-### 5.3 Endpointy Scrapingu
-
-```yaml
-GET /api/v1/sources
-Response:
-  200:
-    data: array of sources
-
-POST /api/v1/sources
-Request:
-  body:
-    name: string
-    type: string (rss, api, html)
-    url: string
-    parser_config: object
-    mapping_config: object
-    domains: array of string
+    type: string (required: rss, api, scraper, xml, json)
+    url: string (required)
+    method: string (default: GET)
+    headers: object
+    auth_type: string
+    auth_config: object
+    fetch_config: object
+    parser_config: object (required)
+    mapping_config: object (required)
+    schedule: string (cron expression)
+    domains: array of string (domeny uzywajace zrodla)
 Response:
   201:
     source: object
 
-POST /api/v1/sources/:sourceId/run
+GET /api/v1/sources/{sourceId}
+Summary: Szczegoly zrodla
+Headers:
+  Authorization: Bearer {token}
+Response:
+  200:
+    source: object
+
+PUT /api/v1/sources/{sourceId}
+Summary: Aktualizacja zrodla
+Headers:
+  Authorization: Bearer {token}
+Request:
+  body: (jak przy tworzeniu)
+Response:
+  200:
+    source: object
+
+DELETE /api/v1/sources/{sourceId}
+Summary: Usuniecie zrodla
+Headers:
+  Authorization: Bearer {token}
+Response:
+  200:
+    message: "Source deleted"
+
+POST /api/v1/sources/{sourceId}/run
+Summary: Reczne uruchomienie scrapingu
+Headers:
+  Authorization: Bearer {token}
+Request:
+  body:
+    domains: array of string (opcjonalnie, jesli puste - wszystkie)
 Response:
   202:
     job_id: uuid
     status: "queued"
+
+GET /api/v1/sources/{sourceId}/logs
+Summary: Logi scrapingu
+Headers:
+  Authorization: Bearer {token}
+Query:
+  page: integer
+  limit: integer
+  status: string
+Response:
+  200:
+    data: array of logs
+    meta: pagination
+
+GET /api/v1/sources/{sourceId}/schedule
+Summary: Harmonogram zrodla
+Headers:
+  Authorization: Bearer {token}
+Response:
+  200:
+    schedule: string (cron)
+    next_runs: array of datetime
 ```
 
----
+#### Cron Jobs
 
-## 6. FRONTEND - UI/UX DESIGN SYSTEM
+```yaml
+GET /api/v1/cron
+Summary: Lista zadan cron
+Headers:
+  Authorization: Bearer {token}
+Response:
+  200:
+    data: array of cron jobs
 
-### 6.1 Design Philosophy
+POST /api/v1/cron
+Summary: Tworzenie zadania cron
+Headers:
+  Authorization: Bearer {token}
+Request:
+  body:
+    name: string (required)
+    slug: string (required)
+    schedule: string (cron expression, required)
+    command: string (required)
+    arguments: object
+    is_active: boolean
+    notify_on_failure: boolean
+    notify_emails: array of string
+Response:
+  201:
+    cron_job: object
 
-**Inspiracja:** 4torun.pl - Ciepła, przyjazna estetyka regionalnego portalu  
-**Cel:** Nowoczesny, szybki, dostępny (WCAG 2.1 AA), responsywny (Mobile First)
+POST /api/v1/cron/{jobId}/run
+Summary: Reczne uruchomienie zadania
+Headers:
+  Authorization: Bearer {token}
+Response:
+  202:
+    job_id: uuid
+    status: "running"
 
-**Kluczowe Założenia:**
-- Czytelna typografia dla seniorów (16px+ base)
-- Wysoki kontrast dla dostępności
-- Szybkie ładowanie (Core Web Vitals)
-- Płynne animacje (60fps)
-- Intuicyjna nawigacja (max 3 kliknięcia do treści)
-
-### 6.2 System Kolorów (Konfigurowalny per Domena)
-
-```css
-:root {
-  /* Primary - Główny kolor marki */
-  --color-primary-50: #fef2f2;
-  --color-primary-100: #fee2e2;
-  --color-primary-200: #fecaca;
-  --color-primary-300: #fca5a5;
-  --color-primary-400: #f87171;
-  --color-primary-500: #ef4444;  /* Główny - czerwony jak 4torun */
-  --color-primary-600: #dc2626;
-  --color-primary-700: #b91c1c;  /* Header/Footer */
-  --color-primary-800: #991b1b;
-  --color-primary-900: #7f1d1d;
-
-  /* Secondary - Akcent */
-  --color-secondary-500: #f97316;
-  --color-secondary-600: #ea580c;
-
-  /* Neutral - Tekst i tła */
-  --color-gray-50: #f9fafb;
-  --color-gray-100: #f3f4f6;
-  --color-gray-600: #4b5563;
-  --color-gray-800: #1f2937;
-  --color-gray-900: #111827;
-
-  /* Semantic */
-  --color-success: #10b981;
-  --color-warning: #f59e0b;
-  --color-error: #ef4444;
-  --color-info: #3b82f6;
-
-  /* Background */
-  --bg-primary: #ffffff;
-  --bg-header: var(--color-primary-700);
-  --bg-footer: var(--color-primary-700);
-
-  /* Typography */
-  --font-sans: 'Inter', system-ui, sans-serif;
-  --font-serif: 'Merriweather', Georgia, serif;
-
-  /* Spacing */
-  --space-1: 0.25rem;
-  --space-2: 0.5rem;
-  --space-4: 1rem;
-  --space-6: 1.5rem;
-  --space-8: 2rem;
-
-  /* Shadows */
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
-
-  /* Radius */
-  --radius-sm: 0.25rem;
-  --radius-md: 0.375rem;
-  --radius-lg: 0.5rem;
-}
+GET /api/v1/cron/{jobId}/logs
+Summary: Logi wykonania
+Headers:
+  Authorization: Bearer {token}
+Response:
+  200:
+    data: array of logs
 ```
 
-### 6.3 Konfiguracja Motywu w Panelu Admina
+#### Szablony
 
-```typescript
-interface ThemeConfig {
-  colors: {
-    primary: string;        // #dc2626
-    primaryDark: string;    // #b91c1c
-    secondary: string;      // #f97316
-    background: string;     // #ffffff
-    text: string;          // #1f2937
-  };
-  typography: {
-    headingFont: 'Inter' | 'Merriweather' | 'Roboto';
-    bodyFont: 'Inter' | 'Open Sans' | 'Lato';
-    baseSize: 16 | 17 | 18;
-  };
-  layout: {
-    maxWidth: '1280px' | '1440px' | '100%';
-    sidebarPosition: 'left' | 'right' | 'none';
-    cardStyle: 'flat' | 'elevated' | 'bordered';
-  };
-  header: {
-    style: 'default' | 'sticky' | 'transparent';
-    height: 60 | 72 | 84;
-    showSearch: boolean;
-    showWeather: boolean;
-  };
-  assets: {
-    logo: string;
-    favicon: string;
-    ogImage: string;
-  };
-}
+```yaml
+GET /api/v1/templates
+Summary: Lista szablonow
+Headers:
+  Authorization: Bearer {token}
+Response:
+  200:
+    data: array of templates
+
+POST /api/v1/templates
+Summary: Tworzenie szablonu
+Headers:
+  Authorization: Bearer {token}
+Request:
+  body:
+    name: string
+    slug: string
+    description: text
+    structure: object
+    styles: object
+    components: object
+Response:
+  201:
+    template: object
+
+POST /api/v1/templates/{templateId}/apply
+Summary: Zastosowanie szablonu do domen
+Headers:
+  Authorization: Bearer {token}
+Request:
+  body:
+    domains: array of string
+    options: object (force, preserve_customizations)
+Response:
+  200:
+    results: array
 ```
 
-### 6.4 Struktura Komponentów Next.js
+#### Logi Systemowe
 
-```
-src/
-├── app/                          # Next.js App Router
-│   ├── layout.tsx                # Root layout z ThemeProvider
-│   ├── page.tsx                  # Strona główna
-│   ├── globals.css               # Globalne style + CSS variables
-│   ├── [type]/                   # Dynamic routes dla CPT
-│   │   ├── page.tsx              # Archiwum
-│   │   └── [slug]/
-│   │       └── page.tsx          # Pojedynczy wpis
-│   └── admin/                    # Panel admina serwisu
-│       ├── page.tsx              # Dashboard
-│       ├── posts/
-│       ├── settings/
-│       └── layout.tsx
-│
-├── components/
-│   ├── layout/                   # Layout components
-│   │   ├── Header.tsx            # Header z menu
-│   │   ├── Footer.tsx            # Stopka
-│   │   ├── Sidebar.tsx           # Sidebar
-│   │   ├── InfoBar.tsx           # Data, pogoda, imieniny
-│   │   └── Navigation.tsx        # Menu nawigacyjne
-│   │
-│   ├── content/                  # Content components
-│   │   ├── NewsCard.tsx          # Karta wiadomości
-│   │   ├── NewsGrid.tsx          # Grid wiadomości
-│   │   ├── HeroSection.tsx       # Sekcja hero
-│   │   ├── CategoryGrid.tsx      # Grid kategorii
-│   │   ├── JobCard.tsx           # Karta oferty pracy
-│   │   ├── ObituaryCard.tsx      # Karta nekrologu
-│   │   ├── CommentSection.tsx    # Sekcja komentarzy
-│   │   └── WeatherWidget.tsx     # Widget pogody
-│   │
-│   └── ui/                       # shadcn/ui komponenty
-│       ├── button.tsx
-│       ├── card.tsx
-│       ├── input.tsx
-│       └── dialog.tsx
-│
-├── lib/
-│   ├── api.ts                    # Klient API
-│   ├── utils.ts                  # Helpers
-│   └── constants.ts              # Stałe
-│
-└── hooks/
-    ├── useTheme.ts
-    ├── usePosts.ts
-    └── useWeather.ts
+```yaml
+GET /api/v1/logs
+Summary: Logi systemowe
+Headers:
+  Authorization: Bearer {token}
+Query:
+  page: integer
+  limit: integer
+  level: string (debug, info, warning, error, critical)
+  category: string
+  domain: string
+  user: uuid
+  action: string
+  from: datetime
+  to: datetime
+  search: string
+Response:
+  200:
+    data: array of logs
+    meta: pagination
+    summary:
+      by_level: object
+      by_category: object
+
+GET /api/v1/logs/export
+Summary: Eksport logow
+Headers:
+  Authorization: Bearer {token}
+Query:
+  format: string (csv, json, xlsx)
+  from: datetime
+  to: datetime
+Response:
+  200:
+    download_url: string
 ```
 
----
+### 5.3 API - Domenowe (Publiczne)
 
-## 7. KOMPONENTY FRONTEND (NA PODSTAWIE 4TORUN.PL)
+#### Content API
 
-### 7.1 Header (Wersja Desktop + Mobile)
+```yaml
+GET /api/v1/content/posts
+Summary: Lista wpisow (publiczna)
+Query:
+  page: integer (default: 1)
+  limit: integer (default: 20, max: 50)
+  type: string (wiadomosci, kronika-policyjna, firmy, ogloszenia, praca, nekrologi, przewodnik, ludzie)
+  category: string (slug)
+  tag: string (slug)
+  search: string
+  featured: boolean
+  sort: string (created_at, updated_at, published_at, views, rating)
+  order: string (desc, asc)
+  from: date
+  to: date
+Response:
+  200:
+    data:
+      - id: uuid
+        type: string
+        title: string
+        slug: string
+        excerpt: string
+        featured_image: object
+        author: object
+        categories: array
+        tags: array
+        published_at: datetime
+        view_count: integer
+        rating_average: number
+        comment_count: integer
+    meta: pagination
 
-**Wygląd:**
-```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│  [LOGO: 4TORUŃ]                    [🔍] [✉️]                                    │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│  🏠 WIADOMOŚCI  POLICJA  FIRMY  OGŁOSZENIA  PRACA  POGODA ▼  NEKROLOGI...     │
-└─────────────────────────────────────────────────────────────────────────────────┘
-```
+GET /api/v1/content/posts/{slug}
+Summary: Pojedynczy wpis (publiczna)
+Response:
+  200:
+    id: uuid
+    type: string
+    title: string
+    slug: string
+    excerpt: string
+    content: string
+    featured_image: object
+    gallery: array
+    author: object
+    categories: array
+    tags: array
+    published_at: datetime
+    view_count: integer
+    rating_average: number
+    comment_count: integer
+    allow_comments: boolean
+    allow_ratings: boolean
+    seo_meta: object
+    schema_data: object
+    related_posts: array
 
-**Implementacja:**
-```typescript
-interface HeaderProps {
-  variant: 'default' | 'sticky' | 'transparent';
-  logo: {
-    src: string;
-    alt: string;
-    width: number;
-    height: number;
-  };
-  navigation: NavItem[];
-  showSearch: boolean;
-  showSocial: boolean;
-}
+GET /api/v1/content/categories
+Summary: Lista kategorii
+Query:
+  type: string
+Response:
+  200:
+    data: array of categories
 
-interface NavItem {
-  label: string;
-  href: string;
-  icon?: string;
-  children?: NavItem[];
-  highlight?: boolean;
-}
+GET /api/v1/content/tags
+Summary: Lista tagow
+Query:
+  search: string
+  limit: integer
+Response:
+  200:
+    data: array of tags
 
-const Header: React.FC<HeaderProps> = ({ logo, navigation }) => {
-  const [isScrolled, setIsScrolled] = useState(false);
-  
-  useEffect(() => {
-    const handleScroll = () => setIsScrolled(window.scrollY > 50);
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-  
-  return (
-    <header className={cn(
-      "transition-all duration-300",
-      isScrolled ? "sticky top-0 shadow-md z-50" : ""
-    )}>
-      {/* Top bar z logo */}
-      <div className="bg-white py-4">
-        <div className="container mx-auto px-4 flex items-center justify-between">
-          <Link href="/">
-            <Image src={logo.src} alt={logo.alt} width={logo.width} height={logo.height} />
-          </Link>
-          <div className="flex items-center gap-4">
-            <SearchButton />
-            <SocialLinks />
-          </div>
-        </div>
-      </div>
-      
-      {/* Navigation bar - kolor primary-700 */}
-      <nav className="bg-primary-700 text-white">
-        <div className="container mx-auto px-4">
-          <ul className="flex items-center gap-1">
-            {navigation.map((item) => (
-              <li key={item.href} className="relative group">
-                <Link 
-                  href={item.href}
-                  className="flex items-center gap-1 px-4 py-3 hover:bg-primary-800 transition-colors"
-                >
-                  {item.icon && <Icon name={item.icon} className="w-4 h-4" />}
-                  <span>{item.label}</span>
-                  {item.children && <ChevronDown className="w-4 h-4" />}
-                </Link>
-                
-                {/* Dropdown */}
-                {item.children && (
-                  <ul className="absolute top-full left-0 bg-white text-gray-800 shadow-lg rounded-b-lg overflow-hidden hidden group-hover:block min-w-[200px]">
-                    {item.children.map((child) => (
-                      <li key={child.href}>
-                        <Link 
-                          href={child.href}
-                          className="block px-4 py-2 hover:bg-gray-100"
-                        >
-                          {child.label}
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
-      </nav>
-    </header>
-  );
-};
+POST /api/v1/content/posts/{slug}/rate
+Summary: Ocenianie wpisu
+Request:
+  body:
+    rating: integer (1-5)
+    comment: string (opcjonalnie)
+Response:
+  201:
+    rating: object
+
+POST /api/v1/content/posts/{slug}/comment
+Summary: Dodawanie komentarza
+Request:
+  body:
+    content: text
+    parent_id: uuid (opcjonalnie, dla odpowiedzi)
+    author_name: string (dla niezalogowanych)
+    author_email: string (dla niezalogowanych)
+Response:
+  201:
+    comment: object
 ```
 
-### 7.2 Info Bar (Data, Imieniny, Pogoda, Jakość Powietrza)
+#### Public Data API
 
-**Wygląd:**
-```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│  Czwartek, 12 lutego 2026 r.                    Pogoda         Jakość Powietrza │
-│  Imieniny: Eulalii, Radosława i Modesta         🌤️ 3.36°C      😊 Bardzo Dobra  │
-│                                                 Ciśnienie: 982 hPa              │
-└─────────────────────────────────────────────────────────────────────────────────┘
-```
+```yaml
+GET /api/v1/public/menus/{location}
+Summary: Menu
+Response:
+  200:
+    location: string
+    items: array
 
-**Implementacja:**
-```typescript
-interface InfoBarProps {
-  showDate?: boolean;
-  showNameDay?: boolean;
-  showWeather?: boolean;
-  showAirQuality?: boolean;
-}
+GET /api/v1/public/widgets/{area}
+Summary: Widgety
+Response:
+  200:
+    area: string
+    widgets: array
 
-const InfoBar: React.FC<InfoBarProps> = ({
-  showDate = true,
-  showNameDay = true,
-  showWeather = true,
-  showAirQuality = true
-}) => {
-  const { date, nameDay } = useDateAndNameday();
-  const { weather } = useWeather();
-  const { airQuality } = useAirQuality();
-  
-  return (
-    <div className="bg-gray-50 border-b py-2">
-      <div className="container mx-auto px-4">
-        <div className="flex flex-wrap items-center justify-between gap-4 text-sm">
-          {/* Data i Imieniny */}
-          {showDate && (
-            <div className="flex items-center gap-4">
-              <span className="font-medium text-gray-900">
-                {formatDate(date, 'EEEE, d MMMM yyyy')} r.
-              </span>
-              {showNameDay && nameDay && (
-                <span className="text-gray-600">
-                  Imieniny: <span className="text-primary-600">{nameDay}</span>
-                </span>
-              )}
-            </div>
-          )}
-          
-          {/* Pogoda i Jakość Powietrza */}
-          <div className="flex items-center gap-6">
-            {showWeather && weather && (
-              <div className="flex items-center gap-3">
-                <WeatherIcon condition={weather.condition} className="w-8 h-8" />
-                <div>
-                  <span className="font-medium">{weather.temp}°C</span>
-                  <span className="text-gray-500 text-xs ml-2">
-                    Ciśnienie: {weather.pressure} hPa
-                  </span>
-                </div>
-              </div>
-            )}
-            
-            {showAirQuality && airQuality && (
-              <div className="flex items-center gap-2">
-                <AirQualityIndicator index={airQuality.index} />
-                <span className="font-medium" style={{ color: airQuality.color }}>
-                  {airQuality.label}
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
+GET /api/v1/public/banners/{position}
+Summary: Bannery
+Query:
+  page: string (home, post, etc.)
+Response:
+  200:
+    position: string
+    banners: array
+
+GET /api/v1/public/settings
+Summary: Ustawienia publiczne
+Response:
+  200:
+    site_name: string
+    site_description: string
+    contact_info: object
+    social_links: object
+    colors: object
 ```
 
-### 7.3 Hero Section (Główna Wiadomość + Posty Boczne)
+### 5.4 Webhooki
 
-**Wygląd:**
-```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│  ┌─────────────────────────────┐  ┌─────────────────────────────────────────┐  │
-│  │                             │  │  Walentynka dla Ciebie – wyjątkowa      │  │
-│  │  [Duże Zdjęcie 16:9]        │  │  akcja w komunikacji miejskiej Torunia  │  │
-│  │                             │  ├─────────────────────────────────────────┤  │
-│  │  [Overlay z gradientem]     │  │  Budowa nowego pasa do skrętu w         │  │
-│  │                             │  │  prawo na ulicy Kraszewskiego           │  │
-│  │  Tytuł głównej wiadomości  │  └─────────────────────────────────────────┘  │
-│  │  z nakładką na zdjęciu     │  ┌──────────┐ ┌──────────┐ ┌──────────┐        │
-│  │                             │  │ [Mini 1] │ │ [Mini 2] │ │ [Mini 3] │        │
-│  └─────────────────────────────┘  └──────────┘ └──────────┘ └──────────┘        │
-└─────────────────────────────────────────────────────────────────────────────────┘
-```
+```yaml
+POST /api/v1/webhooks/scraper
+Summary: Webhook dla zakonczonego scrapingu
+Headers:
+  X-Webhook-Secret: string
+Request:
+  body:
+    source_id: uuid
+    domain_id: string
+    status: string (success, error)
+    items_processed: integer
+    items_created: integer
+    items_updated: integer
+    errors: array
+    started_at: datetime
+    finished_at: datetime
+Response:
+  200:
+    received: true
 
-### 7.4 Karta Wpisu (News Card) - Warianty
-
-**Wariant Default:**
-```typescript
-interface NewsCardProps {
-  post: Post;
-  variant: 'default' | 'featured' | 'compact' | 'horizontal' | 'overlay';
-  showImage?: boolean;
-  showExcerpt?: boolean;
-  showMeta?: boolean;
-  imageAspectRatio?: '16:9' | '4:3' | '1:1';
-}
-
-const NewsCard: React.FC<NewsCardProps> = ({ 
-  post, 
-  variant = 'default',
-  showImage = true,
-  showExcerpt = false,
-  showMeta = true 
-}) => {
-  const variants = {
-    default: "flex flex-col",
-    featured: "flex flex-col md:flex-row gap-6",
-    compact: "flex flex-col",
-    horizontal: "flex flex-row gap-4",
-    overlay: "relative aspect-video"
-  };
-  
-  return (
-    <article className={cn(
-      "group border rounded-lg overflow-hidden transition-all duration-300",
-      "hover:shadow-lg hover:-translate-y-1",
-      variants[variant]
-    )}>
-      {showImage && (
-        <div className={cn(
-          "relative overflow-hidden",
-          variant === 'overlay' ? "absolute inset-0" : "aspect-video"
-        )}>
-          <Image
-            src={post.featuredImage}
-            alt={post.title}
-            fill
-            className="object-cover transition-transform duration-500 group-hover:scale-105"
-          />
-          {variant === 'overlay' && (
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
-          )}
-          <span className="absolute top-3 left-3 px-2 py-1 bg-primary-600 text-white text-xs rounded">
-            {post.category}
-          </span>
-        </div>
-      )}
-      
-      <div className={cn(
-        "p-4",
-        variant === 'overlay' && "absolute bottom-0 left-0 right-0 text-white"
-      )}>
-        <h3 className={cn(
-          "font-semibold line-clamp-2 group-hover:text-primary-600 transition-colors",
-          variant === 'featured' ? "text-xl md:text-2xl" : "text-base"
-        )}>
-          {post.title}
-        </h3>
-        
-        {showExcerpt && (
-          <p className="mt-2 text-gray-600 line-clamp-2 text-sm">
-            {post.excerpt}
-          </p>
-        )}
-        
-        {showMeta && (
-          <div className="flex items-center gap-4 mt-3 text-sm text-gray-500">
-            <span className="flex items-center gap-1">
-              <Eye className="w-4 h-4" />
-              {post.viewCount.toLocaleString()}
-            </span>
-            <span className="flex items-center gap-1">
-              <MessageCircle className="w-4 h-4" />
-              {post.commentCount}
-            </span>
-            <span className="flex items-center gap-1">
-              <Star className="w-4 h-4" />
-              {post.ratingAverage}
-            </span>
-            <span>{formatDate(post.publishedAt)}</span>
-          </div>
-        )}
-      </div>
-    </article>
-  );
-};
-```
-
-### 7.5 Sekcja Kategorii Firm (Grid z Ikonami)
-
-**Wygląd:**
-```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│  KATEGORIE FIRM                                                                 │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│  ┌────────────────────────┐ ┌────────────────────────┐ ┌──────────────────────┐│
-│  │ 🦷 Dentysta Toruń      │ │ 💊 Apteka Toruń        │ │ 💰 Lombard Toruń     ││
-│  └────────────────────────┘ └────────────────────────┘ └──────────────────────┘│
-│  ┌────────────────────────┐ ┌────────────────────────┐ ┌──────────────────────┐│
-│  │ 🌸 Kwiaciarnia Toruń   │ │ 🐾 Weterynarz Toruń    │ │ 📷 Fotograf Toruń    ││
-│  └────────────────────────┘ └────────────────────────┘ └──────────────────────┘│
-└─────────────────────────────────────────────────────────────────────────────────┘
-```
-
-### 7.6 Nekrologi (Obituary Card) - Specjalny Komponent
-
-**Wygląd:**
-```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│  Ś.P HONORATA SAWICKA                                        ✝️                │
-│  zm. 19.05.2024 r.                                                            │
-│  w wieku 65 lat                                                               │
-│                                                                               │
-│  Miejsce Uroczystości Pogrzebowej: Kościół w Toruniu                          │
-│  Data Pogrzebu: 22.05.2024 r.                                                 │
-│                                                                               │
-│  🕯️ zapalonych zniczy (0)    szczegóły pogrzebu                               │
-└─────────────────────────────────────────────────────────────────────────────────┘
-```
-
-**Implementacja:**
-```typescript
-interface ObituaryCardProps {
-  obituary: {
-    firstName: string;
-    lastName: string;
-    deathDate: Date;
-    age: number;
-    funeralLocation: string;
-    funeralDate: Date;
-    candlesCount: number;
-  };
-}
-
-const ObituaryCard: React.FC<ObituaryCardProps> = ({ obituary }) => {
-  return (
-    <div className="border-2 border-gray-200 rounded-lg p-6 bg-white hover:border-gray-300 transition-colors">
-      <div className="flex justify-between items-start">
-        <div className="flex-1">
-          <h3 className="text-xl font-serif text-gray-900 mb-2">
-            Ś.P. {obituary.firstName.toUpperCase()} {obituary.lastName.toUpperCase()}
-          </h3>
-          
-          <div className="space-y-1 text-gray-600 mb-4">
-            <p>zm. {formatDate(obituary.deathDate, 'dd.MM.yyyy')} r.</p>
-            <p>w wieku {obituary.age} lat</p>
-          </div>
-          
-          <div className="bg-gray-50 p-3 rounded text-sm space-y-1">
-            <p>
-              <span className="font-medium">Miejsce Uroczystości:</span>
-              {' '}{obituary.funeralLocation}
-            </p>
-            <p>
-              <span className="font-medium">Data Pogrzebu:</span>
-              {' '}{formatDate(obituary.funeralDate, 'dd.MM.yyyy')} r.
-            </p>
-          </div>
-          
-          <div className="flex items-center gap-4 mt-4">
-            <button className="flex items-center gap-2 text-primary-600 hover:text-primary-700">
-              <Candle className="w-5 h-5" />
-              <span>zapalonych zniczy ({obituary.candlesCount})</span>
-            </button>
-            <button className="text-primary-600 hover:text-primary-700 underline">
-              szczegóły pogrzebu
-            </button>
-          </div>
-        </div>
-        
-        <Cross className="w-16 h-16 text-gray-400 ml-4" />
-      </div>
-    </div>
-  );
-};
-```
-
-### 7.7 Footer (Stopka)
-
-**Wygląd:**
-```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                              [KOLOR GŁÓWNY]                                    │
-│  FIRMY                    O NAS                    REDAKCJA        DOŁĄCZ      │
-│  ─────────────────────────────────────────────────────────────────────────────  │
-│  🦷 Dentysta Toruń        4torun.pl - Twój lokalny   Skontaktuj się   [fb]     │
-│  💊 Apteka Toruń          przewodnik po wioskach     z nami                    │
-│  ...                      z Torunia i okolic.        Kontakt                   │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│  Najnowsze wpisy                                                               │
-│  ⋙ Post 1              ⋙ Post 2                                                │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│  Kontakt   O Nas   Regulamin   Polityka Prywatności   © 2024 4torun.pl         │
-└─────────────────────────────────────────────────────────────────────────────────┘
+POST /api/v1/webhooks/backup
+Summary: Webhook dla zakonczonego backupu
+Headers:
+  X-Webhook-Secret: string
+Request:
+  body:
+    backup_id: uuid
+    domain_id: string
+    status: string
+    file_size: integer
+    download_url: string
+    created_at: datetime
+Response:
+  200:
+    received: true
 ```
 
 ---
 
 
 
-## 8. PANEL ADMINISTRACYJNY - CENTRALNY
+## 6. PANEL ADMINISTRACYJNY - CENTRALNY
 
-### 8.1 Struktura Interfejsu
+### 6.1 Struktura Interfejsu
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  HEADER: Logo | Dashboard | Domeny | Użytkownicy | Zrodla | Ustawienia   [Q]│
+│  HEADER                                                                     │
+│  ┌─────────────────────────────────────────────────────────────────────────┐│
+│  │ [Logo]  Dashboard  Domeny  Uzytkownicy  Zrodla  Ustawienia        [Q] [Bell] [User ▼] ││
+│  └─────────────────────────────────────────────────────────────────────────┘│
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  ┌──────────────┐  ┌─────────────────────────────────────────────────────┐  │
@@ -1138,252 +3015,1066 @@ const ObituaryCard: React.FC<ObituaryCardProps> = ({ obituary }) => {
 │  │  SIDEBAR     │  │              MAIN CONTENT AREA                      │  │
 │  │              │  │                                                     │  │
 │  │  Dashboard   │  │  ┌───────────────────────────────────────────────┐  │  │
-│  │  Domeny      │  │  │  BREADCRUMBS: Home / Domeny / 4torun.pl       │  │  │
-│  │    Lista     │  │  └───────────────────────────────────────────────┘  │  │
-│  │    Dodaj     │  │                                                     │  │
-│  │  Tresci      │  │  ┌───────────────────────────────────────────────┐  │  │
-│  │  Uzytkownicy │  │  │           PAGE TITLE + ACTIONS                  │  │  │
-│  │  Zrodla      │  │  └───────────────────────────────────────────────┘  │  │
-│  │  Cron        │  │                                                     │  │
-│  │  Szablony    │  │  ┌───────────────────────────────────────────────┐  │  │
-│  │  Logi        │  │  │           CONTENT CARDS / TABLES              │  │  │
-│  │  Ustawienia  │  │  └───────────────────────────────────────────────┘  │  │
+│  │  ─────────   │  │  │  BREADCRUMBS: Home / Domeny / 4torun.pl       │  │  │
+│  │  Domeny      │  │  └───────────────────────────────────────────────┘  │  │
+│  │    Lista     │  │                                                     │  │
+│  │    Dodaj     │  │  ┌───────────────────────────────────────────────┐  │  │
+│  │    Grupy     │  │  │           PAGE TITLE                          │  │  │
+│  │  ─────────   │  │  │  [Primary Action Button]                      │  │  │
+│  │  Tresci      │  │  └───────────────────────────────────────────────┘  │  │
+│  │    Wszystkie │  │                                                     │  │
+│  │    Wiadomosci│  │  ┌───────────────────────────────────────────────┐  │  │
+│  │    Kronika   │  │  │                                               │  │  │
+│  │    Firmy     │  │  │           CONTENT CARDS / TABLES              │  │  │
+│  │    Praca     │  │  │                                               │  │  │
+│  │    Nekrologi │  │  │                                               │  │  │
+│  │  ─────────   │  │  └───────────────────────────────────────────────┘  │  │
+│  │  Uzytkownicy │  │                                                     │  │
+│  │  ─────────   │  │  ┌───────────────────────────────────────────────┐  │  │
+│  │  Zrodla      │  │  │           PAGINATION / FOOTER                   │  │  │
+│  │  Cron        │  │  └───────────────────────────────────────────────┘  │  │
+│  │  ─────────   │  │                                                     │  │
+│  │  Szablony    │  │                                                     │  │
+│  │  Moduly      │  │                                                     │  │
+│  │  ─────────   │  │                                                     │  │
+│  │  Statystyki  │  │                                                     │  │
+│  │  Logi        │  │                                                     │  │
+│  │  Backup      │  │                                                     │  │
+│  │  ─────────   │  │                                                     │  │
+│  │  Ustawienia  │  │                                                     │  │
 │  └──────────────┘  └─────────────────────────────────────────────────────┘  │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 8.2 Kluczowe Funkcjonalności Panelu Centralnego
+### 6.2 Szczegolowa Specyfikacja Podstron
 
-| Moduł | Funkcjonalności |
-|-------|----------------|
-| **Dashboard** | Metryki systemowe, wykresy ruchu, top domeny, alerty |
-| **Domeny** | Lista, dodawanie, edycja, usuwanie, dashboard per domena |
-| **Treści** | Zarządzanie wszystkimi wpisami we wszystkich domenach |
-| **Użytkownicy** | Lista, role, uprawnienia per domena |
-| **Masowe Operacje** | Dodawanie bannerów/menu/wpisów do wielu domen naraz |
-| **Źródła** | Konfiguracja scrapingu, testowanie, logi |
-| **Cron Jobs** | Harmonogram zadań, logi wykonania |
-| **Szablony** | Zarządzanie motywami, zastosowanie do domen |
-| **Logi** | Przeglądarka logów systemowych z filtrami |
+#### 6.2.1 Dashboard Glowny
 
-### 8.3 Formularz Dodawania Nowej Domeny
-
-```typescript
-interface CreateDomainForm {
-  // Podstawowe
-  name: string;           // Nazwa wyświetlana: "4Toruń"
-  slug: string;           // ID domeny: "4torun.pl"
-  city: string;           // Toruń
-  region: string;         // kujawsko-pomorskie
-  
-  // Kontakt
-  adminEmail: string;     // Email administratora
-  contactPhone: string;   // Telefon kontaktowy
-  
-  // Wygląd
-  theme: string;          // Wybór z predefiniowanych motywów
-  primaryColor: string;   // #DC2626
-  logo: File;             // Upload logo
-  favicon: File;          // Upload favicon
-  
-  // Funkcjonalności
-  enabledModules: string[];  // Wiadomości, Kronika, Firmy, Praca, Nekrologi
-  
-  // SEO
-  siteTitle: string;
-  siteDescription: string;
-  
-  // Zaawansowane
-  customDomain: boolean;  // Czy użyć własnej domeny
-  sslEnabled: boolean;    // Let's Encrypt
-}
-
-// Proces tworzenia:
-// 1. Wypełnienie formularza (walidacja dostępności slug)
-// 2. Upload assetów (logo, favicon)
-// 3. Podgląd przed utworzeniem
-// 4. Kliknięcie "Utwórz domenę"
-// 5. System pokazuje progress deploymentu
-// 6. Gotowe - link do nowej domeny
-```
-
----
-
-## 9. PANEL ADMINISTRACYJNY - PER SERWIS
-
-### 9.1 Dashboard Serwisu
+**URL:** `/`
 
 **Komponenty:**
-- Szybkie statystyki (dzisiejsze wyświetlenia, nowe wpisy, komentarze)
-- Wykres ruchu (7 dni)
-- Ostatnie wpisy do zaakceptowania
-- Ostatnie komentarze do moderacji
-- Popularne treści
-
-### 9.2 Edytor Wpisów (Rich Text)
-
 ```typescript
-interface PostEditorProps {
-  post?: Post;  // Jeśli undefined = nowy wpis
-  postTypes: string[];  // Dostępne typy CPT
-}
-
-// Lewa kolumna (główna)
-// - Tytuł (z auto-generowaniem slug)
-// - Treść (TipTap Editor)
-// - Wstęp (auto-generowany z treści)
-// - Obrazek główny
-// - Galeria
-
-// Prawa kolumna (sidebar)
-// - Panel publikacji (status, data, widoczność)
-// - Kategorie i tagi
-// - Ustawienia (polecany, przyklejony, komentarze)
-// - SEO (meta tytuł, opis, słowa kluczowe)
-// - Niestandardowe pola (per CPT)
-```
-
-### 9.3 Edytor Motywu (Theme Editor)
-
-```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│  EDYTOR MOTYWU: 4torun.pl                                          [Podgląd ▼] │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│  ┌─────────────┐  ┌─────────────────────────────────────────────────────────────┐│
-│  │  KOLORY     │  │  PODSTAWOWE KOLORY                                          ││
-│  │  Typografia │  │  ┌─────────────────────────────────────────────────────┐   ││
-│  │  Layout     │  │  │  Primary    │  [███] #DC2626  [ColorPicker]      │   ││
-│  │  Header     │  │  │  Secondary  │  [███] #F97316  [ColorPicker]      │   ││
-│  │  Footer     │  │  │  Background │  [███] #FFFFFF  [ColorPicker]      │   ││
-│  │  Zaawans.   │  │  │  Text       │  [███] #1F2937  [ColorPicker]      │   ││
-│  └─────────────┘  │  └─────────────────────────────────────────────────────┘   ││
-│                   │                                                             ││
-│                   │  LOGO I FAVICON                                               ││
-│                   │  ┌─────────────────────────────────────────────────────┐   ││
-│                   │  │  Logo:  [Podgląd]  [Zmień]  [Usuń]                 │   ││
-│                   │  │  Mobile: [Podgląd]  [Zmień]                         │   ││
-│                   │  │  Favicon: [Podgląd]  [Zmień]                        │   ││
-│                   │  └─────────────────────────────────────────────────────┘   ││
-│                   │                                                             ││
-│                   │  [Zapisz Zmiany]  [Resetuj]  [Eksportuj Motyw]             ││
-│                   └─────────────────────────────────────────────────────────────┘│
-└─────────────────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 10. SYSTEM MOTYWÓW I PERSONALIZACJI
-
-### 10.1 Predefiniowane Motywy
-
-```typescript
-const predefinedThemes = {
-  'red-modern': {
-    name: 'Czerwony (jak 4torun.pl)',
-    colors: {
-      primary: '#DC2626',
-      primaryDark: '#B91C1C',
-      secondary: '#F97316',
-      background: '#FFFFFF',
-      text: '#1F2937'
-    }
-  },
-  'blue-ocean': {
-    name: 'Niebieski Morski',
-    colors: {
-      primary: '#2563EB',
-      primaryDark: '#1D4ED8',
-      secondary: '#06B6D4',
-      background: '#F8FAFC',
-      text: '#0F172A'
-    }
-  },
-  'green-nature': {
-    name: 'Zielony Eko',
-    colors: {
-      primary: '#059669',
-      primaryDark: '#047857',
-      secondary: '#84CC16',
-      background: '#F0FDF4',
-      text: '#064E3B'
-    }
-  },
-  'dark-premium': {
-    name: 'Ciemny Premium',
-    colors: {
-      primary: '#F59E0B',
-      primaryDark: '#D97706',
-      secondary: '#EF4444',
-      background: '#111827',
-      text: '#F9FAFB'
-    }
-  }
-};
-```
-
-### 10.2 Dynamiczne Generowanie CSS
-
-```typescript
-// ThemeProvider component
-const ThemeProvider: React.FC<{ config: ThemeConfig }> = ({ config, children }) => {
-  useEffect(() => {
-    const root = document.documentElement;
-    
-    // Kolory
-    root.style.setProperty('--color-primary-500', config.colors.primary);
-    root.style.setProperty('--color-primary-700', config.colors.primaryDark);
-    root.style.setProperty('--color-secondary-500', config.colors.secondary);
-    root.style.setProperty('--bg-primary', config.colors.background);
-    root.style.setProperty('--text-primary', config.colors.text);
-    
-    // Fonty
-    root.style.setProperty('--font-sans', config.typography.headingFont);
-    
-    // Zapisanie w localStorage dla SSR
-    localStorage.setItem('theme', JSON.stringify(config));
-  }, [config]);
+interface DashboardPage {
+  // Metryki systemowe (karty)
+  systemMetrics: {
+    totalDomains: number;
+    activeDomains: number;
+    totalUsers: number;
+    totalPosts: number;
+    systemHealth: 'healthy' | 'warning' | 'critical';
+    lastBackupAt: Date;
+  };
   
-  return <>{children}</>;
-};
+  // Wykres ruchu (30 dni)
+  trafficChart: {
+    labels: string[];
+    views: number[];
+    uniqueVisitors: number[];
+  };
+  
+  // Top domeny
+  topDomains: {
+    domainId: string;
+    domainName: string;
+    viewsToday: number;
+    viewsThisMonth: number;
+    postsCount: number;
+  }[];
+  
+  // Aktywnosc systemu
+  recentActivity: {
+    id: string;
+    user: { name: string; avatar: string };
+    action: string;
+    entity: string;
+    entityName: string;
+    timestamp: Date;
+  }[];
+  
+  // Alerty
+  alerts: {
+    id: string;
+    severity: 'info' | 'warning' | 'error' | 'critical';
+    message: string;
+    domainId?: string;
+    createdAt: Date;
+  }[];
+  
+  // Zadania cron (najblizsze)
+  upcomingCronJobs: {
+    id: string;
+    name: string;
+    nextRunAt: Date;
+  }[];
+}
 ```
+
+**Funkcjonalnosc:**
+- Szybki przeglad stanu systemu
+- Nawigacja do najczesciej uzywanych funkcji
+- Podglad alertow wymagajacych uwagi
+- Wykresy ruchu (Chart.js lub Recharts)
+
+#### 6.2.2 Lista Domen
+
+**URL:** `/admin/domeny`
+
+**Komponenty:**
+```typescript
+interface DomainsListPage {
+  // Filtrowanie i wyszukiwanie
+  filters: {
+    search: string;
+    status: 'all' | 'active' | 'inactive' | 'maintenance';
+    city: string;
+    sortBy: 'name' | 'created_at' | 'posts_count' | 'last_activity';
+    sortOrder: 'asc' | 'desc';
+  };
+  
+  // Tabela domen
+  domains: {
+    id: string;
+    name: string;
+    slug: string;
+    city: string;
+    isActive: boolean;
+    isMaintenance: boolean;
+    postsCount: number;
+    usersCount: number;
+    templateName: string;
+    lastActivityAt: Date;
+    createdAt: Date;
+  }[];
+  
+  // Akcje masowe
+  bulkActions: [
+    'activate',
+    'deactivate',
+    'maintenance_on',
+    'maintenance_off',
+    'delete'
+  ];
+}
+```
+
+**Funkcjonalnosc:**
+- Tabela z sortowaniem i filtrowaniem
+- Szybkie akcje (edytuj, ustawienia, podglad)
+- Akcje masowe na zaznaczonych domenach
+- Eksport do CSV/Excel
+- Paginacja
+
+#### 6.2.3 Szczegoly Domeny
+
+**URL:** `/admin/domeny/:domainId`
+
+**Zakladki:**
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ [4torun.pl]  [Dashboard] [Tresci] [Uzytkownicy] [Ustawienia]   │
+│              [Wyglad] [SEO] [Statystyki] [Logi]                │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Dashboard domeny:**
+- Metryki: posty, uzytkownicy, wyswietlenia, komentarze
+- Wykresy ruchu (dzienny, tygodniowy, miesieczny)
+- Ostatnia aktywnosc w domenie
+- Top tresci
+
+**Zakladka Tresci:**
+- Podglad wszystkich wpisow w domenie
+- Filtrowanie po typie, statusie, dacie
+- Szybkie akcje: edytuj, publikuj, usun
+
+**Zakladka Uzytkownicy:**
+- Lista uzytkownikow z rolami w tej domenie
+- Dodawanie nowych uzytkownikow
+- Zarzadzanie uprawnieniami
+
+**Zakladka Ustawienia:**
+- Podstawowe: nazwa, opis, miasto
+- Kolory: primary, secondary
+- Logo i favicon (upload)
+- Kontakt i social media
+- Jezyk i strefa czasowa
+
+**Zakladka Wyglad:**
+- Wybor szablonu
+- Konfiguracja menu
+- Konfiguracja widgetow
+- Bannery
+
+**Zakladka SEO:**
+- Globalne ustawienia SEO
+- Struktura URL
+- Robots.txt
+- Sitemap
+
+**Zakladka Statystyki:**
+- Szczegolowe statystyki ruchu
+- Zrodla ruchu
+- Najpopularniejsze tresci
+- Dane demograficzne
+
+#### 6.2.4 Masowe Operacje
+
+**URL:** `/admin/mass-operations`
+
+**Operacje:**
+
+1. **Masowe Dodawanie Bannerow:**
+   - Wybor domen (wszystkie / wybrane / grupy)
+   - Formularz banneru
+   - Podglad przed zastosowaniem
+   - Raport wykonania
+
+2. **Masowe Dodawanie Menu:**
+   - Wybor domen
+   - Budowniczy menu (drag & drop)
+   - Lokalizacja menu (header, footer, etc.)
+
+3. **Masowe Dodawanie Tresci:**
+   - Wybor domen
+   - Wybor typu tresci
+   - Formularz tresci
+   - Opcje publikacji (teraz, zaplanuj, szkic)
+
+4. **Masowe Aktualizacje:**
+   - Wybor domen
+   - Wybor ustawien do aktualizacji
+   - Podglad zmian
+   - Potwierdzenie
+
+5. **Masowe Backup:**
+   - Wybor domen
+   - Typ backupu (pelny, baza danych, pliki)
+   - Harmonogram (opcjonalnie)
+
+#### 6.2.5 Zarzadzanie Zrodlami Danych
+
+**URL:** `/admin/zrodla`
+
+**Lista Zrodel:**
+- Tabela ze wszystkimi zrodlami
+- Status (aktywne / nieaktywne)
+- Ostatnie uruchomienie
+- Liczba pobranych elementow
+- Szybkie akcje (uruchom, edytuj, logi)
+
+**Formularz Zrodla (Tworzenie/Edycja):**
+```typescript
+interface SourceForm {
+  // Podstawowe
+  name: string;
+  type: 'rss' | 'api' | 'scraper' | 'xml' | 'json';
+  
+  // Polaczenie
+  url: string;
+  method: 'GET' | 'POST';
+  headers: Record<string, string>;
+  
+  // Autentykacja
+  authType: 'none' | 'basic' | 'bearer' | 'api_key';
+  authConfig: {
+    username?: string;
+    password?: string;
+    token?: string;
+    apiKey?: string;
+    apiKeyHeader?: string;
+  };
+  
+  // Parser (zalezy od typu)
+  parserConfig: {
+    // Dla RSS
+    itemSelector?: string;
+    titleSelector?: string;
+    contentSelector?: string;
+    dateSelector?: string;
+    imageSelector?: string;
+    
+    // Dla JSON/API
+    rootPath?: string;
+    mapping?: Record<string, string>;
+  };
+  
+  // Mapowanie pol
+  mappingConfig: {
+    title: string; // np. "{{title}}" lub "{{item.title}}"
+    content: string;
+    excerpt: string;
+    featuredImage: string;
+    publishedAt: string;
+    author: string;
+    categories: string;
+    tags: string;
+  };
+  
+  // Harmonogram
+  schedule: string; // cron expression
+  
+  // Domeny
+  domains: string[]; // ktore domeny uzywaja tego zrodla
+}
+```
+
+**Testowanie Zrodla:**
+- Przycisk "Testuj polaczenie"
+- Przycisk "Pobierz probke"
+- Podglad sparsowanych danych
+- Wizualny mapping pol
+
+**Logi Zrodla:**
+- Tabela wykonan
+- Status (success / error / running)
+- Liczba elementow
+- Czas wykonania
+- Szczegoly bledow
+
+#### 6.2.6 Zarzadzanie Cron Jobs
+
+**URL:** `/admin/cron`
+
+**Lista Zadan:**
+- Nazwa, harmonogram, status
+- Ostatnie wykonanie, nastepne wykonanie
+- Liczba sukcesow / porazek
+- Szybkie akcje (uruchom, edytuj, wylacz)
+
+**Formularz Zadania Cron:**
+```typescript
+interface CronJobForm {
+  name: string;
+  description: string;
+  
+  // Harmonogram
+  schedule: string; // cron expression
+  // Lub przy uzyciu buildera:
+  scheduleBuilder: {
+    minute: string;
+    hour: string;
+    dayOfMonth: string;
+    month: string;
+    dayOfWeek: string;
+  };
+  
+  // Komenda
+  commandType: 'scraper' | 'backup' | 'cleanup' | 'custom';
+  command: string;
+  arguments: Record<string, any>;
+  
+  // Opcje
+  timeout: number; // sekundy
+  retryCount: number;
+  notifyOnFailure: boolean;
+  notifyEmails: string[];
+}
+```
+
+**Kreator Cron (Wizualny):**
+- Wybor czestotliwosci (co minute, co godzine, codziennie, etc.)
+- Wybor konkretnych godzin/dni
+- Podglad nastepnych 5 wykonan
+- Walidacja expression
+
+#### 6.2.7 Zarzadzanie Uzytkownikami
+
+**URL:** `/admin/uzytkownicy`
+
+**Lista Uzytkownikow:**
+- Tabela z filtrami i sortowaniem
+- Kolumny: imie, email, role, domeny, status, ostatnie logowanie
+- Akcje: edytuj, zresetuj haslo, zablokuj, usun
+
+**Formularz Uzytkownika:**
+```typescript
+interface UserForm {
+  // Podstawowe
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  avatar: File;
+  
+  // Status
+  isActive: boolean;
+  emailVerified: boolean;
+  
+  // Role i uprawnienia
+  roles: {
+    roleId: string;
+    domainId: string | null; // null = globalnie
+  }[];
+  
+  // Dostep do domen
+  domainAccess: string[]; // jesli nie super admin
+}
+```
+
+**Drzewo Uprawnien:**
+- Wizualne przedstawienie uprawnien
+- Grupowane po resource (posts, users, settings)
+- Checkboxy dla kazdego uprawnienia
+- Podglad efektywnych uprawnien
+
+#### 6.2.8 Logi Systemowe
+
+**URL:** `/admin/logi`
+
+**Filtrowanie:**
+- Poziom (debug, info, warning, error, critical)
+- Kategoria (auth, database, scraper, api)
+- Domena
+- Uzytkownik
+- Zakres dat
+- Wyszukiwanie tekstowe
+
+**Tabela Logow:**
+- Timestamp (z dokladnoscia do ms)
+- Poziom (kolorowanie)
+- Kategoria
+- Domena
+- Uzytkownik
+- Akcja
+- Wiadomosc (skrocona)
+- Szczegoly (rozwijane)
+
+**Eksport:**
+- CSV, JSON, Excel
+- Wybor zakresu
+- Wybor pol
+
+**Logi w Czasie Rzeczywistym:**
+- Auto-odswiezanie (WebSocket)
+- Podglad "live" logow
+- Filtrowanie w locie
+
+#### 6.2.9 Ustawienia Systemowe
+
+**URL:** `/admin/ustawienia`
+
+**Sekcje:**
+
+1. **Ustawienia Ogolne:**
+   - Nazwa systemu
+   - Logo systemu
+   - Jezyk domyslny
+   - Strefa czasowa
+
+2. **Email:**
+   - SMTP settings
+   - Szablony emaili
+   - Test wysylki
+
+3. **Bezpieczenstwo:**
+   - Polityka hasel
+   - 2FA (opcjonalnie)
+   - Ograniczenia logowan
+   - Whitelist IP
+
+4. **Integracje:**
+   - Google Analytics
+   - Facebook Pixel
+   - OpenWeatherMap
+   - GIOS
+   - Inne API
+
+5. **Backup:**
+   - Harmonogram backupu
+   - Miejsce przechowywania
+   - Retencja
+
+6. **API:**
+   - Rate limiting
+   - CORS settings
+   - Webhook secrets
 
 ---
 
-## 11. SYSTEM SCRAPINGU I CRON JOBS
+## 7. PANEL ADMINISTRACYJNY - PER SERWIS
 
-### 11.1 Architektura Scrapingu
+### 7.1 Struktura
 
-```mermaid
-graph LR
-    Schedule[Cron Schedule] --> Queue[RabbitMQ Queue]
-    Queue --> Worker[Python Worker]
-    Worker --> Fetch[HTTP Fetch]
-    Fetch --> Parse[BeautifulSoup Parse]
-    Parse --> DB[(PostgreSQL)]
-    Parse --> Cache[Redis Cache Clear]
+Kazdy serwis regionalny ma wlasny panel administracyjny dostepny pod:
+`https://4torun.pl/admin`
+
+### 7.2 Dashboard Serwisu
+
+**Komponenty:**
+- Szybkie statystyki (dzisiejsze wyswietlenia, nowe wpisy, komentarze)
+- Wykres ruchu (7 dni)
+- Ostatnie wpisy (do zaakceptowania, opublikowane)
+- Ostatnie komentarze (do moderacji)
+- Popularne tresci
+- Alerty (np. "5 wpisow czeka na publikacje")
+
+### 7.3 Zarzadzanie Trescia
+
+**Lista Wpisow:**
+- Tabela z filtrami (typ, status, kategoria, autor, data)
+- Szybkie akcje (podglad, edytuj, usun, duplikuj)
+- Statusy: szkic, zaplanowany, opublikowany, archiwowany
+- Informacje o autorze i dacie
+- Liczba wyswietlen i ocen
+
+**Edytor Wpisow:**
+```typescript
+interface PostEditor {
+  // Lewa kolumna (glowna)
+  title: string;
+  slug: string; // auto-generate z mozliwoscia edycji
+  content: RichTextEditor; // TipTap / Slate.js
+  excerpt: TextArea; // auto-generate z content
+  featuredImage: ImageUpload;
+  gallery: ImageUpload[];
+  
+  // Prawa kolumna (sidebar)
+  publishPanel: {
+    status: 'draft' | 'published' | 'scheduled';
+    publishedAt: DateTimePicker;
+    visibility: 'public' | 'private' | 'password';
+    password: string; // jesli visibility=password
+    author: Select; // lista uzytkownikow
+    actions: ['save_draft', 'preview', 'publish', 'schedule'];
+  };
+  
+  categoriesPanel: {
+    categories: TreeSelect;
+    tags: TagInput;
+    addNewCategory: Button;
+  };
+  
+  featuredPanel: {
+    isFeatured: Checkbox;
+    isSticky: Checkbox;
+    allowComments: Checkbox;
+    allowRatings: Checkbox;
+  };
+  
+  seoPanel: {
+    seoTitle: string; // z licznikiem znakow
+    seoDescription: TextArea; // z licznikiem
+    keywords: TagInput;
+    ogImage: ImageUpload;
+    schemaType: Select;
+    schemaPreview: JSONPreview;
+  };
+  
+  customFieldsPanel: {
+    fields: DynamicForm; // zalezy od post_type
+  };
+}
 ```
 
-### 11.2 Konfiguracja Zródła (Przykład: Policja Toruń)
+**Funkcje Edytora:**
+- Autosave (co 30 sekund)
+- Podglad na zywo
+- Historia wersji (porownywanie)
+- Media library (przegladarka zalacznikow)
+- Linkowanie wewnetrzne (wyszukiwarka wpisow)
+- SEO analysis (czytelnosc, slowa kluczowe, meta)
 
+### 7.4 Zarzadzanie Kategoriami i Tagami
+
+**Kategorie:**
+- Drzewo kategorii (drag & drop do zmiany hierarchii)
+- Szybkie dodawanie
+- Edycja: nazwa, slug, opis, kolor, ikona, obrazek
+- Liczba wpisow w kategorii
+- SEO ustawienia per kategoria
+
+**Tagi:**
+- Chmura tagow
+- Fuzja tagow (laczenie duplikatow)
+- Masowe operacje
+
+### 7.5 Zarzadzanie Uzytkownikami Serwisu
+
+**Lista:**
+- Tabela uzytkownikow domeny
+- Role w tej domenie
+- Aktywnosc
+- Akcje: edytuj, zmien role, zablokuj
+
+**Formularz:**
+- Dane osobowe
+- Role w domenie
+- Uprawnienia (indywidualne)
+
+### 7.6 Zarzadzanie Bannerami
+
+**Lista Bannerow:**
+- Podglad wizualny
+- Pozycja na stronie
+- Okres wyswietlania
+- Statystyki (wyswietlenia, klikniecia, CTR)
+- Status (aktywny / nieaktywny)
+
+**Formularz:**
+- Nazwa
+- Typ (obrazek, HTML, skrypt)
+- Pozycja (header, sidebar, content, footer, popup)
+- Zawartosc (upload / edytor)
+- Link (URL, target)
+- Okres wyswietlania
+- Reguly wyswietlania (strony, typy wpisow, urzadzenia)
+
+### 7.7 Zarzadzanie Menu
+
+**Budowniczy Menu (Drag & Drop):**
+```typescript
+interface MenuBuilder {
+  // Struktura drzewiasta
+  items: MenuItem[];
+  
+  // Panel dodawania
+  addPanel: {
+    type: 'link' | 'page' | 'category' | 'custom';
+    link: {
+      title: string;
+      url: string;
+      target: '_self' | '_blank';
+      icon: IconPicker;
+    };
+  };
+  
+  // Opcje
+  locations: string[]; // header, footer, sidebar
+  preview: boolean; // podglad na zywo
+}
+```
+
+### 7.8 Zarzadzanie Widgetami
+
+**Lista Widgetow:**
+- Dostepne pozycje (sidebar_main, sidebar_secondary, footer_1-4)
+- Lista widgetow w kazdej pozycji
+- Drag & drop do zmiany kolejnosci
+
+**Typy Widgetow:**
+- Ostatnie wpisy
+- Popularne wpisy
+- Kategorie
+- Tagi
+- Autorzy
+- Newsletter (formularz)
+- Social media
+- Pogoda
+- Jakosc powietrza
+- Wyszukiwarka
+- Reklama
+- Wlasny HTML
+
+**Formularz Widgetu:**
+- Wybor typu
+- Konfiguracja specyficzna (np. dla "Ostatnie wpisy": typ, liczba, pokazuj obrazek)
+- Reguly wyswietlania
+
+### 7.9 Ustawienia Serwisu
+
+**Podstawowe:**
+- Nazwa serwisu
+- Slogan / opis
+- Logo, favicon
+- Kolory (primary, secondary)
+- Jezyk i strefa czasowa
+
+**Kontakt:**
+- Adres
+- Telefon
+- Email
+- Godziny otwarcia
+- Mapa (wspolrzedne)
+
+**Social Media:**
+- Facebook
+- Twitter/X
+- Instagram
+- LinkedIn
+- YouTube
+- Inne
+
+**SEO:**
+- Tytul domyslny
+- Opis domyslny
+- Struktura permalinkow
+- Robots.txt (edytor)
+- Schema.org (typ domyslny)
+
+**Integracje:**
+- Google Analytics ID
+- Facebook Pixel ID
+- OpenWeather API
+- GIOS (stacja pomiarowa)
+- Inne
+
+---
+
+
+
+## 8. SYSTEM SCRAPINGU I CRON JOBS
+
+### 8.1 Architektura Scrapingu
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    SYSTEM SCRAPINGU                                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌──────────────┐     ┌──────────────┐     ┌──────────────┐                │
+│  │   SCHEDULER  │────▶│    QUEUE     │────▶│   WORKER     │                │
+│  │   (Cron)     │     │  (RabbitMQ)  │     │   (Python)   │                │
+│  └──────────────┘     └──────────────┘     └──────┬───────┘                │
+│                                                   │                         │
+│                          ┌────────────────────────┼──────────────────┐      │
+│                          ▼                        ▼                  ▼      │
+│                   ┌──────────────┐        ┌──────────────┐   ┌──────────┐   │
+│                   │   Fetcher    │        │   Parser     │   │  Saver   │   │
+│                   │  (HTTP)      │        │ (BeautifulSoup│   │(Database)│   │
+│                   └──────────────┘        │  / JSON)     │   └──────────┘   │
+│                                           └──────────────┘                 │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 8.2 Komponenty Scrapingu
+
+#### Scheduler (Node.js / Cron)
+```typescript
+interface ScraperScheduler {
+  // Planowanie zadan
+  scheduleJob(sourceId: string, cronExpression: string): void;
+  
+  // Wywolanie reczne
+  triggerJob(sourceId: string, domainIds?: string[]): Promise<JobId>;
+  
+  // Monitorowanie
+  getJobStatus(jobId: string): JobStatus;
+  getQueueStatus(): QueueStatus;
+}
+```
+
+#### Worker (Python)
+```python
+# scraper_worker.py
+import asyncio
+import aiohttp
+import json
+from bs4 import BeautifulSoup
+from datetime import datetime
+from typing import Dict, List, Optional
+import pika
+import psycopg2
+from dataclasses import dataclass
+
+@dataclass
+class ScrapedItem:
+    title: str
+    content: str
+    excerpt: str
+    published_at: Optional[datetime]
+    author: Optional[str]
+    featured_image: Optional[str]
+    categories: List[str]
+    tags: List[str]
+    external_url: str
+    external_id: Optional[str]
+    source_data: Dict
+
+class ScraperWorker:
+    def __init__(self, config: Dict):
+        self.config = config
+        self.db_connection = psycopg2.connect(config['database_url'])
+        self.queue_connection = pika.BlockingConnection(
+            pika.URLParameters(config['rabbitmq_url'])
+        )
+        
+    async def fetch_data(self, source: Dict) -> str:
+        """Pobieranie danych ze zrodla"""
+        headers = source.get('headers', {})
+        headers['User-Agent'] = 'RegionalneSerwisyBot/1.0'
+        
+        # Autentykacja
+        auth_config = source.get('auth_config', {})
+        if source.get('auth_type') == 'bearer':
+            headers['Authorization'] = f"Bearer {auth_config['token']}"
+        elif source.get('auth_type') == 'api_key':
+            headers[auth_config['api_key_header']] = auth_config['api_key']
+        
+        timeout = source.get('fetch_config', {}).get('timeout', 30)
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.request(
+                method=source.get('method', 'GET'),
+                url=source['url'],
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=timeout)
+            ) as response:
+                response.raise_for_status()
+                return await response.text()
+    
+    def parse_data(self, raw_data: str, source: Dict) -> List[ScrapedItem]:
+        """Parsowanie danych zaleznie od typu zrodla"""
+        parser_type = source['type']
+        parser_config = source['parser_config']
+        
+        if parser_type == 'rss':
+            return self._parse_rss(raw_data, parser_config)
+        elif parser_type == 'json':
+            return self._parse_json(raw_data, parser_config)
+        elif parser_type == 'html':
+            return self._parse_html(raw_data, parser_config)
+        elif parser_type == 'api':
+            return self._parse_api(raw_data, parser_config)
+        else:
+            raise ValueError(f"Unknown parser type: {parser_type}")
+    
+    def _parse_html(self, html: str, config: Dict) -> List[ScrapedItem]:
+        """Parsowanie HTML (np. Policja, Urzad Miasta)"""
+        soup = BeautifulSoup(html, 'html.parser')
+        items = []
+        
+        # Selektor glowny
+        item_selector = config.get('item_selector', 'article')
+        elements = soup.select(item_selector)
+        
+        for element in elements:
+            try:
+                item = ScrapedItem(
+                    title=self._extract_text(element, config.get('title_selector')),
+                    content=self._extract_html(element, config.get('content_selector')),
+                    excerpt=self._extract_text(element, config.get('excerpt_selector')),
+                    published_at=self._extract_date(element, config.get('date_selector')),
+                    author=self._extract_text(element, config.get('author_selector')),
+                    featured_image=self._extract_image(element, config.get('image_selector')),
+                    categories=self._extract_list(element, config.get('categories_selector')),
+                    tags=self._extract_list(element, config.get('tags_selector')),
+                    external_url=self._extract_url(element, config.get('url_selector')),
+                    external_id=self._extract_attr(element, config.get('id_selector')),
+                    source_data={'raw_html': str(element)}
+                )
+                items.append(item)
+            except Exception as e:
+                logger.error(f"Error parsing item: {e}")
+                continue
+        
+        return items
+    
+    def _extract_text(self, element, selector: str) -> str:
+        """Wyciaganie tekstu za pomoca selektora CSS"""
+        if not selector:
+            return ''
+        found = element.select_one(selector)
+        return found.get_text(strip=True) if found else ''
+    
+    def _extract_html(self, element, selector: str) -> str:
+        """Wyciaganie HTML za pomoca selektora CSS"""
+        if not selector:
+            return ''
+        found = element.select_one(selector)
+        return str(found) if found else ''
+    
+    def _extract_image(self, element, selector: str) -> Optional[str]:
+        """Wyciaganie URL obrazka"""
+        if not selector:
+            return None
+        img = element.select_one(selector)
+        if img:
+            return img.get('src') or img.get('data-src')
+        return None
+    
+    def _extract_url(self, element, selector: str) -> str:
+        """Wyciaganie URL (z atrybutu href lub data)"""
+        if not selector:
+            return ''
+        link = element.select_one(selector)
+        if link:
+            url = link.get('href')
+            # Obsluga base64 encoded URLs (jak w 4torun.pl)
+            if not url and link.get('data'):
+                import base64
+                import urllib.parse
+                encoded = link.get('data')
+                decoded = base64.b64decode(encoded).decode('utf-8')
+                url = urllib.parse.unquote(decoded)
+            return url
+        return ''
+    
+    def save_items(self, items: List[ScrapedItem], source_id: str, domain_id: str, mapping_config: Dict):
+        """Zapisywanie sparsowanych elementow do bazy"""
+        cursor = self.db_connection.cursor()
+        
+        saved_count = 0
+        updated_count = 0
+        
+        for item in items:
+            try:
+                # Sprawdzenie czy wpis juz istnieje (po external_id lub external_url)
+                cursor.execute("""
+                    SELECT id FROM posts 
+                    WHERE domain_id = %s AND (external_id = %s OR source_url = %s)
+                """, (domain_id, item.external_id, item.external_url))
+                
+                existing = cursor.fetchone()
+                
+                # Mapowanie pol
+                post_data = self._map_fields(item, mapping_config)
+                post_data['source_id'] = source_id
+                post_data['external_url'] = item.external_url
+                post_data['external_id'] = item.external_id
+                post_data['source_data'] = json.dumps(item.source_data)
+                
+                if existing:
+                    # Aktualizacja istniejacego wpisu
+                    cursor.execute("""
+                        UPDATE posts SET
+                            title = %s,
+                            content = %s,
+                            excerpt = %s,
+                            updated_at = NOW(),
+                            source_data = %s
+                        WHERE id = %s
+                    """, (
+                        post_data['title'],
+                        post_data['content'],
+                        post_data['excerpt'],
+                        post_data['source_data'],
+                        existing[0]
+                    ))
+                    updated_count += 1
+                else:
+                    # Tworzenie nowego wpisu
+                    cursor.execute("""
+                        INSERT INTO posts (
+                            domain_id, post_type, title, slug, content, excerpt,
+                            status, source_id, source_url, external_id, source_data,
+                            created_at, updated_at
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+                        RETURNING id
+                    """, (
+                        domain_id,
+                        post_data.get('post_type', 'wiadomosci'),
+                        post_data['title'],
+                        self._generate_slug(post_data['title']),
+                        post_data['content'],
+                        post_data['excerpt'],
+                        post_data.get('status', 'published'),
+                        source_id,
+                        item.external_url,
+                        item.external_id,
+                        post_data['source_data']
+                    ))
+                    saved_count += 1
+                
+                self.db_connection.commit()
+                
+            except Exception as e:
+                logger.error(f"Error saving item: {e}")
+                self.db_connection.rollback()
+                continue
+        
+        return {'saved': saved_count, 'updated': updated_count}
+    
+    def _map_fields(self, item: ScrapedItem, mapping_config: Dict) -> Dict:
+        """Mapowanie pol zrodla na pola bazy danych"""
+        result = {}
+        
+        for db_field, source_pattern in mapping_config.items():
+            # Proste mapowanie: "{{title}}" -> item.title
+            if source_pattern.startswith('{{') and source_pattern.endswith('}}'):
+                attr_name = source_pattern[2:-2]
+                result[db_field] = getattr(item, attr_name, '')
+            else:
+                # Statyczna wartosc
+                result[db_field] = source_pattern
+        
+        return result
+    
+    def _generate_slug(self, title: str) -> str:
+        """Generowanie slug z tytulu"""
+        import re
+        slug = re.sub(r'[^\w\s-]', '', title.lower())
+        slug = re.sub(r'[-\s]+', '-', slug)
+        return slug[:200]
+    
+    async def process_job(self, job_data: Dict):
+        """Glowna metoda przetwarzania zadania"""
+        source_id = job_data['source_id']
+        domain_ids = job_data.get('domain_ids', [])
+        
+        # Pobieranie konfiguracji zrodla
+        source = self._get_source_config(source_id)
+        
+        # Pobieranie danych
+        raw_data = await self.fetch_data(source)
+        
+        # Parsowanie
+        items = self.parse_data(raw_data, source)
+        
+        # Zapisywanie dla kazdej domeny
+        results = []
+        for domain_id in domain_ids:
+            result = self.save_items(
+                items, 
+                source_id, 
+                domain_id, 
+                source['mapping_config']
+            )
+            results.append({
+                'domain_id': domain_id,
+                **result
+            })
+        
+        return {
+            'source_id': source_id,
+            'items_found': len(items),
+            'domains_processed': results
+        }
+
+# Uruchamianie workera
+if __name__ == '__main__':
+    worker = ScraperWorker(config={
+        'database_url': 'postgresql://...',
+        'rabbitmq_url': 'amqp://...'
+    })
+    worker.start_consuming()
+```
+
+### 8.3 Konfiguracja Zrodel - Przyklady
+
+#### Zrodlo: Policja Torun
 ```json
 {
   "name": "Policja Torun - Wiadomosci",
   "slug": "policja-torun",
   "type": "html",
   "url": "https://torun.policja.gov.pl/kb3/informacje/wiadomosci/",
+  "method": "GET",
+  "headers": {
+    "Accept": "text/html",
+    "Accept-Language": "pl-PL,pl;q=0.9"
+  },
+  "fetch_config": {
+    "timeout": 30,
+    "retries": 3,
+    "delay_between_requests": 1
+  },
   "parser_config": {
-    "item_selector": "article.news-item",
-    "title_selector": "h2 a",
-    "content_selector": ".news-content",
-    "date_selector": ".news-date",
-    "image_selector": ".news-image img",
-    "url_selector": "h2 a"
+    "item_selector": "article.news-item, .news-list article",
+    "title_selector": "h2 a, .news-title",
+    "content_selector": ".news-content, .article-content",
+    "excerpt_selector": ".news-lead, .article-lead",
+    "date_selector": ".news-date, .article-date, time",
+    "image_selector": ".news-image img, .article-image img",
+    "url_selector": "h2 a, .news-title a",
+    "id_selector": "article[data-id]"
   },
   "mapping_config": {
     "post_type": "kronika-policyjna",
     "title": "{{title}}",
     "content": "{{content}}",
+    "excerpt": "{{excerpt}}",
     "status": "published"
   },
   "schedule": "0 */6 * * *",
@@ -1392,4316 +4083,8641 @@ graph LR
 }
 ```
 
-### 11.3 Worker Python (Fragment)
+#### Zrodlo: Urzad Miasta Torun
+```json
+{
+  "name": "Urzad Miasta Torun - Aktualnosci",
+  "slug": "torun-aktualnosci",
+  "type": "html",
+  "url": "https://www.torun.pl/pl/aktualnosci",
+  "parser_config": {
+    "item_selector": ".news-item, article.node--type-article",
+    "title_selector": ".news-title a, h2 a",
+    "content_selector": ".field--name-body",
+    "excerpt_selector": ".field--name-field-lead",
+    "date_selector": ".news-date, time",
+    "image_selector": ".field--name-field-image img",
+    "url_selector": ".news-title a"
+  },
+  "mapping_config": {
+    "post_type": "wiadomosci",
+    "title": "{{title}}",
+    "content": "{{content}}",
+    "excerpt": "{{excerpt}}",
+    "status": "published"
+  },
+  "schedule": "0 */4 * * *",
+  "domains": ["4torun.pl"],
+  "is_active": true
+}
+```
+
+#### Zrodlo: Wikipedia (API)
+```json
+{
+  "name": "Wikipedia - Przewodnik",
+  "slug": "wikipedia-guide",
+  "type": "api",
+  "url": "https://pl.wikipedia.org/api/rest_v1/page/summary/{title}",
+  "method": "GET",
+  "headers": {
+    "Accept": "application/json",
+    "Api-User-Agent": "RegionalneSerwisy/1.0"
+  },
+  "parser_config": {
+    "root_path": "",
+    "mapping": {
+      "title": "title",
+      "content": "extract",
+      "image": "thumbnail.source"
+    }
+  },
+  "mapping_config": {
+    "post_type": "przewodnik",
+    "title": "{{title}}",
+    "content": "{{content}}",
+    "featured_image": "{{image}}"
+  },
+  "schedule": "0 0 * * 0",
+  "domains": ["4torun.pl", "4bydgoszcz.pl"],
+  "is_active": true
+}
+```
+
+### 8.4 System Cron Jobs
+
+#### Typowe Zadania Cron
+
+| Zadanie | Harmonogram | Opis |
+|---------|-------------|------|
+| `scraper-all` | Co 6h | Uruchom wszystkie aktywne scrapery |
+| `scraper-policja` | Co 6h | Scraping policja.gov.pl |
+| `scraper-miasto` | Co 4h | Scraping urzedu miasta |
+| `backup-full` | Codziennie 2:00 | Pelny backup wszystkich domen |
+| `backup-incremental` | Co 4h | Backup przyrostowy |
+| `cleanup-logs` | Co tydzien | Czyszczenie starych logow |
+| `cleanup-cache` | Codziennie 3:00 | Czyszczenie cache |
+| `generate-sitemap` | Codziennie 4:00 | Generowanie sitemap.xml |
+| `update-search-index` | Co godzine | Aktualizacja indeksu Elasticsearch |
+| `send-newsletter` | Co tydzien | Wysylka newsletterow |
+| `check-domains-health` | Co godzine | Sprawdzenie dostepnosci domen |
+| `sync-analytics` | Co 6h | Synchronizacja danych analytics |
+
+#### Konfiguracja Cron (crontab)
+```bash
+# Systemowe zadania cron
+# /etc/cron.d/regionalne-serwisy
+
+# Scraping
+0 */6 * * * root /usr/bin/python3 /home/host988956/workers/scraper.py --source=policja
+0 */4 * * * root /usr/bin/python3 /home/host988956/workers/scraper.py --source=miasto
+
+# Backup
+0 2 * * * root /home/host988956/scripts/backup.sh --type=full
+0 */4 * * * root /home/host988956/scripts/backup.sh --type=incremental
+
+# Cleanup
+0 3 * * * root /usr/bin/php /home/host988956/scripts/cleanup.php
+0 4 * * 0 root /usr/bin/php /home/host988956/scripts/cleanup-logs.php --days=30
+
+# Sitemap
+0 4 * * * root /usr/bin/php /home/host988956/scripts/generate-sitemap.php
+
+# Search index
+0 * * * * root /usr/bin/php /home/host988956/scripts/update-search-index.php
+
+# Monitoring
+0 * * * * root /usr/bin/php /home/host988956/scripts/health-check.php
+```
+
+### 8.5 Obsługa Błędów i Odporność (Resilience)
+
+#### Retry Logic z Exponential Backoff
 
 ```python
-# scraper_worker.py
-import aiohttp
-import beautifulsoup4 as bs
-import base64
-import urllib.parse
+import asyncio
+import random
+from functools import wraps
 
-class ScraperWorker:
-    async def fetch(self, url, headers=None):
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers=headers) as resp:
-                return await resp.text()
+def retry_with_backoff(max_retries=3, base_delay=1, max_delay=60):
+    """
+    Dekorator implementujący retry z exponential backoff.
     
-    def parse_html(self, html, config):
-        soup = bs.BeautifulSoup(html, 'html.parser')
-        items = []
-        
-        for element in soup.select(config['item_selector']):
-            # Obsługa base64 encoded URLs (jak w 4torun.pl)
-            url_elem = element.select_one(config['url_selector'])
-            url = url_elem.get('href') if url_elem else ''
+    Args:
+        max_retries: Maksymalna liczba prób
+        base_delay: Podstawowe opóźnienie (sekundy)
+        max_delay: Maksymalne opóźnienie (sekundy)
+    """
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            last_exception = None
             
-            # Dekodowanie jeśli base64 w data attribute
-            if not url and url_elem.get('data'):
-                encoded = url_elem.get('data')
-                decoded = base64.b64decode(encoded).decode('utf-8')
-                url = urllib.parse.unquote(decoded)
+            for attempt in range(max_retries + 1):
+                try:
+                    return await func(*args, **kwargs)
+                except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                    last_exception = e
+                    if attempt == max_retries:
+                        raise last_exception
+                    
+                    # Exponential backoff: 1s, 2s, 4s...
+                    delay = min(base_delay * (2 ** attempt), max_delay)
+                    # Dodaj jitter (0-1s) aby uniknąć thundering herd
+                    delay += random.uniform(0, 1)
+                    
+                    logger.warning(
+                        f"Attempt {attempt + 1}/{max_retries + 1} failed: {str(e)}. "
+                        f"Retrying in {delay:.1f}s..."
+                    )
+                    await asyncio.sleep(delay)
             
-            items.append({
-                'title': element.select_one(config['title_selector']).text,
-                'content': element.select_one(config['content_selector']).text,
-                'url': url
-            })
+            raise last_exception
+        return wrapper
+    return decorator
+
+# Użycie w workerze
+class ScraperWorker:
+    @retry_with_backoff(max_retries=3, base_delay=1)
+    async def fetch_data(self, source: Dict) -> str:
+        """Pobieranie danych ze źródła z retry logic."""
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                source['url'],
+                headers=self._get_headers(source),
+                timeout=aiohttp.ClientTimeout(total=30)
+            ) as response:
+                response.raise_for_status()
+                return await response.text()
+```
+
+#### Circuit Breaker Pattern
+
+```python
+from enum import Enum
+import time
+
+class CircuitState(Enum):
+    CLOSED = "closed"      # Normalna praca - zapytania przechodzą
+    OPEN = "open"          # Awaria - zapytania odrzucane od razu
+    HALF_OPEN = "half_open"  # Test czy usługa działa
+
+class CircuitBreaker:
+    """
+    Circuit Breaker - wzór projektowy zapobiegający kaskadowym awariom.
+    """
+    def __init__(
+        self,
+        failure_threshold=5,      # Ile błędów otwiera obwód
+        recovery_timeout=60,      # Po ilu sekundach próba recovery
+        half_open_max_calls=3     # Ile prób w stanie half-open
+    ):
+        self.failure_threshold = failure_threshold
+        self.recovery_timeout = recovery_timeout
+        self.half_open_max_calls = half_open_max_calls
         
-        return items
+        self.state = CircuitState.CLOSED
+        self.failure_count = 0
+        self.success_count = 0
+        self.last_failure_time = None
+        self.half_open_calls = 0
+        self._lock = asyncio.Lock()
+    
+    async def call(self, func, *args, **kwargs):
+        async with self._lock:
+            if self.state == CircuitState.OPEN:
+                if time.time() - self.last_failure_time >= self.recovery_timeout:
+                    self.state = CircuitState.HALF_OPEN
+                    self.half_open_calls = 0
+                    logger.info("Circuit breaker entering HALF_OPEN state")
+                else:
+                    raise CircuitBreakerOpen("Circuit breaker is OPEN")
+            
+            if self.state == CircuitState.HALF_OPEN:
+                if self.half_open_calls >= self.half_open_max_calls:
+                    raise CircuitBreakerOpen("Circuit breaker HALF_OPEN limit reached")
+                self.half_open_calls += 1
+        
+        try:
+            result = await func(*args, **kwargs)
+            await self._on_success()
+            return result
+        except Exception as e:
+            await self._on_failure()
+            raise e
+    
+    async def _on_success(self):
+        async with self._lock:
+            if self.state == CircuitState.HALF_OPEN:
+                self.success_count += 1
+                if self.success_count >= self.half_open_max_calls:
+                    self._reset()
+                    logger.info("Circuit breaker CLOSED - service recovered")
+            else:
+                self.failure_count = 0
+    
+    async def _on_failure(self):
+        async with self._lock:
+            self.failure_count += 1
+            self.last_failure_time = time.time()
+            
+            if self.state == CircuitState.HALF_OPEN:
+                self.state = CircuitState.OPEN
+                logger.warning("Circuit breaker OPEN - service still failing")
+            elif self.failure_count >= self.failure_threshold:
+                self.state = CircuitState.OPEN
+                logger.warning(f"Circuit breaker OPEN after {self.failure_count} failures")
+    
+    def _reset(self):
+        self.state = CircuitState.CLOSED
+        self.failure_count = 0
+        self.success_count = 0
+        self.half_open_calls = 0
+
+class CircuitBreakerOpen(Exception):
+    pass
+
+# Użycie
+breaker = CircuitBreaker(failure_threshold=5, recovery_timeout=60)
+
+async def fetch_with_circuit_breaker(source):
+    return await breaker.call(fetch_data, source)
+```
+
+#### Dead Letter Queue (DLQ)
+
+```python
+class ScrapingQueue:
+    """
+    Kolejka z Dead Letter Queue dla nieudanych itemów.
+    """
+    def __init__(self, rabbitmq_url: str):
+        self.connection = pika.BlockingConnection(pika.URLParameters(rabbitmq_url))
+        self.channel = self.connection.channel()
+        
+        # Główna kolejka
+        self.channel.queue_declare(queue='scraping', durable=True)
+        # DLQ - dla itemów które wielokrotnie się nie udało
+        self.channel.queue_declare(queue='scraping_dlq', durable=True)
+        # Kolejka retry - z opóźnieniem
+        self.channel.queue_declare(
+            queue='scraping_retry',
+            arguments={
+                'x-message-ttl': 3600000,  # 1h TTL
+                'x-dead-letter-exchange': '',
+                'x-dead-letter-routing-key': 'scraping'
+            }
+        )
+    
+    def publish(self, item: Dict, retry_count: int = 0):
+        """Publikowanie zadania do kolejki."""
+        item['retry_count'] = retry_count
+        item['published_at'] = datetime.utcnow().isoformat()
+        
+        self.channel.basic_publish(
+            exchange='',
+            routing_key='scraping',
+            body=json.dumps(item),
+            properties=pika.BasicProperties(
+                delivery_mode=2,  # Persistent
+                content_type='application/json'
+            )
+        )
+    
+    def publish_to_dlq(self, item: Dict, error: str):
+        """Przeniesienie do DLQ po wyczerpaniu retry."""
+        item['error'] = error
+        item['failed_at'] = datetime.utcnow().isoformat()
+        
+        self.channel.basic_publish(
+            exchange='',
+            routing_key='scraping_dlq',
+            body=json.dumps(item),
+            properties=pika.BasicProperties(delivery_mode=2)
+        )
+        
+        logger.error(f"Item moved to DLQ: {item.get('id')}, error: {error}")
+    
+    def schedule_retry(self, item: Dict, delay_hours: int = 1):
+        """Zaplanowanie retry z opóźnieniem."""
+        item['retry_after'] = (datetime.utcnow().isoformat(),)
+        
+        self.channel.basic_publish(
+            exchange='',
+            routing_key='scraping_retry',
+            body=json.dumps(item),
+            properties=pika.BasicProperties(
+                delivery_mode=2,
+                expiration=str(delay_hours * 3600000)  # TTL w ms
+            )
+        )
+```
+
+#### Timeout i Connection Handling
+
+```python
+class RobustHTTPClient:
+    """
+    Klient HTTP z obsługą timeoutów i connection pooling.
+    """
+    def __init__(self):
+        self.timeout_config = aiohttp.ClientTimeout(
+            total=60,           # Całkowity timeout
+            connect=10,         # Timeout na nawiązanie połączenia
+            sock_read=30        # Timeout na odczyt danych
+        )
+        
+        self.connector = aiohttp.TCPConnector(
+            limit=100,                    # Max połączeń
+            limit_per_host=10,            # Max połączeń per host
+            ttl_dns_cache=300,            # Cache DNS (5 min)
+            use_dns_cache=True,
+            enable_cleanup_closed=True,   # Czyszczenie zamkniętych
+            force_close=False             # Keep-alive
+        )
+    
+    async def fetch(
+        self,
+        url: str,
+        headers: Dict = None,
+        allow_redirects: bool = True,
+        max_redirects: int = 10
+    ) -> str:
+        """Pobieranie danych z obsługą błędów."""
+        async with aiohttp.ClientSession(
+            connector=self.connector,
+            timeout=self.timeout_config
+        ) as session:
+            try:
+                async with session.get(
+                    url,
+                    headers=headers,
+                    allow_redirects=allow_redirects,
+                    max_redirects=max_redirects,
+                    ssl=False  # Opcjonalnie - dla developmentu
+                ) as response:
+                    if response.status == 429:  # Too Many Requests
+                        retry_after = int(response.headers.get('Retry-After', 60))
+                        raise RateLimitError(f"Rate limited. Retry after {retry_after}s")
+                    
+                    response.raise_for_status()
+                    return await response.text()
+                    
+            except aiohttp.ClientConnectorError as e:
+                logger.error(f"Connection error: {e}")
+                raise ConnectionError(f"Cannot connect to {url}: {e}")
+            except asyncio.TimeoutError:
+                logger.error(f"Timeout error: {url}")
+                raise TimeoutError(f"Request timeout: {url}")
+            except aiohttp.TooManyRedirects:
+                logger.error(f"Too many redirects: {url}")
+                raise RedirectError(f"Redirect loop detected: {url}")
+
+class RateLimitError(Exception):
+    pass
+
+class ConnectionError(Exception):
+    pass
+
+class RedirectError(Exception):
+    pass
+```
+
+### 8.6 Anti-Detection i Rotacja Proxy
+
+#### Rotacja User-Agent
+
+```python
+USER_AGENTS = [
+    # Chrome Windows
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+    # Firefox Windows
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0",
+    # Chrome Mac
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    # Safari Mac
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15",
+    # Chrome Linux
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    # Mobile
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Mobile/15E148 Safari/604.1",
+    "Mozilla/5.0 (Linux; Android 10; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+]
+
+class UserAgentRotator:
+    """Rotator User-Agentów z zapobieganiem powtórzeniom."""
+    
+    def __init__(self):
+        self.recent_agents = []
+        self.max_recent = 3  # Ile ostatnich nie powtarzać
+    
+    def get_random(self) -> str:
+        available = [ua for ua in USER_AGENTS if ua not in self.recent_agents]
+        if not available:
+            available = USER_AGENTS
+        
+        chosen = random.choice(available)
+        self.recent_agents.append(chosen)
+        
+        if len(self.recent_agents) > self.max_recent:
+            self.recent_agents.pop(0)
+        
+        return chosen
+
+ua_rotator = UserAgentRotator()
+```
+
+#### Proxy Rotation
+
+```python
+class ProxyRotator:
+    """
+    Zarządzanie pulą proxy z rotacją i health check.
+    """
+    def __init__(self, proxy_list: List[str]):
+        self.proxies = proxy_list
+        self.failed_proxies = set()
+        self.current_index = 0
+        self._lock = asyncio.Lock()
+    
+    async def get_next(self) -> Optional[str]:
+        """Pobierz następne działające proxy."""
+        async with self._lock:
+            available = [
+                p for p in self.proxies 
+                if p not in self.failed_proxies
+            ]
+            
+            if not available:
+                # Wszystkie proxy zawiodły - reset
+                self.failed_proxies.clear()
+                available = self.proxies
+            
+            proxy = available[self.current_index % len(available)]
+            self.current_index += 1
+            return proxy
+    
+    def mark_failed(self, proxy: str):
+        """Oznacz proxy jako niedziałające."""
+        self.failed_proxies.add(proxy)
+        logger.warning(f"Proxy marked as failed: {proxy}")
+
+# Konfiguracja proxy per źródło
+PROXY_CONFIGS = {
+    'policja': {
+        'enabled': False,
+        'proxy_list': []
+    },
+    'olx': {
+        'enabled': True,
+        'proxy_list': [
+            'http://proxy1:8080',
+            'http://proxy2:8080',
+            'http://proxy3:8080'
+        ]
+    }
+}
+```
+
+#### Stealth Headers
+
+```python
+STEALTH_HEADERS = {
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+    'Accept-Language': 'pl-PL,pl;q=0.9,en-US;q=0.8,en;q=0.7',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'DNT': '1',
+    'Connection': 'keep-alive',
+    'Upgrade-Insecure-Requests': '1',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'none',
+    'Sec-Fetch-User': '?1',
+    'Cache-Control': 'max-age=0'
+}
+
+def get_stealth_headers(user_agent: str) -> Dict[str, str]:
+    """Generowanie zestawu nagłówków imitujących przeglądarkę."""
+    headers = STEALTH_HEADERS.copy()
+    headers['User-Agent'] = user_agent
+    
+    # Dodaj referer dla niektórych żądań (losowo)
+    if random.random() > 0.7:
+        headers['Referer'] = 'https://www.google.com/'
+    
+    return headers
+```
+
+#### Rate Limiting per Source
+
+```python
+class RateLimiter:
+    """Rate limiter z zapisywaniem stanu w Redis."""
+    
+    def __init__(self, redis_client):
+        self.redis = redis_client
+        self.limits = {
+            'default': (1, 2),      # 1 request per 2 seconds
+            'policja': (1, 3),      # 1 request per 3 seconds
+            'olx': (1, 5),          # 1 request per 5 seconds (agresywna ochrona)
+            'facebook': (1, 10),    # 1 request per 10 seconds
+            'pracuj': (1, 2)        # 1 request per 2 seconds
+        }
+    
+    async def acquire(self, source_id: str):
+        """Sprawdź i poczekaj jeśli trzeba."""
+        rate, period = self.limits.get(source_id, self.limits['default'])
+        key = f"rate_limit:{source_id}"
+        
+        while True:
+            current = await self.redis.get(key)
+            if not current:
+                await self.redis.setex(key, period, '1')
+                return
+            
+            await asyncio.sleep(period / rate)
+
+# Użycie w workerze
+rate_limiter = RateLimiter(redis_client)
+
+async def fetch_with_rate_limit(source):
+    await rate_limiter.acquire(source['id'])
+    return await fetch_data(source)
+```
+
+#### Cloudflare Bypass (opcjonalnie)
+
+```python
+# Dla stron chronionych przez Cloudflare
+# Wymaga: pip install cloudscraper
+
+import cloudscraper
+
+class CloudflareBypassClient:
+    """Klient omijający Cloudflare challenges."""
+    
+    def __init__(self):
+        self.scraper = cloudscraper.create_scraper(
+            browser={
+                'browser': 'chrome',
+                'platform': 'windows',
+                'desktop': True
+            }
+        )
+    
+    def fetch(self, url: str, headers: Dict = None) -> str:
+        """Pobierz stronę omijając Cloudflare."""
+        response = self.scraper.get(url, headers=headers)
+        return response.text
+
+# Uwaga: cloudscraper jest synchroniczny
+# Dla async użyj: curl_cffi lub playwright
+```
+
+### 8.7 Monitoring i Alerting Scrapingu
+
+```python
+class ScrapingMonitor:
+    """Monitorowanie procesu scrapingu z metrykami."""
+    
+    def __init__(self):
+        self.metrics = {
+            'items_scraped': 0,
+            'items_failed': 0,
+            'retries': 0,
+            'circuit_breaker_opens': 0,
+            'rate_limit_hits': 0
+        }
+    
+    def record_success(self, source_id: str, items_count: int):
+        self.metrics['items_scraped'] += items_count
+        logger.info(f"Source {source_id}: scraped {items_count} items")
+    
+    def record_failure(self, source_id: str, error: str):
+        self.metrics['items_failed'] += 1
+        logger.error(f"Source {source_id}: failed - {error}")
+        
+        # Alert jeśli za dużo błędów
+        if self.metrics['items_failed'] > 10:
+            self.send_alert(f"High failure rate for {source_id}")
+    
+    def send_alert(self, message: str):
+        # Integracja z Slack/Email
+        pass
 ```
 
 ---
 
-## 12. SEO I STRUKTURY DANYCH
+## 9. SEO I STRUKTURY DANYCH
 
-### 12.1 Meta Tagi (Wymagane)
+### 9.1 Struktura SEO Globalna
 
+#### Meta Tagi (Wymagane)
 ```html
 <!-- Podstawowe -->
 <title>{page_title} | {site_name}</title>
 <meta name="description" content="{page_description}">
-<meta name="robots" content="index,follow">
+<meta name="keywords" content="{keywords}">
+<meta name="robots" content="{robots_directive}">
+<meta name="author" content="{site_name}">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <!-- Open Graph -->
 <meta property="og:title" content="{og_title}">
 <meta property="og:description" content="{og_description}">
 <meta property="og:image" content="{og_image}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
 <meta property="og:url" content="{canonical_url}">
-<meta property="og:type" content="article">
+<meta property="og:type" content="{og_type}">
+<meta property="og:site_name" content="{site_name}">
+<meta property="og:locale" content="pl_PL">
 
-<!-- Twitter -->
+<!-- Twitter Card -->
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{twitter_title}">
+<meta name="twitter:description" content="{twitter_description}">
+<meta name="twitter:image" content="{twitter_image}">
 
 <!-- Canonical -->
 <link rel="canonical" href="{canonical_url}">
+
+<!-- Hreflang -->
+<link rel="alternate" hreflang="pl" href="{url_pl}">
+<link rel="alternate" hreflang="x-default" href="{url_default}">
+
+<!-- Dodatkowe -->
+<meta name="theme-color" content="{primary_color}">
+<link rel="icon" type="image/x-icon" href="{favicon_url}">
+<link rel="apple-touch-icon" href="{apple_touch_icon_url}">
 ```
 
-### 12.2 Schema.org JSON-LD
+#### Schema.org (JSON-LD)
 
-**NewsArticle:**
+**Strona Glowna:**
+```json
+{
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": "4Torun",
+  "url": "https://4torun.pl",
+  "description": "Regionalny serwis informacyjny Torunia",
+  "publisher": {
+    "@type": "Organization",
+    "name": "4Torun",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://4torun.pl/logo.png"
+    }
+  },
+  "potentialAction": {
+    "@type": "SearchAction",
+    "target": "https://4torun.pl/szukaj?q={search_term_string}",
+    "query-input": "required name=search_term_string"
+  }
+}
+```
+
+**Artykul (NewsArticle):**
 ```json
 {
   "@context": "https://schema.org",
   "@type": "NewsArticle",
-  "headline": "Tytuł artykułu",
-  "description": "Opis",
-  "image": "https://.../image.jpg",
+  "headline": "Tytul artykulu",
+  "description": "Opis artykulu",
+  "image": [
+    "https://4torun.pl/image-1200x800.jpg",
+    "https://4torun.pl/image-800x600.jpg"
+  ],
   "datePublished": "2024-02-12T10:00:00+01:00",
+  "dateModified": "2024-02-12T12:00:00+01:00",
   "author": {
     "@type": "Organization",
     "name": "Redakcja 4Torun"
   },
   "publisher": {
     "@type": "Organization",
-    "name": "4Torun"
+    "name": "4Torun",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://4torun.pl/logo.png"
+    }
+  },
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://4torun.pl/wiadomosci/tytul-artykulu"
   }
 }
 ```
 
-### 12.3 Struktura URL
+**Firma (LocalBusiness):**
+```json
+{
+  "@context": "https://schema.org",
+  "@type": "LocalBusiness",
+  "name": "Nazwa Firmy",
+  "image": "https://4torun.pl/firma/logo.jpg",
+  "address": {
+    "@type": "PostalAddress",
+    "streetAddress": "ul. Przykladowa 1",
+    "addressLocality": "Torun",
+    "postalCode": "87-100",
+    "addressCountry": "PL"
+  },
+  "geo": {
+    "@type": "GeoCoordinates",
+    "latitude": "53.0138",
+    "longitude": "18.5984"
+  },
+  "url": "https://4torun.pl/firmy/kategoria/nazwa-firmy",
+  "telephone": "+48123456789",
+  "openingHoursSpecification": [
+    {
+      "@type": "OpeningHoursSpecification",
+      "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+      "opens": "08:00",
+      "closes": "16:00"
+    }
+  ]
+}
+```
 
+**Oferta Pracy (JobPosting):**
+```json
+{
+  "@context": "https://schema.org",
+  "@type": "JobPosting",
+  "title": "Stanowisko",
+  "description": "Opis stanowiska",
+  "datePosted": "2024-02-12",
+  "validThrough": "2024-03-12",
+  "employmentType": "FULL_TIME",
+  "hiringOrganization": {
+    "@type": "Organization",
+    "name": "Nazwa Firmy",
+    "sameAs": "https://firma.pl"
+  },
+  "jobLocation": {
+    "@type": "Place",
+    "address": {
+      "@type": "PostalAddress",
+      "addressLocality": "Torun",
+      "addressRegion": "kujawsko-pomorskie",
+      "addressCountry": "PL"
+    }
+  },
+  "baseSalary": {
+    "@type": "MonetaryAmount",
+    "currency": "PLN",
+    "value": {
+      "@type": "QuantitativeValue",
+      "minValue": 5000,
+      "maxValue": 8000,
+      "unitText": "MONTH"
+    }
+  }
+}
+```
+
+**Wydarzenie (Event):**
+```json
+{
+  "@context": "https://schema.org",
+  "@type": "Event",
+  "name": "Nazwa wydarzenia",
+  "startDate": "2024-03-01T18:00:00+01:00",
+  "endDate": "2024-03-01T22:00:00+01:00",
+  "eventStatus": "https://schema.org/EventScheduled",
+  "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode",
+  "location": {
+    "@type": "Place",
+    "name": "Miejsce wydarzenia",
+    "address": {
+      "@type": "PostalAddress",
+      "streetAddress": "ul. Przykladowa 1",
+      "addressLocality": "Torun",
+      "postalCode": "87-100",
+      "addressCountry": "PL"
+    }
+  },
+  "image": "https://4torun.pl/event-image.jpg",
+  "description": "Opis wydarzenia",
+  "offers": {
+    "@type": "Offer",
+    "url": "https://4torun.pl/bilety",
+    "price": "50",
+    "priceCurrency": "PLN",
+    "availability": "https://schema.org/InStock"
+  }
+}
+```
+
+### 9.2 Struktura URL
+
+#### Formaty Permalinkow
 ```
 # Wpisy
 /wiadomosci/{slug}
 /kronika-policyjna/{slug}
-/firmy/{category}/{slug}
+/firmy/{slug}
+/ogloszenia/{slug}
 /praca/{slug}
+/nekrologi/{slug}
+/przewodnik/{slug}
+/ludzie/{slug}
 
-# Archiwum dat
-/2024/
-/2024/02/
-/2024/02/12/
+# Kategorie (hierarchiczne)
+/firmy/{category-slug}/
+/firmy/{parent-category}/{child-category}/
+
+# Archiwum (daty)
+/2024/              # Rok
+/2024/02/           # Miesiac
+/2024/02/12/        # Dzien
+
+# Autorzy
+/autor/{author-slug}/
+
+# Tagi
+/tag/{tag-slug}/
+
+# Wyszukiwanie
+/szukaj?q={query}
+
+# Strony statyczne
+/o-nas
+/regulamin
+/polityka-prywatnosci
+/kontakt
+
+# Mapy
+/mapa-strony          # HTML sitemap
+/sitemap.xml          # XML sitemap
+/sitemap-posts.xml    # Sitemap wpisow
+/sitemap-categories.xml # Sitemap kategorii
+```
+
+#### Przyjazne URL-e (Examples)
+```
+# Wiadomosci
+https://4torun.pl/wiadomosci/walentynkowy-bal-paczusia-w-toruniu
+https://4torun.pl/wiadomosci/nowe-inwestycje-w-toruniu-2024
+
+# Kronika
+https://4torun.pl/kronika-policyjna/smiertelny-wypadek-na-autostradzie
+
+# Firmy (z kategoria)
+https://4torun.pl/firmy/dentysta-torun/dentysta-dr-kowalski
+
+# Praca
+https://4torun.pl/praca/praca-na-hali-work-profit
+
+# Archiwum
+https://4torun.pl/2024/02/           # Luty 2024
+https://4torun.pl/2024/02/12/        # 12 lutego 2024
+```
+
+### 9.3 Sitemap.xml
+
+#### Struktura Sitemap
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <sitemap>
+    <loc>https://4torun.pl/sitemap-posts.xml</loc>
+    <lastmod>2024-02-12T10:00:00+00:00</lastmod>
+  </sitemap>
+  <sitemap>
+    <loc>https://4torun.pl/sitemap-categories.xml</loc>
+    <lastmod>2024-02-12T10:00:00+00:00</lastmod>
+  </sitemap>
+  <sitemap>
+    <loc>https://4torun.pl/sitemap-tags.xml</loc>
+    <lastmod>2024-02-12T10:00:00+00:00</lastmod>
+  </sitemap>
+  <sitemap>
+    <loc>https://4torun.pl/sitemap-static.xml</loc>
+    <lastmod>2024-02-01T00:00:00+00:00</lastmod>
+  </sitemap>
+</sitemapindex>
+```
+
+#### Sitemap Wpisow
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://4torun.pl/wiadomosci/tytul-wpisu</loc>
+    <lastmod>2024-02-12T10:00:00+00:00</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <!-- ... -->
+</urlset>
+```
+
+#### Priorytety w Sitemap
+| Typ | Priorytet | Changefreq |
+|-----|-----------|------------|
+| Strona glowna | 1.0 | daily |
+| Wpisy | 0.8 | daily |
+| Kategorie | 0.6 | weekly |
+| Tagi | 0.4 | weekly |
+| Archiwum | 0.3 | weekly |
+| Strony statyczne | 0.5 | monthly |
+
+### 9.4 Robots.txt
+
+```
+User-agent: *
+Allow: /
+
+# Disallow admin areas
+Disallow: /admin/
+Disallow: /api/
+Disallow: /login
+Disallow: /register
+
+# Disallow search results
+Disallow: /szukaj?
+
+# Disallow duplicate content
+Disallow: /tag/*?page=
+Disallow: /autor/*?page=
+
+# Allow specific bots
+User-agent: Googlebot
+Allow: /
+Crawl-delay: 1
+
+User-agent: Bingbot
+Allow: /
+Crawl-delay: 2
 
 # Sitemap
-/sitemap.xml
-/sitemap-posts.xml
-/sitemap-categories.xml
+Sitemap: https://4torun.pl/sitemap.xml
 ```
 
 ---
 
-## 13. MONITORING, LOGI I RAPORTOWANIE
+## 10. MONITORING, LOGI I RAPORTOWANIE
 
-### 13.1 Dashboard Monitoringu
+### 10.1 System Monitoringu
 
+#### Metryki do Monitorowania
+
+**Metryki Aplikacji:**
+- Czas odpowiedzi HTTP (p95, p99)
+- Liczba requestow na minute
+- Liczba bledow 4xx, 5xx
+- Wykorzystanie CPU/RAM
+- Wykorzystanie dysku
+- Liczba polaczen do bazy danych
+- Rozmiar cache
+
+**Metryki Biznesowe:**
+- Liczba wyswietlen stron
+- Unikalni uzytkownicy
+- Sesje
+- Wspolczynnik odrzucen (bounce rate)
+- Sredni czas na stronie
+- Konwersje (komentarze, oceny)
+
+**Metryki Scrapingu:**
+- Liczba pobranych elementow
+- Liczba bledow scrapingu
+- Czas wykonania
+- Blokady IP (rate limiting)
+
+#### Dashboard Monitoringu
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │ SYSTEM HEALTH                      STATUS: HEALTHY              │
 ├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
 │  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌────────────┐ │
-│  │ CPU: 45%    │ │ RAM: 62%    │ │ DB: 12/100  │ │ Disk: 78%  │ │
+│  │ CPU Usage   │ │ RAM Usage   │ │ DB Conn     │ │ Disk Usage │ │
+│  │ 45%         │ │ 62%         │ │ 12/100      │ │ 78%        │ │
 │  └─────────────┘ └─────────────┘ └─────────────┘ └────────────┘ │
 │                                                                 │
 │  REQUESTS (Last 24h)                                            │
-│  [Wykres liniowy]                                               │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │  [Wykres liniowy: requests/minute przez 24h]             │   │
+│  └──────────────────────────────────────────────────────────┘   │
 │                                                                 │
-│  TOP DOMAINS BY TRAFFIC                                         │
-│  1. 4torun.pl        15,420 views (34%)                         │
-│  2. 4bydgoszcz.pl    12,105 views (27%)                         │
+│  ERROR RATE (Last 24h)                                          │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │  [Wykres: % bledow 4xx i 5xx]                            │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  TOP DOMAINS BY TRAFFIC (Today)                                 │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │  1. 4torun.pl        15,420 views                        │   │
+│  │  2. 4bydgoszcz.pl    12,105 views                        │   │
+│  │  3. 4warszawa.pl     28,900 views                        │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  RECENT ALERTS                                                  │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │  [14:32] ERROR: Scraper 'policja-torun' failed           │   │
+│  │  [13:15] WARNING: High memory usage on worker-2          │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### 13.2 Struktura Logu
+### 10.2 System Logowania
 
+#### Poziomy Logowania
+| Poziom | Uzycie | Retencja |
+|--------|--------|----------|
+| DEBUG | Rozwoj, debugowanie | 7 dni |
+| INFO | Standardowe operacje | 30 dni |
+| WARNING | Nieprawidlowosci, ale dziala | 90 dni |
+| ERROR | Bledy wymagajace uwagi | 365 dni |
+| CRITICAL | Krytyczne awarie | 365 dni |
+
+#### Struktura Logu
 ```json
 {
   "timestamp": "2024-02-12T14:32:15.123Z",
   "level": "ERROR",
   "category": "scraper",
   "domain_id": "4torun.pl",
+  "user_id": "user-uuid",
   "action": "fetch_data",
-  "message": "Failed to fetch data",
+  "message": "Failed to fetch data from source",
   "context": {
     "source_id": "policja-torun",
-    "error": "Connection timeout"
+    "url": "https://torun.policja.gov.pl/...",
+    "error": "Connection timeout",
+    "retry_count": 3
+  },
+  "ip_address": "192.168.1.1",
+  "user_agent": "Mozilla/5.0...",
+  "request_id": "req-uuid",
+  "duration_ms": 30000
+}
+```
+
+#### Logi Audytowe
+```json
+{
+  "timestamp": "2024-02-12T14:32:15.123Z",
+  "user_id": "user-uuid",
+  "action": "update",
+  "entity_type": "post",
+  "entity_id": "post-uuid",
+  "entity_title": "Tytul wpisu",
+  "changes": {
+    "before": {
+      "title": "Stary tytul",
+      "status": "draft"
+    },
+    "after": {
+      "title": "Nowy tytul",
+      "status": "published"
+    }
   },
   "ip_address": "192.168.1.1"
 }
 ```
 
----
+### 10.3 Implementacja Systemu Logowania (Winston)
 
-## 14. DEPLOYMENT I DODAWANIE NOWYCH PORTALI
+#### Konfiguracja Loggera
 
-### 14.1 Flow Dodawania Nowej Domeny
+```typescript
+// lib/logger.ts
+import winston from 'winston';
+import DailyRotateFile from 'winston-daily-rotate-file';
 
-```mermaid
-flowchart TD
-    A["Admin clicks Add Domain"] --> B["Fill Form"]
-    B --> C{"Validation"}
-    C -->|Error| D["Show Errors"]
-    D --> B
-    C -->|OK| E["Create in Database"]
-    E --> F["CREATE SCHEMA tenant_domain"]
-    F --> G["CREATE TABLES"]
-    G --> H["Copy Files"]
-    H --> I["mkdir domains/domain/public_html"]
-    I --> J["cp -r template/* public_html/"]
-    J --> K["Configure Nginx"]
-    K --> L["Reload Nginx"]
-    L --> M["Domain Ready!"]
-    M --> N["Send Email to Admin"]
-    
-    style M fill:#90EE90
-```
+const { combine, timestamp, json, errors, printf } = winston.format;
 
-### 14.2 Skrypt Deploymentu (Bash)
+// Format dla developmentu (czytelniejszy)
+const devFormat = printf(({ level, message, timestamp, ...metadata }) => {
+  let msg = `${timestamp} [${level.toUpperCase()}]: ${message}`;
+  if (Object.keys(metadata).length > 0) {
+    msg += ` ${JSON.stringify(metadata)}`;
+  }
+  return msg;
+});
 
-```bash
-#!/bin/bash
-# /home/host988956/scripts/create-domain.sh
+// Transporty - pliki rotowane dzienne
+const fileTransport = new DailyRotateFile({
+  filename: 'logs/application-%DATE%.log',
+  datePattern: 'YYYY-MM-DD',
+  zippedArchive: true,
+  maxSize: '20m',
+  maxFiles: '30d'
+});
 
-DOMAIN=$1
-CITY=$2
-ADMIN_EMAIL=$3
+const errorTransport = new DailyRotateFile({
+  filename: 'logs/error-%DATE%.log',
+  datePattern: 'YYYY-MM-DD',
+  zippedArchive: true,
+  maxSize: '20m',
+  maxFiles: '90d',
+  level: 'error'
+});
 
-echo "🚀 Tworzenie nowej domeny: $DOMAIN"
+export const logger = winston.createLogger({
+  level: process.env.LOG_LEVEL || 'info',
+  defaultMeta: {
+    service: 'regionalne-serwisy',
+    environment: process.env.NODE_ENV
+  },
+  format: combine(
+    timestamp(),
+    errors({ stack: true }),
+    json()
+  ),
+  transports: [
+    fileTransport,
+    errorTransport
+  ],
+  exceptionHandlers: [
+    new winston.transports.File({ filename: 'logs/exceptions.log' })
+  ],
+  rejectionHandlers: [
+    new winston.transports.File({ filename: 'logs/rejections.log' })
+  ]
+});
 
-# 1. Tworzenie katalogów
-mkdir -p /home/host988956/domains/$DOMAIN/{public_html,logs,backup}
-echo "✓ Katalogi utworzone"
-
-# 2. Kopiowanie template
-cp -r /home/host988956/shared/templates/default/* /home/host988956/domains/$DOMAIN/public_html/
-echo "✓ Template skopiowany"
-
-# 3. Tworzenie .env.local
-cat > /home/host988956/domains/$DOMAIN/public_html/.env.local << EOF
-DATABASE_URL="postgresql://user:pass@localhost:5432/regional_services?schema=tenant_${DOMAIN//./_}"
-NEXT_PUBLIC_DOMAIN="$DOMAIN"
-NEXT_PUBLIC_CITY="$CITY"
-API_URL="https://serwisy-lokalne-sterowanie.pl/api"
-REDIS_URL="redis://localhost:6379/1"
-EOF
-echo "✓ Konfiguracja utworzona"
-
-# 4. Tworzenie schema w PostgreSQL
-psql -d regional_services -c "CREATE SCHEMA IF NOT EXISTS tenant_${DOMAIN//./_};"
-echo "✓ Schema bazy danych utworzona"
-
-# 5. Uruchomienie migracji
-cd /home/host988956/domains/$DOMAIN/public_html
-npm install --silent
-npx prisma migrate dev --name init
-echo "✓ Migracje wykonane"
-
-# 6. Budowanie aplikacji
-npm run build
-echo "✓ Aplikacja zbudowana"
-
-# 7. Konfiguracja Nginx
-sudo tee /etc/nginx/sites-available/$DOMAIN << 'EOF'
-server {
-    listen 80;
-    server_name $DOMAIN www.$DOMAIN;
-    root /home/host988956/domains/$DOMAIN/public_html/dist;
-    index index.html;
-    
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-    
-    location /api {
-        proxy_pass http://localhost:3001;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-    }
-    
-    error_log /home/host988956/domains/$DOMAIN/logs/error.log;
-    access_log /home/host988956/domains/$DOMAIN/logs/access.log;
+// W developmentu dodaj konsolę
+if (process.env.NODE_ENV !== 'production') {
+  logger.add(new winston.transports.Console({
+    format: combine(
+      timestamp(),
+      devFormat
+    )
+  }));
 }
-EOF
 
-sudo ln -s /etc/nginx/sites-available/$DOMAIN /etc/nginx/sites-enabled/ 2>/dev/null || true
-sudo nginx -s reload
-echo "✓ Nginx skonfigurowany"
-
-# 8. Uruchomienie aplikacji (PM2)
-PORT=3001 pm2 start npm --name "$DOMAIN" -- start
-echo "✓ Aplikacja uruchomiona (PM2)"
-
-# 9. Dodanie do centralnej bazy
-curl -X POST https://serwisy-lokalne-sterowanie.pl/api/domains \
-  -H "Authorization: Bearer $ADMIN_TOKEN" \
-  -d "{\"name\":\"$DOMAIN\",\"slug\":\"$DOMAIN\",\"city\":\"$CITY\"}" 2>/dev/null
-
-echo ""
-echo "🎉 Domena $DOMAIN została utworzona!"
-echo "🔗 Panel admina: https://$DOMAIN/admin"
-echo "📧 Email wysłany do: $ADMIN_EMAIL"
+// Logger kontekstowy (z request_id, user_id)
+export const createContextLogger = (context: {
+  requestId?: string;
+  userId?: string;
+  domainId?: string;
+}) => {
+  return logger.child(context);
+};
 ```
 
-### 14.3 Template Serwisu (Do Klonowania)
+#### Middleware Logowania HTTP
 
-```
-/home/host988956/shared/templates/default/
-├── src/
-│   ├── app/
-│   │   ├── layout.tsx              # Root layout z ThemeProvider
-│   │   ├── page.tsx                # Strona główna
-│   │   ├── globals.css             # CSS variables (dynamiczne)
-│   │   ├── [type]/                 # Dynamic routes dla CPT
-│   │   │   ├── page.tsx
-│   │   │   └── [slug]/page.tsx
-│   │   └── admin/                  # Panel admina
-│   │       ├── layout.tsx
-│   │       ├── page.tsx
-│   │       └── posts/
-│   │
-│   ├── components/
-│   │   ├── layout/
-│   │   │   ├── Header.tsx          # Header z menu
-│   │   │   ├── Footer.tsx
-│   │   │   ├── InfoBar.tsx
-│   │   │   └── Navigation.tsx
-│   │   ├── content/
-│   │   │   ├── NewsCard.tsx
-│   │   │   ├── NewsGrid.tsx
-│   │   │   ├── HeroSection.tsx
-│   │   │   ├── CategoryGrid.tsx
-│   │   │   ├── JobCard.tsx
-│   │   │   └── ObituaryCard.tsx
-│   │   └── ui/                     # shadcn/ui
-│   │
-│   ├── lib/
-│   │   ├── api.ts
-│   │   └── utils.ts
-│   └── hooks/
-│       ├── useTheme.ts
-│       └── usePosts.ts
-│
-├── public/
-│   └── images/
-│
-├── prisma/
-│   └── schema.prisma               # Wspólny schema
-│
-├── .env.example
-├── next.config.js
-├── tailwind.config.ts
-└── package.json
+```typescript
+// middleware/requestLogger.ts
+import { Request, Response, NextFunction } from 'express';
+import { createContextLogger } from '../lib/logger';
+import { v4 as uuidv4 } from 'uuid';
+
+export const requestLogger = (req: Request, res: Response, next: NextFunction) => {
+  const requestId = req.headers['x-request-id'] as string || uuidv4();
+  req.requestId = requestId;
+  
+  const startTime = Date.now();
+  const contextLogger = createContextLogger({
+    requestId,
+    userId: req.user?.id,
+    domainId: req.domain?.id
+  });
+  
+  // Logowanie startu requestu
+  contextLogger.info('HTTP Request Started', {
+    method: req.method,
+    url: req.url,
+    userAgent: req.headers['user-agent'],
+    ip: req.ip
+  });
+  
+  // Logowanie zakończenia requestu
+  res.on('finish', () => {
+    const duration = Date.now() - startTime;
+    contextLogger.info('HTTP Request Completed', {
+      method: req.method,
+      url: req.url,
+      statusCode: res.statusCode,
+      durationMs: duration,
+      contentLength: res.get('content-length')
+    });
+  });
+  
+  next();
+};
 ```
 
----
+### 10.4 Metryki i Monitoring (Prometheus)
 
-## 15. WDROŻENIE - PLAN ETAPOWY
+#### Konfiguracja Metryk
 
-### 15.1 Diagram Etapów
+```typescript
+// lib/metrics.ts
+import client from 'prom-client';
 
-```mermaid
-graph LR
-    E1[Etap 1<br/>Infrastruktura<br/>2 tyg] --> E2[Etap 2<br/>Baza + API<br/>2 tyg]
-    E2 --> E3[Etap 3<br/>Panel Centralny<br/>3 tyg]
-    E3 --> E4[Etap 4<br/>Scraping<br/>2 tyg]
-    E4 --> E5[Etap 5<br/>Frontend<br/>4 tyg]
-    E5 --> E6[Etap 6<br/>Panel Serwisu<br/>2 tyg]
-    E6 --> E7[Etap 7<br/>Deployment<br/>1 tydz]
-    E7 --> E8[Etap 8<br/>Dokumentacja<br/>1 tydz]
+// Rejestr globalny
+export const register = new client.Registry();
+
+// Dodaj defaultowe metryki (CPU, pamięć, itp.)
+client.collectDefaultMetrics({ register });
+
+// Customowe metryki
+
+// 1. Czas trwania requestów HTTP
+export const httpRequestDuration = new client.Histogram({
+  name: 'http_request_duration_seconds',
+  help: 'Duration of HTTP requests in seconds',
+  labelNames: ['method', 'route', 'status_code'],
+  buckets: [0.01, 0.05, 0.1, 0.5, 1, 2, 5, 10]
+});
+
+// 2. Licznik requestów
+export const httpRequestTotal = new client.Counter({
+  name: 'http_requests_total',
+  help: 'Total number of HTTP requests',
+  labelNames: ['method', 'route', 'status_code']
+});
+
+// 3. Aktywne połączenia
+export const activeConnections = new client.Gauge({
+  name: 'active_connections',
+  help: 'Number of active connections'
+});
+
+// 4. Metryki biznesowe
+export const postsCreatedTotal = new client.Counter({
+  name: 'posts_created_total',
+  help: 'Total number of posts created',
+  labelNames: ['domain_id', 'post_type']
+});
+
+export const scrapingItemsTotal = new client.Counter({
+  name: 'scraping_items_total',
+  help: 'Total items scraped',
+  labelNames: ['source_id', 'status']
+});
+
+// 5. Błędy
+export const errorsTotal = new client.Counter({
+  name: 'errors_total',
+  help: 'Total number of errors',
+  labelNames: ['type', 'route']
+});
+
+// Rejestracja metryk
+register.registerMetric(httpRequestDuration);
+register.registerMetric(httpRequestTotal);
+register.registerMetric(activeConnections);
+register.registerMetric(postsCreatedTotal);
+register.registerMetric(scrapingItemsTotal);
+register.registerMetric(errorsTotal);
+```
+
+#### Middleware Metryk
+
+```typescript
+// middleware/metrics.ts
+import { Request, Response, NextFunction } from 'express';
+import {
+  httpRequestDuration,
+  httpRequestTotal,
+  activeConnections
+} from '../lib/metrics';
+
+export const metricsMiddleware = (req: Request, res: Response, next: NextFunction) => {
+  activeConnections.inc();
+  
+  const start = Date.now();
+  
+  res.on('finish', () => {
+    const duration = (Date.now() - start) / 1000;
+    const route = req.route?.path || req.path;
     
-    style E1 fill:#e1f5fe
-    style E2 fill:#e1f5fe
-    style E3 fill:#e8f5e9
-    style E4 fill:#e8f5e9
-    style E5 fill:#fff3e0
-    style E6 fill:#fff3e0
-    style E7 fill:#fce4ec
-    style E8 fill:#fce4ec
+    httpRequestDuration
+      .labels(req.method, route, res.statusCode.toString())
+      .observe(duration);
+    
+    httpRequestTotal
+      .labels(req.method, route, res.statusCode.toString())
+      .inc();
+    
+    activeConnections.dec();
+  });
+  
+  next();
+};
+
+// Endpoint metryk (dla Prometheus)
+export const metricsEndpoint = async (req: Request, res: Response) => {
+  const { register } = await import('../lib/metrics');
+  res.set('Content-Type', register.contentType);
+  res.end(await register.metrics());
+};
 ```
 
-### 15.2 Szczegółowy Plan
+### 10.5 Health Check Endpoint
 
-| Etap | Czas | Główne Zadania | Dostarczalne |
-|------|------|----------------|--------------|
-| **Etap 1** | 2 tyg | Infrastruktura | Hosting, PostgreSQL, Redis, RabbitMQ, SSL |
-| **Etap 2** | 2 tyg | Baza Danych + API | Schematy SQL, API centralne, Auth, RBAC, **Modele dla nowych modułów** |
-| **Etap 3** | 3 tyg | Panel Centralny | Next.js, Dashboard, Zarządzanie domenami, Użytkownicy, **Endpointy modułów** |
-| **Etap 4** | 2 tyg +1 | Scraping | Python workers, RabbitMQ, Parsers dla zródeł, **Sofascore, Blix.pl, Wikipedia** |
-| **Etap 5** | 4 tyg +2 | Frontend Serwisu | Next.js, Szablony, Komponenty, CPT views, SEO, **Sport, Gazetki, Sławni** |
-| **Etap 6** | 2 tyg +1 | Panel Serwisu | Edytor wpisów, Media library, Ustawienia, **Konfiguracja modułów** |
-| **Etap 7** | 1 tydzień | Deployment | Skrypty automatyzacji, Testy, 4torun.pl live, **Konfiguracja modułów** |
-| **Etap 8** | 1 tydzień | Dokumentacja | Dokumentacja techniczna, Szkolenia, **Dokumentacja modułów** |
+```typescript
+// routes/health.ts
+import { Router } from 'express';
+import { PrismaClient } from '@prisma/client';
+import Redis from 'ioredis';
 
-**RAZEM: ~22-23 tygodnie (5.5 miesiąca)** z nowymi modułami i standardami danych (17 tygodni bez)
+const router = Router();
+const prisma = new PrismaClient();
+const redis = new Redis(process.env.REDIS_URL);
 
-### 15.3 Stack Technologiczny
+interface HealthCheck {
+  status: 'healthy' | 'unhealthy' | 'degraded';
+  timestamp: string;
+  checks: {
+    database: { status: string; responseTime: number };
+    redis: { status: string; responseTime: number };
+    disk: { status: string; freeSpace: string };
+    memory: { status: string; usage: string };
+  };
+  version: string;
+}
 
-| Warstwa | Technologia | Wersja |
-|---------|-------------|--------|
-| **Frontend** | Next.js + React + TypeScript | 14.x |
-| **Styling** | Tailwind CSS + shadcn/ui | 3.x |
-| **Backend API** | Node.js + Express/Fastify | 20 LTS |
-| **ORM** | Prisma | latest |
-| **Scraping** | Python + aiohttp + BeautifulSoup | 3.11+ |
-| **AI Processing** | OpenAI GPT-4o API | latest |
-| **Database** | PostgreSQL | 15+ |
-| **Cache** | Redis | 7+ |
-| **Queue** | RabbitMQ | 3.12+ |
-| **Web Server** | Nginx | latest |
-| **Process Manager** | PM2 | latest |
+// Liveness probe (czy aplikacja żyje)
+router.get('/health/live', (req, res) => {
+  res.status(200).json({ status: 'alive' });
+});
+
+// Readiness probe (czy gotowa do przyjmowania ruchu)
+router.get('/health/ready', async (req, res) => {
+  const checks = await Promise.all([
+    checkDatabase(),
+    checkRedis()
+  ]);
+  
+  const allHealthy = checks.every(c => c.status === 'ok');
+  
+  res.status(allHealthy ? 200 : 503).json({
+    status: allHealthy ? 'ready' : 'not_ready',
+    checks: {
+      database: checks[0],
+      redis: checks[1]
+    }
+  });
+});
+
+// Pełny health check (szczegółowy)
+router.get('/health', async (req, res) => {
+  const startTime = Date.now();
+  
+  const [dbCheck, redisCheck, diskCheck, memoryCheck] = await Promise.all([
+    checkDatabase(),
+    checkRedis(),
+    checkDiskSpace(),
+    checkMemory()
+  ]);
+  
+  const responseTime = Date.now() - startTime;
+  
+  const isHealthy = 
+    dbCheck.status === 'ok' && 
+    redisCheck.status === 'ok' &&
+    diskCheck.status === 'ok';
+  
+  const isDegraded = 
+    dbCheck.status === 'ok' && 
+    redisCheck.status === 'ok' &&
+    (diskCheck.status !== 'ok' || memoryCheck.status !== 'ok');
+  
+  const status: HealthCheck['status'] = isHealthy 
+    ? 'healthy' 
+    : isDegraded 
+      ? 'degraded' 
+      : 'unhealthy';
+  
+  const healthCheck: HealthCheck = {
+    status,
+    timestamp: new Date().toISOString(),
+    checks: {
+      database: dbCheck,
+      redis: redisCheck,
+      disk: diskCheck,
+      memory: memoryCheck
+    },
+    version: process.env.APP_VERSION || 'unknown'
+  };
+  
+  res.status(isHealthy ? 200 : isDegraded ? 200 : 503).json(healthCheck);
+});
+
+// Funkcje pomocnicze
+async function checkDatabase() {
+  const start = Date.now();
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    return {
+      status: 'ok',
+      responseTime: Date.now() - start
+    };
+  } catch (error) {
+    return {
+      status: 'error',
+      responseTime: Date.now() - start,
+      error: error.message
+    };
+  }
+}
+
+async function checkRedis() {
+  const start = Date.now();
+  try {
+    await redis.ping();
+    return {
+      status: 'ok',
+      responseTime: Date.now() - start
+    };
+  } catch (error) {
+    return {
+      status: 'error',
+      responseTime: Date.now() - start,
+      error: error.message
+    };
+  }
+}
+
+async function checkDiskSpace() {
+  // Implementacja sprawdzania miejsca na dysku
+  // Użyj: import checkDiskSpace from 'check-disk-space';
+  return {
+    status: 'ok',
+    freeSpace: '50GB'
+  };
+}
+
+async function checkMemory() {
+  const used = process.memoryUsage();
+  const total = require('os').totalmem();
+  const usage = (used.heapUsed / total) * 100;
+  
+  return {
+    status: usage > 90 ? 'warning' : 'ok',
+    usage: `${usage.toFixed(2)}%`
+  };
+}
+
+export default router;
+```
+
+### 10.6 Alerting i Powiadomienia
+
+```typescript
+// lib/alerts.ts
+import { WebhookClient } from 'discord.js';
+import nodemailer from 'nodemailer';
+
+interface Alert {
+  severity: 'info' | 'warning' | 'error' | 'critical';
+  title: string;
+  message: string;
+  metadata?: Record<string, any>;
+  timestamp: Date;
+}
+
+class AlertManager {
+  private discordWebhook?: WebhookClient;
+  private emailTransporter?: nodemailer.Transporter;
+  
+  constructor() {
+    // Discord Webhook (opcjonalnie)
+    if (process.env.DISCORD_WEBHOOK_URL) {
+      this.discordWebhook = new WebhookClient({
+        url: process.env.DISCORD_WEBHOOK_URL
+      });
+    }
+    
+    // Email (opcjonalnie)
+    if (process.env.SMTP_HOST) {
+      this.emailTransporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port: parseInt(process.env.SMTP_PORT || '587'),
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS
+        }
+      });
+    }
+  }
+  
+  async sendAlert(alert: Alert): Promise<void> {
+    // Log do systemu
+    logger[alert.severity](alert.title, {
+      message: alert.message,
+      ...alert.metadata
+    });
+    
+    // Krytyczne alerty - wysyłaj wszędzie
+    if (alert.severity === 'critical') {
+      await Promise.all([
+        this.sendDiscord(alert),
+        this.sendEmail(alert)
+      ]);
+    }
+    
+    // Błędy - wysyłaj na Discord
+    if (alert.severity === 'error') {
+      await this.sendDiscord(alert);
+    }
+  }
+  
+  private async sendDiscord(alert: Alert): Promise<void> {
+    if (!this.discordWebhook) return;
+    
+    const colors = {
+      info: 0x3498db,
+      warning: 0xf1c40f,
+      error: 0xe74c3c,
+      critical: 0x9b59b6
+    };
+    
+    await this.discordWebhook.send({
+      embeds: [{
+        title: alert.title,
+        description: alert.message,
+        color: colors[alert.severity],
+        fields: Object.entries(alert.metadata || {}).map(([key, value]) => ({
+          name: key,
+          value: String(value).substring(0, 1000),
+          inline: true
+        })),
+        timestamp: alert.timestamp.toISOString()
+      }]
+    });
+  }
+  
+  private async sendEmail(alert: Alert): Promise<void> {
+    if (!this.emailTransporter) return;
+    
+    await this.emailTransporter.sendMail({
+      from: process.env.ALERT_FROM_EMAIL,
+      to: process.env.ALERT_TO_EMAIL,
+      subject: `[${alert.severity.toUpperCase()}] ${alert.title}`,
+      text: `${alert.message}\n\nMetadata: ${JSON.stringify(alert.metadata, null, 2)}`
+    });
+  }
+}
+
+export const alertManager = new AlertManager();
+
+// Automatyczne alerty na podstawie metryk
+export const setupMetricAlerts = () => {
+  // Alert przy wysokim error rate
+  setInterval(async () => {
+    const { errorsTotal } = await import('./metrics');
+    // Logika sprawdzania progu i wysyłania alertu
+  }, 60000);
+  
+  // Alert przy wysokim zużyciu pamięci
+  setInterval(async () => {
+    const usage = process.memoryUsage();
+    if (usage.heapUsed > 0.9 * require('os').totalmem()) {
+      await alertManager.sendAlert({
+        severity: 'warning',
+        title: 'High Memory Usage',
+        message: `Memory usage is at ${(usage.heapUsed / 1024 / 1024).toFixed(2)}MB`,
+        timestamp: new Date()
+      });
+    }
+  }, 300000); // co 5 min
+};
+```
+
+### 10.7 Konfiguracja Prometheus i Grafana
+
+#### docker-compose.monitoring.yml
+
+```yaml
+version: '3.8'
+
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3001:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml
+
+volumes:
+  prometheus_data:
+  grafana_data:
+```
+
+#### prometheus.yml
+
+```yaml
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - "alerts.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+scrape_configs:
+  - job_name: 'regionalne-serwisy-api'
+    static_configs:
+      - targets: ['api:3001']
+    metrics_path: '/metrics'
+    scrape_interval: 5s
+
+  - job_name: 'regionalne-serwisy-frontend'
+    static_configs:
+      - targets: ['frontend:3000']
+    scrape_interval: 10s
+
+  - job_name: 'postgres-exporter'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+
+  - job_name: 'redis-exporter'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+```
+
+### 10.8 Raportowanie
+
+#### Typy Raportow
+
+1. **Raport Dzienny (Email)**
+   - Podsumowanie ruchu (dzien vs wczoraj)
+   - Nowe wpisy
+   - Nowi uzytkownicy
+   - Bledy systemowe
+   - Status scrapingu
+
+2. **Raport Tygodniowy**
+   - Trendy ruchu (wykres tygodniowy)
+   - Top 10 tresci
+   - Top 10 zrodel ruchu
+   - Podsumowanie scrapingu
+   - Wykorzystanie zasobow
+
+3. **Raport Miesieczny**
+   - Pelna analiza ruchu
+   - Analiza SEO (pozycje, indeksowanie)
+   - Podsumowanie finansowe (jesli dotyczy)
+   - Cele i KPI
+   - Rekomendacje
+
+4. **Raport Customowy**
+   - Wybor zakresu dat
+   - Wybor metryk
+   - Wybor domen
+   - Format: PDF, Excel, CSV
+
+#### Przyklad Raportu (Fragment)
+```
+═══════════════════════════════════════════════════════════════
+RAPORT DZIENNY - 12.02.2024
+System: Regionalne Serwisy
+═══════════════════════════════════════════════════════════════
+
+RAUCH NA STRONACH
+─────────────────
+Laczne wyswietlenia:     45,230 (+12% vs wczoraj)
+Unikalni uzytkownicy:    12,450 (+8% vs wczoraj)
+Nowi uzytkownicy:        1,230
+Sredni czas sesji:       4m 32s
+Wspolczynnik odrzucen:   42% (-3pp vs wczoraj)
+
+TOP DOMENY
+──────────
+1. 4torun.pl        15,420 wyswietlen (34%)
+2. 4bydgoszcz.pl    12,105 wyswietlen (27%)
+3. 4warszawa.pl      8,900 wyswietlen (20%)
+
+TOP WPISY
+─────────
+1. "Śmiertelny wypadek na A1"          3,420 wysw.
+2. "Nowa inwestycja w centrum"         2,890 wysw.
+3. "Koncert w Filharmonii"             1,560 wysw.
+
+SCRAPING
+────────
+Zrodla przetworzone:    12
+Nowe wpisy:            45
+Zaktualizowane:        12
+Bledy:                  0
+
+BLEDY SYSTEMOWE
+───────────────
+Poziom ERROR:           3 (wszystkie obsluzone)
+Poziom WARNING:        12
+Status:                STABILNY
+
+NASTEPNE ZADANIA CRON
+─────────────────────
+14:00 - Backup przyrostowy
+16:00 - Scraper: policja
+18:00 - Scraper: miasto
+20:00 - Generowanie sitemap
+
+═══════════════════════════════════════════════════════════════
+```
 
 ---
 
-## 16. BEZPIECZEŃSTWO
 
-### 16.1 Lista Kontrolna
 
-- [x] JWT z krótkim czasem życia (access: 15min, refresh: 7dni)
-- [x] Bezpieczne hasła (bcrypt, salt rounds 12+)
-- [x] Rate limiting na logowaniu (5 prób / 15 min)
-- [x] RBAC z granularnymi uprawnieniami
-- [x] HTTPS/TLS 1.3 dla wszystkich domen
-- [x] Parametryzowane zapytania SQL (SQL Injection protection)
-- [x] Sanitizacja danych wejściowych (XSS protection)
-- [x] CORS whitelist
-- [x] API keys dla zewnętrznych integracji
-- [x] Regularne backupy (szyfrowane)
+## 11. WDROZENIE - PLAN ETAPOWY
 
-### 16.2 Nagłówki Bezpieczeństwa (Nginx)
+### 11.1 Fazy Projektu
 
-```nginx
-add_header X-Frame-Options "SAMEORIGIN" always;
-add_header X-XSS-Protection "1; mode=block" always;
-add_header X-Content-Type-Options "nosniff" always;
-add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';" always;
 ```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    MAPA ETAPOW WDROZENIA                                    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ETAP 1: PRZYGOTOWANIE INFRASTRUKTURY          [Tydzien 1-2]               │
+│  ┌─────────────────────────────────────────────────────────────────┐       │
+│  │ - Konfiguracja hostingu (domeny, SSL)                           │       │
+│  │ - Instalacja PostgreSQL, Redis, RabbitMQ                        │       │
+│  │ - Konfiguracja srodowiska Node.js i Python                      │       │
+│  │ - Setup monitoringu i logowania                                 │       │
+│  │ - Konfiguracja backupu                                          │       │
+│  └─────────────────────────────────────────────────────────────────┘       │
+│                                                                             │
+│  ETAP 2: BAZA DANYCH I API                     [Tydzien 2-4]               │
+│  ┌─────────────────────────────────────────────────────────────────┐       │
+│  │ - Tworzenie schematow bazy danych (public + tenant)             │       │
+│  │ - Implementacja API centralnego (Node.js/Express)               │       │
+│  │ - System autentykacji i autoryzacji                             │       │
+│  │ - System uprawnien (RBAC)                                       │       │
+│  │ - Testy API                                                     │       │
+│  └─────────────────────────────────────────────────────────────────┘       │
+│                                                                             │
+│  ETAP 3: PANEL ADMINISTRACYJNY CENTRALNY       [Tydzien 4-7]               │
+│  ┌─────────────────────────────────────────────────────────────────┐       │
+│  │ - Setup projektu Next.js                                        │       │
+│  │ - Layout i komponenty UI                                        │       │
+│  │ - Modul zarzadzania domenami                                    │       │
+│  │ - Modul zarzadzania uzytkownikami                               │       │
+│  │ - Modul masowych operacji                                       │       │
+│  │ - Modul zrodel danych                                           │       │
+│  │ - Modul cron jobs                                               │       │
+│  │ - System logow                                                  │       │
+│  │ - Testy panelu                                                  │       │
+│  └─────────────────────────────────────────────────────────────────┘       │
+│                                                                             │
+│  ETAP 4: SYSTEM SCRAPINGU                      [Tydzien 6-8]               │
+│  ┌─────────────────────────────────────────────────────────────────┐       │
+│  │ - Implementacja workerow Python                                 │       │
+│  │ - System kolejkowania (RabbitMQ)                                │       │
+│  │ - Parsery dla roznych typow zrodel                              │       │
+│  │ - Konfiguracja cron jobs                                        │       │
+│  │ - Testy scrapingu                                               │       │
+│  │ - Monitoring bledow                                             │       │
+│  └─────────────────────────────────────────────────────────────────┘       │
+│                                                                             │
+│  ETAP 5: SERWIS REGIONALNY (Frontend)          [Tydzien 8-11]              │
+│  ┌─────────────────────────────────────────────────────────────────┐       │
+│  │ - Setup projektu Next.js dla serwisow                           │       │
+│  │ - System szablonow i motywow                                    │       │
+│  │ - Komponenty wspolne (header, footer, cards)                    │       │
+│  │ - Strony: Home, Archiwum, Wpis                                  │       │
+│  │ - CPT: Wiadomosci, Kronika, Firmy, Praca, Nekrologi, Przewodnik│       │
+│  │ - System komentarzy i ocen                                      │       │
+│  │ - SEO (meta tagi, schema.org, sitemap)                          │       │
+│  │ - Testy frontendu                                               │       │
+│  └─────────────────────────────────────────────────────────────────┘       │
+│                                                                             │
+│  ETAP 6: PANEL ADMINISTRACYJNY SERWISU         [Tydzien 11-13]             │
+│  ┌─────────────────────────────────────────────────────────────────┐       │
+│  │ - Dashboard serwisu                                             │       │
+│  │ - Edytor wpisow (rich text)                                     │       │
+│  │ - Zarzadzanie kategoriami i tagami                              │       │
+│  │ - Zarzadzanie bannerami i menu                                  │       │
+│  │ - Zarzadzanie widgetami                                         │       │
+│  │ - Ustawienia serwisu                                            │       │
+│  │ - Testy panelu serwisu                                          │       │
+│  └─────────────────────────────────────────────────────────────────┘       │
+│                                                                             │
+│  ETAP 7: WDROZENIE PIERWSZEJ DOMENY            [Tydzien 13-14]             │
+│  ┌─────────────────────────────────────────────────────────────────┐       │
+│  │ - Konfiguracja 4torun.pl                                        │       │
+│  │ - Import poczatkowych danych                                    │       │
+│  │ - Konfiguracja zrodel scrapingu                                 │       │
+│  │ - Testy end-to-end                                              │       │
+│  │ - Optymalizacja wydajnosci                                      │       │
+│  │ - Uruchomienie produkcyjne                                      │       │
+│  └─────────────────────────────────────────────────────────────────┘       │
+│                                                                             │
+│  ETAP 8: DOKUMENTACJA I PRZEKAZANIE            [Tydzien 14-15]             │
+│  ┌─────────────────────────────────────────────────────────────────┐       │
+│  │ - Dokumentacja techniczna                                       │       │
+│  │ - Dokumentacja uzytkownika                                      │       │
+│  │ - Szkolenie administratorow                                     │       │
+│  │ - Szkolenie redaktorow                                          │       │
+│  │ - Ostateczne testy                                              │       │
+│  │ - Uruchomienie oficjalne                                        │       │
+│  └─────────────────────────────────────────────────────────────────┘       │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 11.2 Szczegolowe Taski
+
+#### Sprint 1-2: Infrastruktura
+| Task | Estymacja | Opis |
+|------|-----------|------|
+| Setup hosting | 4h | Konfiguracja kont hostingowych, domen |
+| SSL certificates | 2h | Lets Encrypt dla wszystkich domen |
+| PostgreSQL install | 4h | Instalacja, konfiguracja, security |
+| Redis install | 2h | Instalacja, konfiguracja cache |
+| RabbitMQ install | 3h | Instalacja, konfiguracja kolejek |
+| Node.js setup | 2h | Instalacja, PM2 |
+| Python setup | 2h | Instalacja, venv |
+| Monitoring setup | 4h | Prometheus, Grafana (lub prostsze) |
+| Backup config | 3h | Automatyczne backupy |
+| CI/CD pipeline | 6h | Github Actions / GitLab CI |
+
+#### Sprint 3-4: Baza Danych i API Centralne
+| Task | Estymacja | Opis |
+|------|-----------|------|
+| Schema public | 8h | Tabele centralne |
+| Schema tenant template | 6h | Szablon schema dla tenantow |
+| Migrations system | 4h | System migracji (node-pg-migrate) |
+| API Auth | 8h | JWT, logowanie, rejestracja |
+| API RBAC | 8h | System uprawnien |
+| API Users | 6h | CRUD uzytkownikow |
+| API Domains | 8h | CRUD domen |
+| API Sources | 6h | CRUD zrodel |
+| API Cron | 4h | CRUD cron jobs |
+| API Tests | 8h | Testy jednostkowe i integracyjne |
+
+#### Sprint 5-7: Panel Centralny
+| Task | Estymacja | Opis |
+|------|-----------|------|
+| Next.js setup | 4h | Projekt, konfiguracja |
+| UI Kit | 8h | Komponenty, layout, nawigacja |
+| Dashboard view | 6h | Strona glowna panelu |
+| Domains list | 6h | Lista domen z filtrami |
+| Domain detail | 8h | Szczegoly domeny z zakladkami |
+| Users management | 8h | Zarzadzanie uzytkownikami |
+| Sources management | 8h | Zarzadzanie zrodlami |
+| Mass operations | 10h | System masowych operacji |
+| Logs viewer | 6h | Przegladarka logow |
+| Settings | 6h | Ustawienia systemowe |
+
+#### Sprint 6-8: Scraping
+| Task | Estymacja | Opis |
+|------|-----------|------|
+| Worker architecture | 6h | Struktura workerow Python |
+| HTTP fetcher | 4h | Pobieranie danych, retry logic |
+| HTML parser | 8h | BeautifulSoup parser |
+| JSON parser | 4h | Parser JSON/API |
+| RSS parser | 4h | Parser RSS |
+| Database saver | 6h | Zapisywanie do PostgreSQL |
+| Queue consumer | 6h | RabbitMQ consumer |
+| Scheduler | 4h | Harmonogram zadan |
+| Error handling | 6h | Obsluga bledow, retry |
+| Tests | 6h | Testy workerow |
+
+#### Sprint 8-11: Frontend Serwisu
+| Task | Estymacja | Opis |
+|------|-----------|------|
+| Next.js setup | 4h | Projekt serwisu |
+| Theme system | 8h | System motywow |
+| Layout components | 8h | Header, footer, sidebar |
+| Post card | 4h | Komponent karty wpisu |
+| Home page | 8h | Strona glowna |
+| Archive page | 6h | Strona archiwum |
+| Single post | 8h | Strona pojedynczego wpisu |
+| CPT views | 16h | Widoki dla wszystkich CPT |
+| Comments system | 6h | Komentarze |
+| Rating system | 4h | Oceny |
+| Search | 6h | Wyszukiwanie |
+| SEO setup | 8h | Meta, schema, sitemap |
+
+#### Sprint 11-13: Panel Serwisu
+| Task | Estymacja | Opis |
+|------|-----------|------|
+| Dashboard | 6h | Dashboard serwisu |
+| Post editor | 16h | Edytor wpisow (TipTap) |
+| Media library | 8h | Biblioteka mediow |
+| Categories | 6h | Zarzadzanie kategoriami |
+| Menus | 8h | Budowniczy menu |
+| Widgets | 8h | Zarzadzanie widgetami |
+| Banners | 6h | Zarzadzanie bannerami |
+| Settings | 6h | Ustawienia serwisu |
+
+#### Sprint 14-15: Finalizacja
+| Task | Estymacja | Opis |
+|------|-----------|------|
+| Performance opt | 8h | Optymalizacja |
+| Security audit | 6h | Audyt bezpieczenstwa |
+| Documentation | 10h | Dokumentacja |
+| Training | 8h | Szkolenie |
+| Launch | 4h | Uruchomienie |
+
+### 11.3 Stack Technologiczny
+
+#### Backend
+| Komponent | Technologia | Wersja |
+|-----------|-------------|--------|
+| Runtime | Node.js | 20 LTS |
+| Framework | Express.js / Fastify | latest |
+| Language | TypeScript | 5.x |
+| Validation | Zod | latest |
+| ORM | Prisma | latest |
+| Auth | Passport.js + JWT | latest |
+| Documentation | OpenAPI / Swagger | latest |
+
+#### Frontend (Panel Centralny i Serwisy)
+| Komponent | Technologia | Wersja |
+|-----------|-------------|--------|
+| Framework | Next.js | 14 |
+| Language | TypeScript | 5.x |
+| Styling | Tailwind CSS | 3.x |
+| Components | shadcn/ui + Radix | latest |
+| State | Zustand / React Query | latest |
+| Forms | React Hook Form + Zod | latest |
+| Editor | TipTap | latest |
+| Charts | Recharts | latest |
+
+#### Scraping Workers
+| Komponent | Technologia | Wersja |
+|-----------|-------------|--------|
+| Language | Python | 3.11+ |
+| HTTP | aiohttp | latest |
+| Parser | BeautifulSoup4 | latest |
+| Queue | pika (RabbitMQ) | latest |
+| Database | psycopg2 / asyncpg | latest |
+| Scheduler | APScheduler | latest |
+
+#### Baza Danych i Cache
+| Komponent | Technologia | Wersja |
+|-----------|-------------|--------|
+| Database | PostgreSQL | 15+ |
+| Cache | Redis | 7+ |
+| Queue | RabbitMQ | 3.12+ |
+| Search | Elasticsearch | 8.x (opcjonalnie) |
+
+#### Monitoring i Logi
+| Komponent | Technologia | Uzycie |
+|-----------|-------------|--------|
+| Monitoring | Prometheus + Grafana | Metryki |
+| Logi | Winston (Node) / structlog (Python) | Logowanie |
+| APM | Sentry | Bledy |
+
+### 11.4 Struktura Projektow
+
+```
+/home/host988956/projects/
+├── admin-panel/                    # Panel centralny (Next.js)
+│   ├── src/
+│   │   ├── app/                   # Next.js 14 App Router
+│   │   │   ├── (dashboard)/
+│   │   │   │   ├── page.tsx       # Dashboard
+│   │   │   │   ├── domeny/
+│   │   │   │   ├── uzytkownicy/
+│   │   │   │   ├── zrodla/
+│   │   │   │   ├── cron/
+│   │   │   │   └── logi/
+│   │   │   ├── api/               # API Routes
+│   │   │   └── layout.tsx
+│   │   ├── components/
+│   │   │   ├── ui/               # Komponenty UI
+│   │   │   ├── forms/            # Formularze
+│   │   │   └── layouts/          # Layouty
+│   │   ├── lib/
+│   │   │   ├── api.ts            # Klient API
+│   │   │   ├── auth.ts           # Autentykacja
+│   │   │   └── utils.ts          # Utils
+│   │   └── types/
+│   │       └── index.ts          # TypeScript types
+│   ├── public/
+│   ├── package.json
+│   ├── next.config.js
+│   ├── tailwind.config.ts
+│   └── tsconfig.json
+│
+├── regional-service/              # Szablon serwisu regionalnego (Next.js)
+│   ├── src/
+│   │   ├── app/
+│   │   │   ├── page.tsx           # Home
+│   │   │   ├── [type]/
+│   │   │   │   └── [slug]/
+│   │   │   ├── admin/             # Panel serwisu
+│   │   │   └── api/
+│   │   ├── components/
+│   │   ├── lib/
+│   │   └── types/
+│   └── ...
+│
+├── api-server/                    # API Centralne (Node.js)
+│   ├── src/
+│   │   ├── config/
+│   │   ├── controllers/
+│   │   ├── middleware/
+│   │   ├── models/
+│   │   ├── routes/
+│   │   ├── services/
+│   │   ├── utils/
+│   │   └── app.ts
+│   ├── prisma/
+│   │   └── schema.prisma
+│   ├── package.json
+│   └── tsconfig.json
+│
+└── scraper-worker/                # Workerzy scrapingu (Python)
+    ├── src/
+    │   ├── fetchers/
+    │   ├── parsers/
+    │   ├── savers/
+    │   ├── workers/
+    │   ├── config.py
+    │   └── main.py
+    ├── requirements.txt
+    └── Dockerfile
+```
+
+---
+
+## 12. BEZPIECZENSTWO
+
+### 12.1 Lista Kontrolna Bezpieczenstwa
+
+#### Autentykacja i Autoryzacja
+- [x] JWT z odpowiednim czasem zycia (access: 15min, refresh: 7dni)
+- [x] Bezpieczne przechowywanie hasel (bcrypt, salt rounds 12+)
+- [x] Rate limiting na logowaniu (5 prob na 15 minut)
+- [x] Weryfikacja email przy rejestracji
+- [x] Opcjonalne 2FA (TOTP)
+- [x] Mechanizm blokady konta po probach wlamania
+- [x] RBAC z granularnymi uprawnieniami
+
+#### Ochrona Danych
+- [x] Szyfrowanie polaczen (HTTPS/TLS 1.3)
+- [x] Hashowanie wrazliwych danych w bazie
+- [x] Sanitizacja danych wejsciowych (XSS)
+- [x] Parametryzowane zapytania SQL (SQL Injection)
+- [x] Walidacja typow (Zod)
+- [x] CSRF protection
+
+#### API Security
+- [x] Rate limiting (100 req/min dla public, 1000 dla auth)
+- [x] CORS whitelist
+- [x] API keys dla zewnetrznych integracji
+- [x] Request validation
+- [x] Logging wszystkich requestow
+
+#### Infrastruktura
+- [x] Firewall (blokowanie niepotrzebnych portow)
+- [x] Regularne aktualizacje systemu
+- [x] Backup danych (szyfrowany)
+- [x] Monitoring logow bezpieczenstwa
+- [x] Ograniczenie dostepu SSH (klucze, nie hasla)
+
+### 12.2 Naglowki Bezpieczenstwa
+
+```javascript
+// Express middleware
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", "https://api.example.com"],
+    },
+  },
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true
+  },
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
+}));
+```
+
+---
+
+## 13. ZALEZNOSCI I KORELACJE
+
+### 13.1 Diagram Zaleznosci
+
+```
+Domena Centralna (serwisy-lokalne-sterowanie.pl)
+├── Zalezy od:
+│   ├── PostgreSQL (schema: public)
+│   ├── Redis (sesje, cache)
+│   ├── RabbitMQ (kolejki zadan)
+│   └── API Server (Node.js)
+│
+├── Wplywa na:
+│   ├── Domeny Regionalne (konfiguracja)
+│   ├── Scraping (zrodla, harmonogram)
+│   ├── Uzytkownicy (role, uprawnienia)
+│   └── Szablony (dostepne dla domen)
+│
+└── Korzysta z:
+    ├── Zewnetrzne API (pogoda, jakosc powietrza)
+    └── Email (powiadomienia)
+
+Domena Regionalna (4torun.pl)
+├── Zalezy od:
+│   ├── PostgreSQL (schema: tenant_4torun_pl)
+│   ├── Redis (cache)
+│   ├── API Server (dane)
+│   └── Domena Centralna (ustawienia)
+│
+├── Wplywa na:
+│   ├── Domena Centralna (logi, statystyki)
+│   └── Scraping (dane do importu)
+│
+└── Korzysta z:
+    ├── Szablony (z centrali)
+    ├── Zrodla danych (scraping)
+    └── Zewnetrzne API (pogoda)
+
+Scraper Worker
+├── Zalezy od:
+│   ├── RabbitMQ (kolejka zadan)
+│   ├── PostgreSQL (schema: public + tenant)
+│   └── Zrodla danych (URL-e)
+│
+├── Wplywa na:
+│   └── Domeny Regionalne (nowe wpisy)
+│
+└── Korzysta z:
+    ├── Zewnetrzne strony (pobieranie)
+    └── Proxy (opcjonalnie)
+```
+
+### 13.2 Korrelacje Danych
+
+| Tabela Centralna | Tabela Tenant | Relacja | Opis |
+|------------------|---------------|---------|------|
+| public.users | - | 1:N user_roles | Uzytkownik moze miec role w wielu domenach |
+| public.domains | schema.posts | 1:N | Domena ma wiele wpisow |
+| public.sources | schema.posts | 1:N | Zrodlo moze tworzyc wiele wpisow |
+| public.templates | public.domains | N:1 | Wiele domen moze uzywac tego samego szablonu |
+| public.cron_jobs | - | - | Niezalezne, ale moze wplywac na dane |
+| schema.posts | schema.comments | 1:N | Wpis ma wiele komentarzy |
+| schema.posts | schema.ratings | 1:N | Wpis ma wiele ocen |
+| schema.categories | schema.posts | N:M (post_categories) | Kategorie maja wiele wpisow |
+| schema.tags | schema.posts | N:M (post_tags) | Tagi maja wiele wpisow |
+
+---
+
+## 14. PODSUMOWANIE
+
+### 14.1 Co Zostalo Zaprojektowane
+
+1. **Architektura Multi-Tenant** - System pozwalajacy zarzadzac wieloma serwisami regionalnymi z jednego panelu
+2. **Baza Danych** - PostgreSQL z separacja schema per tenant
+3. **API** - REST API z pelna dokumentacja OpenAPI
+4. **Panel Centralny** - Kompletny panel do zarzadzania wszystkimi aspektami systemu
+5. **System Uprawnien** - RBAC z rolami globalnymi i per-domena
+6. **Scraping** - Automatyczne pobieranie danych ze zrodel zewnetrznych
+7. **SEO** - Pelna optymalizacja pod katalogi i wyszukiwarki
+8. **Monitoring** - System logow i raportow
+
+### 14.2 Kluczowe Funkcjonalnosci
+
+- Masowe operacje na wielu domenach
+- Elastyczny system szablonow
+- Automatyczny scraping z wielu zrodel
+- Zaawansowany system uprawnien
+- Pelne wsparcie SEO
+- Monitoring i raportowanie
+
+### 14.3 Technologie Wykorzystane
+
+- **Frontend**: Next.js 14, React, TypeScript, Tailwind CSS
+- **Backend**: Node.js, Express/Fastify, TypeScript, Prisma
+- **Scraping**: Python, aiohttp, BeautifulSoup
+- **Baza Danych**: PostgreSQL, Redis, RabbitMQ
+- **Hosting**: Wspoldzielony (zgodnie z wymaganiami)
+
+### 14.4 Nastepne Kroki
+
+1. Review dokumentacji
+2. Szacowanie kosztow i czasu
+3. Rozpoczecie implementacji (Etap 1)
+4. Regularne przeglady postepow
 
 ---
 
 ## ZALACZNIKI
 
-### A. Słownik Pojęć
-
-| Pojęcie | Definicja |
+### A. Slownik Pojec
+| Pojecie | Definicja |
 |---------|-----------|
-| **CPT** | Custom Post Type - niestandardowy typ wpisu (wiadomości, kronika, firmy) |
-| **RBAC** | Role-Based Access Control - kontrola dostępu oparta na rolach |
+| **CPT** | Custom Post Type - niestandardowy typ wpisu |
+| **RBAC** | Role-Based Access Control - kontrola dostepu oparta na rolach |
 | **Tenant** | Najemca - oddzielny serwis w systemie multi-tenant |
-| **Scraper** | Narzędzie do automatycznego pobierania danych ze źródeł zewnętrznych |
+| **Scraper** | Narzedzie do automatycznego pobierania danych |
 | **Slug** | Przyjazny dla URL identyfikator (np. "tytul-wpisu") |
-| **Schema** | Schemat bazy danych (public, tenant_4torun_pl) |
+| **Schema** | Schemat bazy danych |
+| **Sitemap** | Mapa strony w formacie XML |
 
 ### B. Linki i Zasoby
-
-- Next.js Docs: https://nextjs.org/docs
-- Tailwind CSS: https://tailwindcss.com
-- shadcn/ui: https://ui.shadcn.com
-- Prisma ORM: https://www.prisma.io/docs
+- Dokumentacja Next.js: https://nextjs.org/docs
+- Dokumentacja Prisma: https://www.prisma.io/docs
+- Dokumentacja PostgreSQL: https://www.postgresql.org/docs/
 - BeautifulSoup: https://www.crummy.com/software/BeautifulSoup/
 
-### 15.3 Szczegółowy Plan Zadań (Task Breakdown)
-
-Szczegółowy podział prac dla zespołu deweloperskiego. Każdy task zawiera estymację, odpowiedzialnego i kryteria akceptacji.
-
----
-
-#### 📋 ETAP 1: INFRASTRUKTURA (2 tygodnie)
-
-**Cel:** Przygotowanie środowiska produkcyjnego, instalacja i konfiguracja wszystkich komponentów infrastrukturalnych.
-
-| # | Zadanie | Odpowiedzialny | Estymacja | Kryteria Akceptacji | Zależności |
-|---|---------|----------------|-----------|---------------------|------------|
-| 1.1 | **Setup konta hostingowego** | DevOps | 4h | Konto aktywne, dostęp SSH działa, limity zweryfikowane | - |
-| 1.2 | **Konfiguracja domen** | DevOps | 4h | Wszystkie domeny (serwisy-lokalne-sterowanie.pl, 4torun.pl, 4bydgoszcz.pl) wskazują na serwer, DNS rozwiązują się poprawnie | 1.1 |
-| 1.3 | **Instalacja PostgreSQL 15** | DevOps | 6h | Baza zainstalowana, działa na porcie 5432, autostart skonfigurowany, firewall otwarty tylko dla localhost | 1.1 |
-| 1.4 | **Konfiguracja PostgreSQL (security)** | DevOps | 4h | Utworzony użytkownik app_user, silne hasło, uprawnienia ograniczone, logowanie włączone | 1.3 |
-| 1.5 | **Instalacja Redis** | DevOps | 3h | Redis działa na porcie 6379, autostart skonfigurowany, persistencja włączona | 1.1 |
-| 1.6 | **Instalacja RabbitMQ** | DevOps | 4h | RabbitMQ działa (management UI dostępny), użytkownik app_user utworzony, vhost skonfigurowany | 1.1 |
-| 1.7 | **Instalacja Node.js 20 LTS** | DevOps | 2h | Node v20.x zainstalowany, npm działa, n dostępny | 1.1 |
-| 1.8 | **Instalacja Python 3.11** | DevOps | 2h | Python 3.11 zainstalowany, pip działa, venv dostępny | 1.1 |
-| 1.9 | **Instalacja Nginx** | DevOps | 3h | Nginx zainstalowany, działa na porcie 80/443, konfiguracja domyślna działa | 1.1 |
-| 1.10 | **Konfiguracja SSL (Let's Encrypt)** | DevOps | 4h | Certyfikaty SSL wygenerowane dla wszystkich domen, auto-renewal skonfigurowane (cron), redirect HTTP→HTTPS działa | 1.2, 1.9 |
-| 1.11 | **Instalacja PM2** | DevOps | 2h | PM2 zainstalowany globalnie, logrotate skonfigurowane, startup script wygenerowany | 1.7 |
-| 1.12 | **Tworzenie struktury katalogów** | DevOps | 3h | Katalogi /domains, /shared, /workers, /logs utworzone, uprawnienia ustawione (www-data), quoty skonfigurowane | 1.1 |
-| 1.13 | **Konfiguracja firewall (UFW)** | DevOps | 3h | Otwarte porty: 22, 80, 443, 64321 (SSH custom), pozostałe zamknięte, reguły działają | 1.1 |
-| 1.14 | **Setup backupu automatycznego** | DevOps | 6h | Skrypty backupu (baza + pliki), cron codziennie o 2:00, retencja 30 dni, test restore wykonany | 1.3, 1.12 |
-| 1.15 | **Konfiguracja logrotate** | DevOps | 2h | Logi nginx, app, system rotowane codziennie, kompresja po 7 dniach, usuwanie po 90 dniach | 1.9 |
-| 1.16 | **Instalacja monitoringu (opcjonalnie)** | DevOps | 4h | Netdata lub podobne zainstalowane, dashboard dostępny, alerty skonfigurowane | 1.1 |
-
-**Deliverables Etapu 1:**
-- [ ] Serwer gotowy, wszystkie usługi działają
-- [ ] Dokumentacja dostępów (loginy, hasła w bezpiecznym miejscu)
-- [ ] Test połączenia do każdej usługi
-- [ ] Backup działa (przywrócony testowo)
-
----
-
-#### 📋 ETAP 2: BAZA DANYCH I API (2 tygodnie)
-
-**Cel:** Stworzenie architektury bazy danych multi-tenant oraz API centralnego z systemem autentykacji.
-
-| # | Zadanie | Odpowiedzialny | Estymacja | Kryteria Akceptacji | Zależności |
-|---|---------|----------------|-----------|---------------------|------------|
-| 2.1 | **Inicjalizacja projektu API** | Backend | 2h | Projekt Node.js + TypeScript utworzony, struktura katalogów, tsconfig, eslint, prettier | 1.7 |
-| 2.2 | **Instalacja zależności API** | Backend | 2h | Express, Prisma, Zod, JWT, bcrypt, cors, helmet, rate-limit zainstalowane | 2.1 |
-| 2.3 | **Konfiguracja Prisma** | Backend | 4h | Prisma zainicjalizowana, połączenie z DB działa, pierwszy model utworzony | 1.3, 2.2 |
-| 2.4 | **Projektowanie schema public** | Backend | 8h | Wszystkie tabele centralne (users, roles, domains, sources, cron_jobs) zaprojektowane w Prisma, relacje zdefiniowane | 2.3 |
-| 2.5 | **Projektowanie schema tenant** | Backend | 8h | Wszystkie tabele per tenant (posts, categories, comments, companies, jobs, etc.) zaprojektowane, relacje zdefiniowane | 2.4 |
-| 2.6 | **Migracje bazy danych** | Backend | 4h | Pierwsza migracja utworzona i wykonana, schema public istnieje w DB | 2.4, 2.5 |
-| 2.7 | **Setup struktury API** | Backend | 4h | Katalogi routes, controllers, services, middleware, utils utworzone, routing działa | 2.1 |
-| 2.8 | **Middleware autentykacji JWT** | Backend | 6h | Middleware weryfikujące token JWT działa, obsługa błędów (401, 403), refresh token mechanism | 2.7 |
-| 2.9 | **System RBAC (Role-Based Access Control)** | Backend | 8h | Middleware sprawdzające uprawnienia działa, helpery do sprawdzania ról, system działa per domena i globalnie | 2.8 |
-| 2.10 | **API Auth (login, register, refresh, logout)** | Backend | 6h | Endpointy /auth/* działają, walidacja Zod, hasła hashowane (bcrypt), tokeny generowane poprawnie | 2.8 |
-| 2.11 | **CRUD API dla domen** | Backend | 8h | Endpointy GET/POST/PUT/DELETE /domains działają, walidacja, obsługa błędów, paginacja | 2.9 |
-| 2.12 | **CRUD API dla użytkowników** | Backend | 8h | Endpointy /users działają, zarządzanie rolami, przypisywanie do domen | 2.9 |
-| 2.13 | **CRUD API dla źródeł (sources)** | Backend | 6h | Endpointy /sources działają, konfiguracja parserów zapisywana w JSONB | 2.9 |
-| 2.14 | **API dla masowych operacji** | Backend | 6h | Endpointy /mass/* działają, obsługa dodawania do wielu domen naraz | 2.11 |
-| 2.15 | **Walidacja requestów (Zod)** | Backend | 4h | Wszystkie endpointy walidują dane wejściowe, czytelne komunikaty błędów | Cały etap |
-| 2.16 | **Obsługa błędów i logowanie** | Backend | 4h | Centralny error handler, logi w Winston/structlog, stack traces w dev | Cały etap |
-| 2.17 | **Dokumentacja API (Swagger/OpenAPI)** | Backend | 4h | Specyfikacja OpenAPI dostępna pod /api-docs, wszystkie endpointy udokumentowane | Cały etap |
-| 2.18 | **Testy jednostkowe API** | Backend | 8h | Testy dla głównych endpointów (auth, domains, users), coverage > 70% | Cały etap |
-| 2.19 | **Model unified posts (JSONB metadata)** | Backend | 6h | Tabela posts z content_type i JSONB metadata dla wszystkich CPT, migracja | 2.5 |
-| 2.20 | **Model businesses (rozszerzony)** | Backend | 6h | Tabela businesses z pełną strukturą (PKD, godziny, adresy, walidacja NIP/REGON) | 2.5 |
-| 2.21 | **Model jobs (oferty pracy)** | Backend | 4h | Tabela jobs z wymaganiami, wynagrodzeniem, lokalizacją, walidacją | 2.5 |
-| 2.22 | **Model obituaries (nekrologi)** | Backend | 4h | Tabela obituaries z danymi zmarłego, ceremonią, kondolencjami | 2.5 |
-| 2.23 | **Model weather_cache (pogoda)** | Backend | 2h | Tabela weather_cache z JSONB dla current/hourly/daily, indeksy czasowe | 2.5 |
-| 2.24 | **Indeksy wyszukiwania full-text** | Backend | 4h | Indeksy GIN dla wyszukiwania po treści we wszystkich tabelach CPT | 2.19-2.23 |
-| 2.25 | **Walidatory NIP/REGON w DB** | Backend | 3h | CHECK constraints dla NIP (10 cyfr) i REGON (9/14 cyfr), funkcje walidacyjne | 2.20 |
-
-**Deliverables Etapu 2:**
-- [ ] Baza danych z pełnym schematem (public + tenant template)
-- [ ] API działa, wszystkie endpointy testowane w Postman/Insomnia
-- [ ] Dokumentacja API dostępna online
-- [ ] Testy jednostkowe przechodzą
-
----
-
-#### 📋 ETAP 3: PANEL ADMINISTRACYJNY CENTRALNY (3 tygodnie)
-
-**Cel:** Stworzenie interfejsu webowego do zarządzania całym systemem.
-
-| # | Zadanie | Odpowiedzialny | Estymacja | Kryteria Akceptacji | Zależności |
-|---|---------|----------------|-----------|---------------------|------------|
-| 3.1 | **Inicjalizacja projektu Next.js** | Frontend | 2h | Projekt Next.js 14 + TypeScript utworzony, App Router, Tailwind skonfigurowany | 1.7 |
-| 3.2 | **Instalacja shadcn/ui** | Frontend | 2h | shadcn/ui zainicjalizowany, podstawowe komponenty zainstalowane (button, card, input, dialog, table) | 3.1 |
-| 3.3 | **Setup klienta API** | Frontend | 4h | Klient HTTP (axios/fetch) z interceptors, obsługa tokenów, refresh token działa | 2.10 |
-| 3.4 | **System autentykacji (frontend)** | Frontend | 6h | Formularz logowania działa, przechowywanie tokenów (httpOnly cookie lub secure localStorage), protected routes | 3.3 |
-| 3.5 | **Layout główny panelu** | Frontend | 6h | Header, Sidebar, Main Content Area działają, responsywność działa (mobile menu), nawigacja między stronami | 3.2 |
-| 3.6 | **Strona Dashboard** | Frontend | 8h | Metryki wyświetlane, wykresy (Chart.js/Recharts) działają, dane pobierane z API | 3.5 |
-| 3.7 | **Lista domen (tabela)** | Frontend | 8h | Tabela z paginacją, sortowaniem, filtrowaniem, akcjami (edytuj, usuń), działa z API | 2.11 |
-| 3.8 | **Formularz dodawania domeny** | Frontend | 8h | Formularz z walidacją (Zod), upload logo (drag&drop), podgląd przed utworzeniem | 3.7 |
-| 3.9 | **Szczegóły domeny z zakładkami** | Frontend | 8h | Zakładki: Dashboard, Treści, Użytkownicy, Ustawienia działają, routing per zakładka | 3.7 |
-| 3.10 | **Zarządzanie użytkownikami systemu** | Frontend | 8h | Lista użytkowników, formularz dodawania, przypisywanie ról per domena | 2.12 |
-| 3.11 | **Zarządzanie źródłami scrapingu** | Frontend | 8h | Lista źródeł, formularz z konfiguracją parserów (JSON editor), przycisk "Uruchom scraping" | 2.13 |
-| 3.12 | **Moduł masowych operacji** | Frontend | 10h | Interfejs do dodawania bannerów/menu/wpisów do wielu domen, wybór domen (checkboxy), podgląd zmian | 2.14 |
-| 3.13 | **Przeglądarka logów** | Frontend | 8h | Tabela logów z filtrami (data, poziom, kategoria), paginacja, możliwość eksportu | 2.16 |
-| 3.14 | **Zarządzanie szablonami** | Frontend | 6h | Lista szablonów, edytor podstawowy, zastosowanie do wybranych domen | 3.2 |
-| 3.15 | **Obsługa błędów i toast notifications** | Frontend | 4h | Globalna obsługa błędów API, toast notifications działają, retry mechanism | Cały etap |
-| 3.16 | **Responsywność panelu** | Frontend | 6h | Panel działa poprawnie na tabletach i mobilnych (testowanie), menu dostosowane | Cały etap |
-| 3.17 | **Modele bazy football_teams** | Backend | 2h | Tabela football_teams w Prisma, relacje, migracja | 2.5 |
-| 3.18 | **Modele bazy football_matches** | Backend | 2h | Tabela football_matches w Prisma, relacje, migracja | 3.17 |
-| 3.19 | **Modele bazy football_standings** | Backend | 2h | Tabela football_standings w Prisma, relacje, migracja | 3.17 |
-| 3.20 | **API endpoints dla drużyn piłkarskich** | Backend | 4h | CRUD endpointy /football/teams działają, walidacja Zod | 3.17 |
-| 3.21 | **API endpoints dla meczów** | Backend | 4h | CRUD endpointy /football/matches działają, filtrowanie per drużyna | 3.18 |
-| 3.22 | **API endpoints dla tabeli ligowej** | Backend | 3h | Endpointy /football/standings działają, różne typy tabel | 3.19 |
-| 3.23 | **Modele bazy leaflet_shops** | Backend | 2h | Tabela leaflet_shops w Prisma, migracja | 2.5 |
-| 3.24 | **Modele bazy leaflets i pages** | Backend | 3h | Tabele leaflets i leaflet_pages w Prisma, migracja | 3.23 |
-| 3.25 | **Modele bazy domain_shops** | Backend | 2h | Tabela domain_shops (przypisania sklepów do domen) | 3.23 |
-| 3.26 | **API endpoints dla sklepów gazetek** | Backend | 4h | CRUD endpointy /leaflet-shops działają | 3.23 |
-| 3.27 | **API endpoints dla gazetek** | Backend | 4h | Endpointy /leaflets z obsługą stron, upload okładek | 3.24 |
-| 3.28 | **Modele bazy famous_people** | Backend | 2h | Tabela famous_people w Prisma, pola AI, migracja | 2.5 |
-| 3.29 | **Modele bazy domain_famous_people** | Backend | 2h | Tabela przypisań osób do domen | 3.28 |
-| 3.30 | **API endpoints dla sławnych osób** | Backend | 4h | CRUD endpointy /famous-people, integracja z OpenAI | 3.28 |
-| 3.31 | **Serwis OpenAI API** | Backend | 6h | Klient OpenAI, prompt template, parsing odpowiedzi, obsługa błędów | 3.30 |
-| 3.32 | **Walidacja danych modułów rozszerzonych** | Backend | 4h | Wszystkie nowe endpointy walidują dane, testy | Cały etap |
-
-**Deliverables Etapu 3:**
-- [ ] Panel centralny działa pod serwisy-lokalne-sterowanie.pl
-- [ ] Można dodać nową domenę przez interfejs
-- [ ] Można zarządzać użytkownikami i źródłami
-- [ ] Wszystkie funkcje przetestowane manualnie
-
----
-
-#### 📋 ETAP 4: SYSTEM SCRAPINGU (2 tygodnie)
-
-**Cel:** Implementacja workerów pobierających dane ze źródeł zewnętrznych.
-
-| # | Zadanie | Odpowiedzialny | Estymacja | Kryteria Akceptacji | Zależności |
-|---|---------|----------------|-----------|---------------------|------------|
-| 4.1 | **Inicjalizacja projektu Python** | Backend | 2h | Struktura katalogów, requirements.txt, venv | 1.8 |
-| 4.2 | **Instalacja zależności Python** | Backend | 2h | aiohttp, beautifulsoup4, pika, psycopg2, python-dotenv zainstalowane | 4.1 |
-| 4.3 | **Moduł połączenia z PostgreSQL** | Backend | 4h | Klient asyncpg/psycopg2 działa, połączenie pulowane, transakcje działają | 4.2 |
-| 4.4 | **Moduł połączenia z RabbitMQ** | Backend | 4h | Consumer działa, reconnect po utracie połączenia, kolejki deklarowane | 4.2, 1.6 |
-| 4.5 | **Moduł HTTP fetcher** | Backend | 6h | Pobieranie stron działa, obsługa timeoutów, retry logic (3 próby), headers User-Agent | 4.2 |
-| 4.6 | **Parser HTML (BeautifulSoup)** | Backend | 8h | Selektory CSS działają, ekstrakcja tytułu, treści, daty, obrazków działa | 4.5 |
-| 4.7 | **Parser RSS/Atom** | Backend | 4h | Parsowanie RSS działa, obsługa różnych formatów | 4.5 |
-| 4.8 | **Parser JSON/API** | Backend | 4h | Parsowanie JSON działa, obsługa nested structures | 4.5 |
-| 4.9 | **Dekodowanie base64 URL-i** | Backend | 3h | Źródła z base64 encoded URL (jak policja.gov.pl) są poprawnie dekodowane | 4.6 |
-| 4.10 | **System mapowania pól** | Backend | 6h | Mapping konfiguracji na pola bazy działa, obsługa template strings | 4.6 |
-| 4.11 | **Zapisywanie do bazy (upsert)** | Backend | 6h | Wpisy tworzone/aktualizowane poprawnie, obsługa duplikatów (external_id), transakcje | 4.3 |
-| 4.12 | **Czyszczenie cache po scrapingu** | Backend | 3h | Po zapisaniu danych, cache Redis jest invalidowany dla danej domeny | 4.11, 1.5 |
-| 4.13 | **Obsługa błędów i logowanie** | Backend | 4h | Błędy logowane szczegółowo, failed jobs wracają do kolejki (dead letter queue) | Cały etap |
-| 4.14 | **Skrypt testujący parser** | Backend | 4h | Można przetestować parser na konkretnym URL bez zapisywania do bazy | 4.6 |
-| 4.15 | **Konfiguracja cron jobs (systemowych)** | DevOps | 4h | Cron uruchamia scrapery wg harmonogramu, logi zapisywane | 1.1, 4.4 |
-| 4.16 | **Monitoring workerów** | Backend | 3h | Health check endpoint, metryki (przetworzone elementy, błędy) | Cały etap |
-| 4.17 | **Parser Sofascore HTML** | Backend | 8h | Selektory CSS dla Sofascore, ekstrakcja danych drużyny, meczów | 4.6 |
-| 4.18 | **Scraper meczów piłkarskich (Sofascore)** | Backend | 6h | Worker pobiera mecze, wyniki, daty, zapisuje do bazy | 4.17 |
-| 4.19 | **Scraper tabeli ligowej** | Backend | 4h | Worker pobiera pozycje w tabeli, statystyki drużyn | 4.17 |
-| 4.20 | **Scraper składów drużyn** | Backend | 4h | Worker pobiera listę zawodników z pozycjami | 4.17 |
-| 4.21 | **Scheduler dla scrapingu piłkarskiego** | Backend | 3h | Cron dla meczów (co 1h), tabeli (co 6h), składów (co 24h) | 4.18-4.20 |
-| 4.22 | **Cache dla danych piłkarskich** | Backend | 2h | Redis cache dla często pobieranych danych | 4.21 |
-| 4.23 | **Parser Blix.pl - lista sklepów** | Backend | 6h | Selektory dla sklepów, kategorii, logotypów | 4.6 |
-| 4.24 | **Parser Blix.pl - gazetki** | Backend | 6h | Ekstrakcja gazetek, okładek, dat ważności, liczby stron | 4.23 |
-| 4.25 | **Downloader obrazków gazetek** | Backend | 4h | Pobieranie okładek i stron gazetek lokalnie, optymalizacja | 4.24 |
-| 4.26 | **Archiwizacja starych gazetek** | Backend | 3h | Przenoszenie do archiwum po X dniach, opcjonalne usuwanie | 4.25 |
-| 4.27 | **Scheduler dla gazetek** | Backend | 3h | Cron co 6h sprawdza nowe gazetki | 4.24-4.26 |
-| 4.28 | **Parser Wikipedii dla osób** | Backend | 5h | Ekstrakcja infobox, daty urodzenia, miejsca, zdjęcia | 4.6 |
-| 4.29 | **AI Processor dla biografii** | Backend | 6h | Wysyłanie do OpenAI, parsowanie JSON, zapisywanie wyników | 4.28, 3.31 |
-| 4.30 | **Scheduler dla sławnych osób** | Backend | 3h | Cron do przetwarzania kolejki osób, batch processing | 4.29 |
-| 4.31 | **System kolejkowania AI** | Backend | 4h | Kolejka osób do przetworzenia, retry mechanism, logi | 4.29 |
-| 4.32 | **ContentProcessingPipeline (framework)** | Backend | 8h | Abstrakcyjna klasa pipeline z extract/map/normalize/validate dla wszystkich scraperów | 4.6 |
-| 4.33 | **Mapowanie Policja → NormalizedContent** | Backend | 4h | Konfiguracja mapowania pól, ekstrakcja typu zdarzenia, parsowanie daty i miejsca | 4.32 |
-| 4.34 | **Mapowanie Urząd Miasta → NormalizedContent** | Backend | 4h | Konfiguracja mapowania, wykrywanie galerii zdjęć, kategoryzacja po URL | 4.32 |
-| 4.35 | **Mapowanie OLX → BusinessMetadata** | Backend | 6h | Ekstrakcja kategorii, telefonów, mapowanie kategorii OLX→nasze | 4.32 |
-| 4.36 | **Mapowanie Facebook → BusinessMetadata** | Backend | 6h | Parsowanie stron firmowych, godzin otwarcia, lokalizacji | 4.32 |
-| 4.37 | **Mapowanie pracuj.pl → JobMetadata** | Backend | 5h | Ekstrakcja wynagrodzenia, wymagań, typu umowy | 4.32 |
-| 4.38 | **Słownik kategorii biznesowych (PKD)** | Backend | 6h | Mapowanie kodów PKD na nasze kategorie biznesowe, baza synonimów | 4.35, 4.36 |
-| 4.39 | **System normalizacji adresów** | Backend | 4h | Normalizacja ul.→ulica, skróty, dopasowanie do słownika ulic miasta | 4.33-4.37 |
-| 4.40 | **System walidacji NIP/REGON** | Backend | 3h | Algorytmy checksum, weryfikacja poprawności numerów | 4.35, 4.36 |
-| 4.41 | **Testy integracyjne dla pipeline** | Backend | 6h | Testy end-to-end dla wszystkich mapowań, mocki HTML | 4.33-4.40 |
-
-**Deliverables Etapu 4:**
-- [ ] Scraper działa i pobiera dane z policja.gov.pl (format NormalizedContent)
-- [ ] Scraper działa i pobiera dane z torun.pl (format NormalizedContent)
-- [ ] Dane są normalizowane i walidowane przed zapisem
-- [ ] ContentProcessingPipeline działa dla wszystkich źródeł
-- [ ] Dane pojawiają się w bazie w ujednoliconym formacie
-- [ ] Cron uruchamia scrapery automatycznie
-
----
-
-#### 📋 ETAP 5: FRONTEND SERWISU REGIONALNEGO (4 tygodnie)
-
-**Cel:** Stworzenie strony publicznej dla serwisów regionalnych (4torun.pl, itp.).
-
-| # | Zadanie | Odpowiedzialny | Estymacja | Kryteria Akceptacji | Zależności |
-|---|---------|----------------|-----------|---------------------|------------|
-| 5.1 | **Setup projektu Next.js (kopia template)** | Frontend | 2h | Projekt sklonowany z template, działa lokalnie, połączenie z API centralnym | 3.1 |
-| 5.2 | **Implementacja ThemeProvider** | Frontend | 6h | Kolory z API są dynamicznie wczytywane i stosowane, zmiany w panelu od razu widać na stronie | 5.1, 10.2 |
-| 5.3 | **Komponent Header** | Frontend | 8h | Logo, menu, dropdowny, sticky header, mobile menu (hamburger), warianty (default/transparent) | 5.2 |
-| 5.4 | **Komponent InfoBar** | Frontend | 6h | Data, imieniny, pogoda, jakość powietrza wyświetlane poprawnie, odświeżanie danych | 5.2 |
-| 5.5 | **Komponent Navigation** | Frontend | 6h | Menu z CPT, dropdowny, wyróżnione elementy, responsywne | 5.3 |
-| 5.6 | **Komponent HeroSection** | Frontend | 8h | Układ jak na zrzutach (główna wiadomość + boczne + mini), responsywny | 5.2 |
-| 5.7 | **Komponent NewsCard + NewsGrid** | Frontend | 8h | Wszystkie warianty (default, featured, horizontal, overlay), Masonry/grid działa | 5.2 |
-| 5.8 | **Komponent CategoryGrid (Firmy)** | Frontend | 6h | Grid z ikonami, hover effects, linki działają | 5.2 |
-| 5.9 | **Komponent JobCard** | Frontend | 6h | Wyświetlanie ofert pracy, filtry, sortowanie | 5.2 |
-| 5.10 | **Komponent ObituaryCard** | Frontend | 6h | Specjalny design dla nekrologów, znicze, formatowanie | 5.2 |
-| 5.11 | **Strona Główna (Home)** | Frontend | 10h | Wszystkie sekcje zgodnie z projektem (Hero, Wiadomości, Kronika, Firmy, Praca, Przewodnik, Nekrologi, Ludzie), dane z API | 5.3-5.10 |
-| 5.12 | **Strona Archiwum (lista wpisów)** | Frontend | 8h | Filtrowanie, paginacja, sidebar z kategoriami, działa dla wszystkich CPT | 5.7 |
-| 5.13 | **Strona Pojedynczego Wpisu** | Frontend | 10h | Wyświetlanie treści, galeria, autor, źródło, oceny, komentarze, related posts | 5.7 |
-| 5.14 | **System komentarzy (wyświetlanie + dodawanie)** | Frontend | 8h | Lista komentarzy, formularz dodawania (dla niezalogowanych też), odpowiedzi | 5.13 |
-| 5.15 | **System ocen (rating)** | Frontend | 6h | Gwiazdki, średnia wyświetlana, możliwość głosowania | 5.13 |
-| 5.16 | **Komponent WeatherPage (szczegóły)** | Frontend | 6h | Strona /pogoda z mapą, 5-dniową prognozą, szczegółami | 5.4 |
-| 5.17 | **Komponent Footer** | Frontend | 6h | 3 kolumny, najnowsze wpisy, linki, social media, newsletter | 5.2 |
-| 5.18 | **SEO (meta tagi)** | Frontend | 6h | Dynamiczne meta tagi per strona, Open Graph, Twitter Cards | 12 |
-| 5.19 | **Generowanie sitemap.xml** | Frontend | 4h | Sitemap generowana dynamicznie, działa dla robotów | 5.18 |
-| 5.20 | **Lazy loading obrazków** | Frontend | 4h | Blur placeholder, lazy loading działa, Lighthouse performance > 80 | 5.7 |
-| 5.21 | **Responsywność (mobile)** | Frontend | 8h | Wszystkie strony działają na mobile (320px+), testowane | Cały etap |
-| 5.22 | **Optymalizacja Core Web Vitals** | Frontend | 6h | LCP < 2.5s, FID < 100ms, CLS < 0.1, testy w PageSpeed Insights | Cały etap |
-| 5.23 | **Komponent TeamLogo (piłka nożna)** | Frontend | 2h | Logo drużyny z obsługą różnych rozmiarów, lazy loading | 5.1 |
-| 5.24 | **Komponent MatchCard** | Frontend | 4h | Karta meczu z datą, wynikiem, drużynami, statusami | 5.23 |
-| 5.25 | **Komponent MatchesList** | Frontend | 4h | Lista meczów z paginacją, filtrowaniem per turniej | 5.24 |
-| 5.26 | **Komponent StandingsTable** | Frontend | 6h | Tabela ligowa z pozycjami, formą, kolorowaniem statusów | 5.1 |
-| 5.27 | **Komponent FormChart (SVG)** | Frontend | 6h | Wykres formy drużyny (pozycja w czasie), interaktywny | 5.1 |
-| 5.28 | **Strona drużyny (/druzyna/:slug)** | Frontend | 6h | Hero, mecze, tabela, forma, skład - wszystko w zakładkach | 5.25-5.27 |
-| 5.29 | **Widget NextMatch (strona główna)** | Frontend | 3h | Najbliższy mecz z odliczaniem, na stronie głównej | 5.24 |
-| 5.30 | **Widget LastResult** | Frontend | 3h | Ostatni wynik z wyróżnieniem W/D/L | 5.24 |
-| 5.31 | **Sekcja Sport na stronie głównej** | Frontend | 4h | Widgety meczowe + mini-tabela, konfigurowalne | 5.29, 5.30 |
-| 5.32 | **Komponent ShopIcon (gazetki)** | Frontend | 2h | Logo sklepu z efektem hover (scale + shadow) | 5.1 |
-| 5.33 | **Komponent ShopIconsGrid** | Frontend | 3h | Siatka logotypów sklepów, scrollowana, klikalna | 5.32 |
-| 5.34 | **Komponent LeafletCard** | Frontend | 3h | Karta gazetki z okładką, badge'em statusu, datą | 5.1 |
-| 5.35 | **Komponent LeafletCarousel** | Frontend | 4h | Karuzela gazetek z auto-scroll, nawigacją | 5.34 |
-| 5.36 | **Przeglądarka gazetki (Viewer)** | Frontend | 8h | Zoom, fullscreen, miniaturki stron, nawigacja | 5.34 |
-| 5.37 | **Strona /gazetki i /gazetki/sklep/:slug** | Frontend | 4h | Lista gazetek z filtrami, archiwum | 5.33, 5.35 |
-| 5.38 | **Sekcja Gazetek na stronie głównej** | Frontend | 3h | Grid sklepów + karuzela gazetek | 5.33, 5.35 |
-| 5.39 | **Komponent PersonCard (sławni ludzie)** | Frontend | 3h | Karta osoby ze zdjęciem, zawodem, opisem | 5.1 |
-| 5.40 | **Komponent BornHereWidget** | Frontend | 4h | Widget "Sławni urodzeni w mieście" na stronę główną | 5.39 |
-| 5.41 | **Strona /slawni-urodzeni** | Frontend | 4h | Lista osób z filtrem i sortowaniem | 5.39 |
-| 5.42 | **Strona /slawni-urodzeni/:slug** | Frontend | 5h | Szczegóły osoby, biografia, osiągnięcia, related | 5.41 |
-| 5.43 | **Sekcja Sławni Ludzie na stronie głównej** | Frontend | 3h | Featured person + grid miniatur | 5.40 |
-
-**Deliverables Etapu 5:**
-- [ ] Strona 4torun.pl działa publicznie
-- [ ] Wszystkie sekcje wyglądają jak na zrzutach
-- [ ] Sekcja Sport działa (mecze, tabela, forma)
-- [ ] Sekcja Gazetek działa (sklepy, przeglądarka)
-- [ ] Sekcja Sławni Ludzie działa (profile, lista)
-- [ ] Responsywność działa
-- [ ] SEO meta tagi są poprawne
-- [ ] Core Web Vitals na zielono
-
----
-
-#### 📋 ETAP 6: PANEL ADMINISTRACYJNY SERWISU (2 tygodnie)
-
-**Cel:** Panel zarządzania dla konkretnego serwisu regionalnego.
-
-| # | Zadanie | Odpowiedzialny | Estymacja | Kryteria Akceptacji | Zależności |
-|---|---------|----------------|-----------|---------------------|------------|
-| 6.1 | **Layout panelu serwisu** | Frontend | 4h | Sidebar nawigacyjny, header z info o domenie, działa na mobile | 5.1 |
-| 6.2 | **Dashboard serwisu** | Frontend | 6h | Statystyki (wyświetlenia, wpisy, komentarze), wykres, aktywność | 6.1 |
-| 6.3 | **Lista wpisów (tabela)** | Frontend | 8h | Tabela z filtrami (typ, status, kategoria), akcje (edytuj, usuń, podgląd), sortowanie | 6.1 |
-| 6.4 | **Edytor wpisów (Rich Text)** | Frontend | 12h | TipTap editor działa, formatowanie, dodawanie obrazków, zapisywanie wersji | 6.3 |
-| 6.5 | **Upload obrazków (Media Library)** | Frontend | 8h | Drag&drop upload, przeglądarka mediów, wybór do wpisu, usuwanie | 6.4 |
-| 6.6 | **Zarządzanie kategoriami** | Frontend | 6h | Drzewo kategorii, dodawanie, edycja, usuwanie, sortowanie (drag&drop) | 6.1 |
-| 6.7 | **Zarządzanie tagami** | Frontend | 4h | Lista tagów, autosuggest przy dodawaniu do wpisu, możliwość łączenia | 6.1 |
-| 6.8 | **Budowniczy menu (Menu Builder)** | Frontend | 8h | Drag&drop do tworzenia menu, hierarchia, wybór linków (strony/wpisy/kategorie) | 6.1 |
-| 6.9 | **Zarządzanie widgetami** | Frontend | 6h | Lista widgetów, konfiguracja per pozycja, włączanie/wyłączanie | 6.1 |
-| 6.10 | **Zarządzanie bannerami** | Frontend | 6h | Lista bannerów, upload obrazków, daty wyświetlania, pozycje | 6.1 |
-| 6.11 | **Ustawienia serwisu (ogólne)** | Frontend | 6h | Nazwa, opis, kontakt, social media, kolory (podstawowe) | 6.1 |
-| 6.12 | **Edytor motywu (zaawansowany)** | Frontend | 8h | Color pickery, wybór fontów, podgląd na żywo, eksport/import | 6.11 |
-| 6.13 | **Ustawienia SEO per serwis** | Frontend | 6h | Globalne meta tagi, robots.txt, struktura permalinków | 6.11 |
-| 6.14 | **Konfiguracja modułu piłki nożnej** | Frontend | 4h | Wybór drużyny, daty wyświetlania, włączanie widgetów | 6.11 |
-| 6.15 | **Podgląd tabeli ligowej** | Frontend | 3h | Podgląd live tabeli w panelu admina | 6.14 |
-| 6.16 | **Zarządzanie sklepami (gazetki)** | Frontend | 4h | Lista sklepów, przypisywanie do domeny, kolejność | 6.1 |
-| 6.17 | **Podgląd gazetek** | Frontend | 4h | Lista gazetek, status, ręczna archiwizacja, podgląd | 6.16 |
-| 6.18 | **Zarządzanie składem drużyny** | Frontend | 3h | Tabela zawodników, edycja pozycji, wyróżnianie | 6.15 |
-| 6.19 | **Konfiguracja modułu sławnych osób** | Frontend | 3h | Zakres dat, źródła Wikipedii, limity AI | 6.1 |
-| 6.20 | **Panel weryfikacji AI** | Frontend | 6h | Lista osób do weryfikacji, approve/reject, edycja | 6.19 |
-| 6.21 | **Podgląd osoby przed publikacją** | Frontend | 3h | Full preview z confidence score | 6.20 |
-
-**Deliverables Etapu 6:**
-- [ ] Panel /admin działa na 4torun.pl
-- [ ] Można dodać, edytować, usunąć wpis
-- [ ] Media library działa
-- [ ] Można zmienić motyw kolorystyczny
-- [ ] Moduł piłki nożnej skonfigurowany (drużyna, widgety)
-- [ ] Moduł gazetek skonfigurowany (sklepy, archiwizacja)
-- [ ] Moduł sławnych osób działa (scraping, weryfikacja AI)
-
----
-
-#### 📋 ETAP 7: DEPLOYMENT I TESTOWANIE (1 tydzień)
-
-**Cel:** Wdrożenie pierwszego serwisu produkcyjnie i testowanie całości.
-
-| # | Zadanie | Odpowiedzialny | Estymacja | Kryteria Akceptacji | Zależności |
-|---|---------|----------------|-----------|---------------------|------------|
-| 7.1 | **Konfiguracja 4torun.pl w panelu centralnym** | DevOps | 4h | Domena dodana przez panel, schema utworzona, pliki skopiowane | 3.8 |
-| 7.2 | **Import początkowych danych** | Backend | 4h | Przykładowe wpisy dodane, kategorie utworzone, menu skonfigurowane | 7.1 |
-| 7.3 | **Konfiguracja źródeł scrapingu dla 4torun.pl** | Backend | 3h | Policja i Urząd Miasta dodane jako źródła, pierwszy scraping wykonany | 4.16, 7.1 |
-| 7.4 | **Konfiguracja SSL dla 4torun.pl** | DevOps | 2h | Certyfikat działa, redirect HTTP→HTTPS działa | 1.10, 7.1 |
-| 7.11 | **Konfiguracja drużyny piłkarskiej** | Backend | 2h | Wyszukanie ID drużyny w Sofascore, konfiguracja w panelu | 4.19, 7.1 |
-| 7.12 | **Pierwszy scraping meczów piłkarskich** | Backend | 1h | Mecze w bazie, widgety się wyświetlają | 7.11 |
-| 7.13 | **Konfiguracja sklepów dla gazetek** | Backend | 1h | Wybrane sklepy przypisane do 4torun.pl | 4.24, 7.1 |
-| 7.14 | **Pierwszy scraping gazetek** | Backend | 1h | Gazetki w bazie, pokazują się na stronie | 7.13 |
-| 7.15 | **Konfiguracja AI dla sławnych osób** | Backend | 2h | Klucz OpenAI, zakres dat (1840-1980) | 4.29, 7.1 |
-| 7.16 | **Testowy scraping osób z Wikipedii** | Backend | 1h | Osoby w kolejce AI, pierwsze przetworzenia | 7.15 |
-| 7.5 | **Testy end-to-end (E2E)** | QA | 8h | Testy w Cypress/Playwright przechodzą (logowanie, dodanie wpisu, scraping) | Cały etap |
-| 7.6 | **Testy wydajnościowe** | DevOps | 4h | Load testing (100 równoczesnych użytkowników), odpowiedź < 200ms | Cały etap |
-| 7.7 | **Testy bezpieczeństwa (podstawowe)** | DevOps | 4h | Brak krytycznych podatności w npm audit, headers bezpieczeństwa działają | Cały etap |
-| 7.8 | **Backup przed uruchomieniem** | DevOps | 2h | Pełny backup wykonany i zweryfikowany | 1.14 |
-| 7.9 | **Uruchomienie produkcyjne** | DevOps | 2h | Strona dostępna publicznie, monitoring działa | Cały etap |
-| 7.10 | **Poprawki po testach** | Cały zespół | 8h | Zgłoszone błędy naprawione, retesty przechodzą | 7.5-7.7 |
-
-**Deliverables Etapu 7:**
-- [ ] 4torun.pl działa produkcyjnie
-- [ ] Sekcja Sport działa (mecze, tabela, forma)
-- [ ] Sekcja Gazetek działa (sklepy, przeglądarka)
-- [ ] Sekcja Sławni Ludzie działa (AI scraping, weryfikacja)
-- [ ] Testy E2E przechodzą (w tym nowe moduły)
-- [ ] Wydajność jest akceptowalna
-- [ ] Backup działa
-
----
-
-#### 📋 ETAP 8: DOKUMENTACJA I PRZEKAZANIE (1 tydzień)
-
-**Cel:** Przygotowanie dokumentacji i szkolenie użytkowników.
-
-| # | Zadanie | Odpowiedzialny | Estymacja | Kryteria Akceptacji | Zależności |
-|---|---------|----------------|-----------|---------------------|------------|
-| 8.1 | **Dokumentacja techniczna** | Backend | 8h | Architektura, API, deployment opisane, diagramy aktualne | Cały etap |
-| 8.2 | **Dokumentacja użytkownika (panel centralny)** | Frontend | 6h | Instrukcja obsługi panelu centralnego ze zrzutami ekranu | 8.1 |
-| 8.3 | **Dokumentacja użytkownika (panel serwisu)** | Frontend | 6h | Instrukcja dodawania wpisów, zarządzania treścią | 8.1 |
-| 8.10 | **Dokumentacja modułu piłki nożnej** | Backend | 3h | Konfiguracja drużyny, edycja składu, troubleshooting | 8.1 |
-| 8.11 | **Dokumentacja modułu gazetek** | Frontend | 2h | Dodawanie sklepów, archiwizacja, podgląd | 8.1 |
-| 8.12 | **Dokumentacja modułu sławnych osób** | Backend | 3h | Konfiguracja AI, weryfikacja wyników, koszty API | 8.1 |
-| 8.4 | **Szkolenie administratorów** | Cały zespół | 4h | Szkolenie przeprowadzone, materiały przekazane, pytania omówione | 8.2 |
-| 8.5 | **Szkolenie redaktorów** | Frontend | 4h | Szkolenie z edytora wpisów, publikowania, zarządzania mediami | 8.3 |
-| 8.6 | **Przekazanie dostępów i haseł** | DevOps | 2h | Hasła przekazane bezpiecznym kanałem, lista kont i uprawnień | Cały etap |
-| 8.7 | **Ostateczne testy akceptacyjne (UAT)** | Klient | 4h | Klient akceptuje system lub zgłasza ostatnie poprawki | Cały etap |
-| 8.8 | **Poprawki po UAT** | Cały zespół | 8h | Zgłoszenia z UAT naprawione | 8.7 |
-| 8.9 | **Podpisanie protokołu odbioru** | PM | 1h | Dokument podpisany przez obie strony | 8.8 |
-
-**Deliverables Etapu 8:**
-- [ ] Dokumentacja kompletna
-- [ ] Szkolenia przeprowadzone
-- [ ] Protokół odbioru podpisany
-- [ ] System przekazany do użytkowania
-
----
-
-### 15.4 Harmonogram i Zależności Krytyczne
-
-```mermaid
-gantt
-    title Project Timeline (z nowymi modułami)
-    dateFormat  YYYY-MM-DD
-    section Infrastructure
-    Setup hosting            :done, infra1, 2026-02-17, 10d
-    Install services         :done, infra2, after infra1, 4d
-    
-    section Database and API
-    Database design          :active, db1, after infra2, 5d
-    API implementation       :db2, after db1, 9d
-    New module models        :db3, after db2, 3d
-    New module API endpoints :db4, after db3, 4d
-    
-    section Admin Panel
-    Frontend setup           :admin1, after db2, 2d
-    Module implementation    :admin2, after admin1, 19d
-    
-    section Scraping
-    Worker implementation    :scrap1, after db2, 10d
-    Cron configuration       :scrap2, after scrap1, 4d
-    Football scraper         :scrap3, after scrap2, 5d
-    Leaflet scraper          :scrap4, after scrap2, 4d
-    Famous people scraper    :scrap5, after scrap2, 6d
-    
-    section Frontend
-    UI Components            :front1, after admin1, 14d
-    Public pages             :front2, after front1, 14d
-    Football widgets         :front3, after front2, 5d
-    Leaflet components       :front4, after front2, 4d
-    Famous people views      :front5, after front2, 5d
-    
-    section Site Panel
-    Edytor i funkcje         :site1, after front1, 10d
-    Football config          :site2, after site1, 3d
-    Leaflet config           :site3, after site1, 2d
-    Famous people config     :site4, after site1, 3d
-    
-    section Deployment
-    Testy i wdrożenie        :deploy1, after front2, 5d
-    Module deployment        :deploy2, after deploy1, 3d
-    
-    section Dokumentacja
-    Docs i szkolenia         :doc1, after deploy2, 5d
-```
-
-**Ścieżka krytyczna:**
-Infrastruktura → Baza + API (oryginalne + nowe modele) → Panel Centralny (Setup) → Frontend (Komponenty + Strony) → Frontend (Nowe moduły) → Deployment
-
-**Całkowity czas:** ~22-23 tygodnie (ok. 5.5 miesiąca) z nowymi modułami i standardami danych, 17 tygodni bez
-
----
-
-### 15.5 Pełna Lista Zadań - Wszystkie Etapy
-
-**Podsumowanie statystyk (oryginalne + nowe moduły + standardy danych):**
-- **Etap 1 (Infrastruktura):** 10 zadań → 10 zadań
-- **Etap 2 (Baza danych):** 12 zadań → 22 zadań (+modele dla modułów + unified CPT)
-- **Etap 3 (Backend API):** 15 zadań → 24 zadań (+endpointy dla modułów)
-- **Etap 4 (Scraping):** 16 zadań → 39 zadań (+scrapery piłki, gazetek, osób + mapowania CPT)
-- **Etap 5 (Frontend publiczny):** 22 zadania → 43 zadania (+komponenty modułów)
-- **Etap 6 (Panel admina):** 13 zadań → 21 zadań (+konfiguracja modułów)
-- **Etap 7 (Deployment):** 10 zadań → 16 zadań (+konfiguracja modułów)
-- **Etap 8 (Dokumentacja):** 9 zadań → 12 zadań (+dokumentacja modułów)
-- **RAZEM:** 107 zadań → 187 zadań (~160h dodatkowych = ~20-21 dni roboczych)
-
-#### Lista zadań z nowych modułów (do przypisania webdev):
-
-**Moduł Piłki Nożnej (17 zadań):**
-```
-[ ] 2.13 - Model football_teams (tabela, migracje, indeksy)
-[ ] 2.14 - Model football_matches (relacje, constraints)
-[ ] 2.15 - Model football_standings (pozycje w tabeli)
-[ ] 3.17 - API GET /football/teams/:id (dane drużyny)
-[ ] 3.18 - API GET /football/matches (lista meczów z filtrowaniem)
-[ ] 3.19 - API GET /football/standings (tabela ligowa)
-[ ] 3.20 - API GET /football/form/:teamId (forma drużyny)
-[ ] 4.17 - Parser Sofascore HTML (wykrywanie struktury)
-[ ] 4.18 - Ekstrakcja meczów (BeautifulSoup, parsowanie dat)
-[ ] 4.19 - Ekstrakcja tabeli ligowej (pozycja, punkty)
-[ ] 4.20 - Ekstrakcja składu (zawodnicy, numery)
-[ ] 4.21 - Scheduler meczów (cron co 1h przed meczem)
-[ ] 5.23 - Komponent TeamLogo (logo drużyny)
-[ ] 5.24 - Komponent MatchCard (karta meczu)
-[ ] 5.25 - Komponent MatchesList (lista meczów)
-[ ] 5.26 - Komponent StandingsTable (tabela ligowa)
-[ ] 5.27 - Komponent FormChart (wykres formy SVG)
-[ ] 5.28 - Strona drużyny (/druzyna/:slug)
-[ ] 5.29 - Widget NextMatch (najbliższy mecz)
-[ ] 5.30 - Widget LastResult (ostatni wynik)
-[ ] 5.31 - Sekcja Sport na stronie głównej
-[ ] 6.14 - Konfiguracja modułu piłki nożnej (panel)
-[ ] 6.15 - Podgląd tabeli ligowej w panelu
-[ ] 6.18 - Zarządzanie składem drużyny
-[ ] 7.11 - Konfiguracja drużyny piłkarskiej
-[ ] 7.12 - Pierwszy scraping meczów
-[ ] 8.10 - Dokumentacja modułu piłki nożnej
-```
-
-**Moduł Gazetek (12 zadań):**
-```
-[ ] 2.16 - Model promotional_leaflets (tabele, JSON pages)
-[ ] 2.17 - Model shops (globalna lista sklepów)
-[ ] 2.18 - Model domain_shops (przypisanie do domen)
-[ ] 3.21 - API GET /leaflets (lista gazetek z filtrowaniem)
-[ ] 3.22 - API GET /leaflets/:id/pages (strony gazetki)
-[ ] 3.23 - API GET /shops (lista sklepów per domena)
-[ ] 4.22 - Scraper Blix.pl (lista sklepów)
-[ ] 4.23 - Parser gazetek (strony, okładki, daty ważności)
-[ ] 4.24 - Scheduler gazetek (cron co 6h)
-[ ] 4.25 - Archiwizacja gazetek (auto po 20 dniach)
-[ ] 5.32 - Komponent ShopIcon (logo sklepu)
-[ ] 5.33 - Komponent ShopIconsGrid (siatka sklepów)
-[ ] 5.34 - Komponent LeafletCard (karta gazetki)
-[ ] 5.35 - Komponent LeafletCarousel (karuzela)
-[ ] 5.36 - Przeglądarka gazetki (viewer fullscreen)
-[ ] 5.37 - Strona /gazetki i /gazetki/sklep/:slug
-[ ] 5.38 - Sekcja Gazetek na stronie głównej
-[ ] 6.16 - Zarządzanie sklepami (panel admina)
-[ ] 6.17 - Podgląd gazetek w panelu
-[ ] 7.13 - Konfiguracja sklepów dla gazetek
-[ ] 7.14 - Pierwszy scraping gazetek
-[ ] 8.11 - Dokumentacja modułu gazetek
-```
-
-**Moduł Sławnych Osób (18 zadań):**
-```
-[ ] 2.19 - Model famous_people (tabele, indeksy wyszukiwania)
-[ ] 2.20 - Model person_processing_queue (kolejka AI)
-[ ] 3.24 - API GET /famous-people (lista osób)
-[ ] 3.25 - API GET /famous-people/:slug (szczegóły osoby)
-[ ] 3.26 - API POST /admin/people/:id/approve (weryfikacja)
-[ ] 3.27 - API POST /admin/people/:id/reject (odrzucenie)
-[ ] 3.28 - API GET /admin/people/queue (kolejka do weryfikacji)
-[ ] 4.26 - Scraper listy Wikipedii (lista sławnych z miasta)
-[ ] 4.27 - Pobieranie stron osobnych (biografie)
-[ ] 4.28 - Parser Wikipedii (ekstrakcja infobox)
-[ ] 4.29 - AI Processor (OpenAI GPT-4o, prompt engineering)
-[ ] 4.30 - Scheduler dla osób (cron, batch processing)
-[ ] 4.31 - System kolejkowania AI (retry mechanism)
-[ ] 5.39 - Komponent PersonCard (karta osoby)
-[ ] 5.40 - Widget BornHereWidget (urodzeni w mieście)
-[ ] 5.41 - Strona /slawni-urodzeni (lista)
-[ ] 5.42 - Strona /slawni-urodzeni/:slug (szczegóły)
-[ ] 5.43 - Sekcja Sławni Ludzie na stronie głównej
-[ ] 6.19 - Konfiguracja modułu sławnych osób
-[ ] 6.20 - Panel weryfikacji AI (lista, akcje)
-[ ] 6.21 - Podgląd osoby przed publikacją
-[ ] 7.15 - Konfiguracja AI dla sławnych osób
-[ ] 7.16 - Testowy scraping osób z Wikipedii
-[ ] 8.12 - Dokumentacja modułu sławnych osób
-```
-
-**Standardy Danych i Struktury CPT (20 zadań):**
-```
-[ ] 20.1 - Implementacja ContentProcessingPipeline
-[ ] 20.2 - Normalizatory (tekst, adres, telefon)
-[ ] 20.3 - Walidatory (NIP, REGON, email)
-[ ] 2.19 - Model unified posts (JSONB metadata)
-[ ] 2.20 - Model businesses (rozszerzona struktura)
-[ ] 2.21 - Model jobs (oferty pracy)
-[ ] 2.22 - Model obituaries (nekrologi)
-[ ] 2.23 - Model weather_cache (pogoda)
-[ ] 2.24 - Indeksy full-text dla wszystkich CPT
-[ ] 2.25 - Walidatory NIP/REGON w DB
-[ ] 4.32 - ContentProcessingPipeline framework
-[ ] 4.33 - Mapowanie Policja → NormalizedContent
-[ ] 4.34 - Mapowanie Urząd Miasta → NormalizedContent
-[ ] 4.35 - Mapowanie OLX → BusinessMetadata
-[ ] 4.36 - Mapowanie Facebook → BusinessMetadata
-[ ] 4.37 - Mapowanie pracuj.pl → JobMetadata
-[ ] 4.38 - Słownik kategorii biznesowych (PKD)
-[ ] 4.39 - System normalizacji adresów
-[ ] 4.40 - System walidacji NIP/REGON
-[ ] 4.41 - Testy integracyjne dla pipeline
-```
-
-#### Ścieżka wdrożenia nowych modułów (fazy):
-**Faza 1 (Etap 2-3):** Modele + API → 4-5 dni
-**Faza 2 (Etap 4):** Scrapery + Schedulery → 5-7 dni  
-**Faza 3 (Etap 5):** Frontend komponenty → 7-10 dni
-**Faza 4 (Etap 6):** Panel admina → 3-5 dni
-**Faza 5 (Etap 7-8):** Konfiguracja + dokumentacja → 2-3 dni
-
----
-
-## 17. MODUŁ PIŁKI NOŻNEJ ⚽
-
-Rozszerzenie systemu o moduł sportowy - automatyczne pobieranie i wyświetlanie danych piłkarskich dla drużyn regionalnych (na podstawie Sofascore).
-
-### 17.1 Architektura Modułu
-
-```mermaid
-flowchart TB
-    subgraph External["External Sources"]
-        SS[Sofascore.com]
-    end
-    
-    subgraph ScrapingLayer["Scraping Layer"]
-        SW[Football Scraper Worker]
-        API[REST API Client]
-    end
-    
-    subgraph DataLayer["Data Layer"]
-        DB_FOOTBALL[(football_teams)]
-        DB_MATCHES[(football_matches)]
-        DB_STANDINGS[(football_standings)]
-        DB_SQUADS[(football_squads)]
-    end
-    
-    subgraph FrontendLayer["Frontend"]
-        W_NEXT[Widget Next Match]
-        W_LAST[Widget Last Result]
-        W_STAND[Widget Standings]
-        PAGE_TEAM[Team Page]
-        PAGE_TABLE[League Table]
-    end
-    
-    SS -->|HTML/JSON| SW
-    SW -->|Parsed Data| API
-    API --> DB_FOOTBALL
-    API --> DB_MATCHES
-    API --> DB_STANDINGS
-    API --> DB_SQUADS
-    
-    DB_FOOTBALL --> W_NEXT
-    DB_MATCHES --> W_NEXT
-    DB_MATCHES --> W_LAST
-    DB_STANDINGS --> W_STAND
-    DB_STANDINGS --> PAGE_TABLE
-    DB_FOOTBALL --> PAGE_TEAM
-    DB_MATCHES --> PAGE_TEAM
-```
-
-### 17.2 Struktura Danych
-
-#### Model: FootballTeam
-```typescript
-interface FootballTeam {
-  id: string;                    // UUID
-  domain_id: string;             // FK do domains
-  external_id: number;           // ID z Sofascore (np. 4901)
-  slug: string;                  // "cracovia"
-  name: string;                  // "Cracovia"
-  short_name: string;            // "Cracovia"
-  country_code: string;          // "PL"
-  country_name: string;          // "Polska"
-  logo_url: string;              // https://img.sofascore.com/api/v1/team/{id}/image
-  stadium_name?: string;         // "Marshal Jozef Pilsudski Stadium"
-  manager_name?: string;         // "Luka Elsner"
-  manager_photo_url?: string;
-  current_tournament_id?: number;
-  current_tournament_name?: string;
-  is_primary: boolean;           // Czy to główna drużyna miasta
-  display_order: number;         // Kolejność wyświetlania
-  is_active: boolean;
-  created_at: Date;
-  updated_at: Date;
-}
-```
-
-#### Model: FootballMatch
-```typescript
-interface FootballMatch {
-  id: string;
-  external_id: number;           // ID meczu z Sofascore
-  team_id: string;               // FK do football_teams
-  opponent_id?: number;          // External ID przeciwnika
-  opponent_name: string;
-  opponent_short_name: string;
-  opponent_logo_url: string;
-  opponent_slug?: string;
-  
-  // Dane meczu
-  match_date: Date;
-  match_time?: string;           // "20:30"
-  status: 'scheduled' | 'live' | 'finished' | 'postponed';
-  is_home: boolean;              // Czy drużyna główna gra u siebie
-  
-  // Wyniki
-  home_score?: number;
-  away_score?: number;
-  home_halftime_score?: number;
-  away_halftime_score?: number;
-  
-  // Wynik z perspektywy drużyny głównej
-  result?: 'W' | 'D' | 'L';      // Win, Draw, Loss
-  
-  // Turniej
-  tournament_id: number;
-  tournament_name: string;
-  tournament_logo_url?: string;
-  round?: string;                // "Runda 21"
-  
-  // Flagi
-  is_featured: boolean;          // Wyróżniony na stronie głównej
-  show_on_homepage: boolean;
-  
-  created_at: Date;
-  updated_at: Date;
-}
-```
-
-#### Model: FootballStandings
-```typescript
-interface FootballStandings {
-  id: string;
-  team_id: string;               // FK do football_teams
-  tournament_id: number;
-  tournament_name: string;
-  season: string;                // "2025/2026"
-  
-  // Pozycja i statystyki
-  position: number;
-  played: number;
-  won: number;
-  drawn: number;
-  lost: number;
-  goals_for: number;
-  goals_against: number;
-  goal_difference: number;
-  points: number;
-  
-  // Forma (ostatnie 5 meczów)
-  form: string;                  // np. "WDRDW"
-  form_details?: FormMatch[];    // Szczegóły formy
-  
-  // Status
-  promotion_status?: 'champions' | 'conference' | 'relegation' | null;
-  
-  // Typ tabeli
-  table_type: 'total' | 'home' | 'away';
-  
-  updated_at: Date;
-}
-
-interface FormMatch {
-  match_id: number;
-  result: 'W' | 'D' | 'L';
-  opponent_name: string;
-  score: string;                 // "2:1"
-  date: Date;
-}
-```
-
-#### Model: FootballPlayer
-```typescript
-interface FootballPlayer {
-  id: string;
-  team_id: string;
-  name: string;
-  position: 'forward' | 'midfielder' | 'defender' | 'goalkeeper';
-  is_key_player: boolean;
-  jersey_number?: number;
-  nationality?: string;
-  birth_date?: Date;
-  photo_url?: string;
-}
-```
-
-### 17.3 Schemat Bazy Danych (SQL)
-
-```sql
--- Tabela drużyn
-CREATE TABLE football_teams (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    domain_id UUID NOT NULL REFERENCES domains(id) ON DELETE CASCADE,
-    external_id INTEGER NOT NULL,
-    slug VARCHAR(50) NOT NULL,
-    name VARCHAR(100) NOT NULL,
-    short_name VARCHAR(50),
-    country_code VARCHAR(2) DEFAULT 'PL',
-    country_name VARCHAR(50) DEFAULT 'Polska',
-    logo_url VARCHAR(255),
-    stadium_name VARCHAR(100),
-    manager_name VARCHAR(100),
-    manager_photo_url VARCHAR(255),
-    current_tournament_id INTEGER,
-    current_tournament_name VARCHAR(100),
-    is_primary BOOLEAN DEFAULT false,
-    display_order INTEGER DEFAULT 0,
-    is_active BOOLEAN DEFAULT true,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(domain_id, external_id)
-);
-
--- Tabela meczów
-CREATE TABLE football_matches (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    external_id INTEGER NOT NULL UNIQUE,
-    team_id UUID NOT NULL REFERENCES football_teams(id) ON DELETE CASCADE,
-    opponent_id INTEGER,
-    opponent_name VARCHAR(100) NOT NULL,
-    opponent_short_name VARCHAR(50),
-    opponent_logo_url VARCHAR(255),
-    opponent_slug VARCHAR(50),
-    match_date DATE NOT NULL,
-    match_time TIME,
-    status VARCHAR(20) DEFAULT 'scheduled',
-    is_home BOOLEAN DEFAULT true,
-    home_score INTEGER,
-    away_score INTEGER,
-    home_halftime_score INTEGER,
-    away_halftime_score INTEGER,
-    result CHAR(1),
-    tournament_id INTEGER,
-    tournament_name VARCHAR(100),
-    tournament_logo_url VARCHAR(255),
-    round_info VARCHAR(50),
-    is_featured BOOLEAN DEFAULT false,
-    show_on_homepage BOOLEAN DEFAULT true,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Tabela tabeli ligowej
-CREATE TABLE football_standings (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    team_id UUID NOT NULL REFERENCES football_teams(id) ON DELETE CASCADE,
-    tournament_id INTEGER NOT NULL,
-    tournament_name VARCHAR(100),
-    season VARCHAR(10) NOT NULL,
-    position INTEGER NOT NULL,
-    played INTEGER DEFAULT 0,
-    won INTEGER DEFAULT 0,
-    drawn INTEGER DEFAULT 0,
-    lost INTEGER DEFAULT 0,
-    goals_for INTEGER DEFAULT 0,
-    goals_against INTEGER DEFAULT 0,
-    goal_difference INTEGER DEFAULT 0,
-    points INTEGER DEFAULT 0,
-    form VARCHAR(5),
-    form_details JSONB,
-    promotion_status VARCHAR(20),
-    table_type VARCHAR(10) DEFAULT 'total',
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(team_id, tournament_id, season, table_type)
-);
-
--- Tabela zawodników
-CREATE TABLE football_squads (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    team_id UUID NOT NULL REFERENCES football_teams(id) ON DELETE CASCADE,
-    external_id INTEGER,
-    name VARCHAR(100) NOT NULL,
-    position VARCHAR(20) NOT NULL,
-    is_key_player BOOLEAN DEFAULT false,
-    jersey_number INTEGER,
-    nationality VARCHAR(50),
-    birth_date DATE,
-    photo_url VARCHAR(255),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Indeksy
-CREATE INDEX idx_football_matches_team_date ON football_matches(team_id, match_date);
-CREATE INDEX idx_football_matches_status ON football_matches(status);
-CREATE INDEX idx_football_matches_featured ON football_matches(is_featured) WHERE is_featured = true;
-CREATE INDEX idx_football_standings_position ON football_standings(tournament_id, season, position);
-```
-
-### 17.4 Konfiguracja Scrapera
-
-#### Nowy typ scrapera: `SOFASCORE_FOOTBALL`
-
-```typescript
-interface SofascoreFootballScraperConfig {
-  type: 'SOFASCORE_FOOTBALL';
-  teamId: number;                // np. 4901 dla Cracovii
-  teamSlug: string;              // "cracovia"
-  domainId: string;              // ID domeny w systemie
-  
-  // Co scrapować
-  dataTypes: {
-    matches: boolean;            // Mecze
-    standings: boolean;          // Tabela
-    squad: boolean;              // Skład
-    form: boolean;               // Forma (wykres)
-  };
-  
-  // Interwały
-  intervals: {
-    matches: number;             // minuty (np. 60)
-    standings: number;           // minuty (np. 120)
-    squad: number;               // minuty (np. 1440 - raz dziennie)
-  };
-  
-  // Opcje wyświetlania
-  displayOptions: {
-    showOnHomepage: boolean;
-    homepageWidgetType: 'next-match' | 'last-result' | 'standings' | 'mini-table' | 'all';
-    highlightIfPlayingToday: boolean;  // Wyróżnij na stronie głównej jeśli mecz dziś
-  };
-}
-```
-
-#### Parser - selektory CSS
-
-```python
-SOFASCORE_SELECTORS = {
-    # Dane drużyny
-    'team_name': 'h1.textStyle_display.extraLarge',
-    'team_logo': 'img[alt="{team_name}"]',
-    'manager_name': 'span:contains("Trener") + span',
-    'manager_photo': 'img[alt="{manager_name}"]',
-    'stadium': '.p_lg svg + span',
-    'tournament': '[href*="/tournament/"]',
-    
-    # Mecze
-    'match_list': '.card-component .d_flex.flex-d_column',
-    'match_item': 'a[href*="/match/"]',
-    'match_date': 'bdi.textStyle_body.small',
-    'match_time': 'span.textStyle_body.small',
-    'match_home_team': '.d_flex.ai_center:first-child bdi',
-    'match_away_team': '.d_flex.ai_center:last-child bdi',
-    'match_score': 'span.score',
-    'match_result': '.w_xl.h_xl.br_50%',  # W/D/L
-    
-    # Tabela
-    'standings_table': '.tabs__content[role="tabpanel"]',
-    'standings_row': 'a[href*="/team/"] + div',
-    'position': '.w_xl.h_xl.br_50%',
-    'team_in_table': 'img + div span',
-    'stats': 'bdi.textStyle_table.medium',
-    'form': '.d_flex.ai_center.jc_flex-start',
-}
-```
-
-### 17.5 Komponenty Frontend
-
-#### A. Widgety na Stronie Głównej
-
-```typescript
-// Widget następnego meczu
-interface NextMatchWidgetProps {
-  team: FootballTeam;
-  match: FootballMatch;
-  variant: 'large' | 'compact';
-  showCountdown?: boolean;
-}
-
-// Widget ostatniego wyniku
-interface LastResultWidgetProps {
-  team: FootballTeam;
-  match: FootballMatch;
-  showStats?: boolean;
-}
-
-// Widget pozycji w tabeli
-interface StandingsWidgetProps {
-  team: FootballTeam;
-  standings: FootballStandings;
-  showTrend?: boolean;
-}
-
-// Mini tabela ligowa
-interface MiniTableWidgetProps {
-  tournamentName: string;
-  teams: StandingsTeam[];
-  highlightTeamId: string;
-  maxRows?: number;
-}
-```
-
-#### B. Komponenty Strony Drużyny
-
-```typescript
-// Hero drużyny
-interface TeamHeroProps {
-  team: FootballTeam;
-  currentForm: ('W' | 'D' | 'L')[];
-}
-
-// Lista meczów
-interface MatchesListProps {
-  matches: FootballMatch[];
-  showTournament?: boolean;
-  showResults?: boolean;
-  pagination?: boolean;
-}
-
-// Tabela ligowa
-interface StandingsTableProps {
-  standings: FootballStandings[];
-  highlightTeamId: string;
-  showForm?: boolean;
-  filterTypes?: ('total' | 'home' | 'away')[];
-}
-
-// Wykres formy (pozycji)
-interface FormChartProps {
-  data: {
-    week: number;
-    position: number;
-  }[];
-  maxPosition: number;
-}
-
-// Skład drużyny
-interface SquadDisplayProps {
-  players: FootballPlayer[];
-  groupByPosition?: boolean;
-}
-```
-
-### 17.6 Design System - Piłka Nożna
-
-#### Kolory Statusów
-```css
-:root {
-  /* Wyniki meczów */
-  --match-win: #15B168;           /* Zielony - wygrana */
-  --match-win-bg: #dcfce7;        /* Jasny zielony tło */
-  
-  --match-draw: #808080;          /* Szary - remis */
-  --match-draw-bg: #f3f4f6;       /* Jasny szary tło */
-  
-  --match-loss: #C7361F;          /* Czerwony - przegrana */
-  --match-loss-bg: #fee2e2;       /* Jasny czerwony tło */
-  
-  /* Pozycje w tabeli */
-  --position-champions: #FFD700;  /* Złoty - Liga Mistrzów */
-  --position-conference: #3B82F6; /* Niebieski - Liga Konferencji */
-  --position-relegation: #EF4444; /* Czerwony - spadek */
-  --position-normal: #9CA3AF;     /* Szary - pozostałe */
-}
-```
-
-#### Rozmiary Elementów
-```css
-/* Logo drużyny */
---team-logo-xl: 96px;      /* Hero */
---team-logo-lg: 64px;      /* Widgety */
---team-logo-md: 40px;      /* Lista meczów */
---team-logo-sm: 24px;      /* Tabela */
-
-/* Forma (ostatnie mecze) */
---form-badge-size: 24px;
-
-/* Wynik meczu */
---score-font-size: 1.5rem;
---score-font-weight: 700;
-```
-
-### 17.7 API Endpoints
-
-```typescript
-// Drużyny
-GET   /api/v1/football/teams?domain={domain}
-POST  /api/v1/football/teams           // Dodaj drużynę
-GET   /api/v1/football/teams/:id
-PUT   /api/v1/football/teams/:id
-DELETE /api/v1/football/teams/:id
-
-// Mecze
-GET   /api/v1/football/matches?team={teamId}&status={status}&limit={n}
-GET   /api/v1/football/matches/next?team={teamId}
-GET   /api/v1/football/matches/last?team={teamId}
-GET   /api/v1/football/matches/today?domain={domain}  // Wszystkie mecze dziś
-
-// Tabela
-GET   /api/v1/football/standings?team={teamId}&type={total|home|away}
-GET   /api/v1/football/standings/tournament/{tournamentId}?season={season}
-
-// Skład
-GET   /api/v1/football/squads?team={teamId}
-
-// Forma (dane do wykresu)
-GET   /api/v1/football/form?team={teamId}&weeks={n}
-```
-
-### 17.8 Struktura Podstron
-
-#### URL: `/pilka-nozna` lub `/sport`
-Lista wszystkich drużyn przypisanych do domeny.
-
-#### URL: `/druzyna/{slug}` (np. `/druzyna/cracovia`)
-Szczegóły drużyny z zakładkami:
-- **Mecze** - lista wszystkich meczów
-- **Tabela** - pozycja w ligowej tabeli
-- **Skład** - lista zawodników
-- **Statystyki** - szczegółowe statystyki
-
-#### Sekcje na stronie drużyny:
-1. **Hero** - logo, nazwa, trener, stadion, flaga kraju
-2. **Najbliższe mecze** - lista z datami i wynikami
-3. **Ostatnia forma** - wizualizacja ostatnich 5-10 meczów
-4. **Wyróżniony mecz** - najbliższy ważny mecz z odliczaniem
-5. **Tabela ligowa** - pozycja drużyny w kontekście ligi
-6. **Wykres pozycji** - SVG pokazujący zmiany pozycji w czasie
-7. **O drużynie** - opis SEO
-
-### 17.9 Integracja z Panelem Admina
-
-#### Nowe uprawnienia:
-```typescript
-'football:manage'           // Dostęp do modułu piłkarskiego
-'football:teams:create'     // Dodawanie drużyn
-'football:teams:edit'       // Edycja drużyn
-'football:teams:delete'     // Usuwanie drużyn
-'football:matches:edit'     // Edycja meczów (ręczna korekta)
-'football:scrapers:manage'  // Zarządzanie scraperami
-```
-
-#### Nowe menu:
-```
-⚽ Piłka Nożna
-├── 📋 Drużyny
-│   ├── Lista drużyn
-│   └── Dodaj drużynę
-├── ⚽ Mecze
-│   ├── Wszystkie mecze
-│   ├── Nadchodzące
-│   └── Ostatnie wyniki
-├── 📊 Tabela ligowa
-│   └── Konfiguracja
-├── 👤 Składy
-│   └── Zarządzanie zawodnikami
-└── ⚙️ Scraper
-    ├── Logi
-    └── Konfiguracja
-```
-
-### 17.10 Zadania Implementacyjne (Dodatkowe do Planu)
-
-#### Nowe zadania w Etapie 3 (Backend API):
-
-| # | Zadanie | Estymacja | Zależności |
-|---|---------|-----------|------------|
-| 3.15 | **Modele bazy football_teams** | 2h | 3.1 |
-| 3.16 | **Modele bazy football_matches** | 2h | 3.15 |
-| 3.17 | **Modele bazy football_standings** | 2h | 3.15 |
-| 3.18 | **API endpoints dla drużyn** | 4h | 3.15 |
-| 3.19 | **API endpoints dla meczów** | 4h | 3.16 |
-| 3.20 | **API endpoints dla tabeli** | 3h | 3.17 |
-| 3.21 | **Walidacja danych piłkarskich** | 2h | 3.18-3.20 |
-
-#### Nowe zadania w Etapie 4 (Scraping):
-
-| # | Zadanie | Estymacja | Zależności |
-|---|---------|-----------|------------|
-| 4.17 | **Parser Sofascore HTML** | 8h | 4.1 |
-| 4.18 | **Scraper meczów (Sofascore)** | 6h | 4.17 |
-| 4.19 | **Scraper tabeli ligowej** | 4h | 4.17 |
-| 4.20 | **Scraper składów** | 4h | 4.17 |
-| 4.21 | **Scheduler dla scrapingu piłkarskiego** | 3h | 4.18-4.20 |
-| 4.22 | **Obsługa cache dla danych piłkarskich** | 2h | 4.21 |
-
-#### Nowe zadania w Etapie 5 (Frontend Publiczny):
-
-| # | Zadanie | Estymacja | Zależności |
-|---|---------|-----------|------------|
-| 5.14 | **Komponent TeamLogo** | 2h | 5.1 |
-| 5.15 | **Komponent MatchCard** | 4h | 5.14 |
-| 5.16 | **Komponent MatchesList** | 4h | 5.15 |
-| 5.17 | **Komponent StandingsTable** | 6h | 5.1 |
-| 5.18 | **Komponent FormChart (SVG)** | 6h | 5.1 |
-| 5.19 | **Komponent SquadDisplay** | 3h | 5.1 |
-| 5.20 | **Widget NextMatch** | 3h | 5.15 |
-| 5.21 | **Widget LastResult** | 3h | 5.15 |
-| 5.22 | **Widget MiniTable** | 3h | 5.17 |
-| 5.23 | **Strona drużyny (/druzyna/{slug})** | 6h | 5.16, 5.17, 5.18 |
-| 5.24 | **Sekcja Sport na stronie głównej** | 4h | 5.20-5.22 |
-
-#### Nowe zadania w Etapie 6 (Panel Admina):
-
-| # | Zadanie | Estymacja | Zależności |
-|---|---------|-----------|------------|
-| 6.14 | **Lista drużyn w panelu** | 4h | 6.1, 3.18 |
-| 6.15 | **Formularz dodawania/edycji drużyny** | 6h | 6.14 |
-| 6.16 | **Wyszukiwarka drużyn Sofascore** | 4h | 6.15 |
-| 6.17 | **Zarządzanie meczami** | 4h | 6.1, 3.19 |
-| 6.18 | **Podgląd tabeli ligowej** | 3h | 6.1, 3.20 |
-| 6.19 | **Konfiguracja scrapera piłkarskiego** | 4h | 6.15 |
-
-## 18. MODUŁ GAZETEK PROMOCYJNYCH 🛍️
-
-System zarządzania i wyświetlania gazetek promocyjnych sklepów. Moduł umożliwia przypisanie wybranych sklepów do konkretnej domeny, automatyczne scrapowanie gazetek oraz efektowne przeglądanie na stronie.
-
-### 18.1 Architektura Modułu
-
-```mermaid
-flowchart TB
-    subgraph External["External Sources"]
-        BLIX[Blix.pl / Promocyjni.pl]
-    end
-    
-    subgraph ScrapingLayer["Scraping Layer"]
-        SW[Leaflet Scraper Worker]
-        IMG[Image Downloader]
-    end
-    
-    subgraph DataLayer["Data Layer"]
-        DB_SHOPS[(leaflet_shops)]
-        DB_LEAFLETS[(leaflets)]
-        DB_PAGES[(leaflet_pages)]
-        DB_DOMAIN_SHOPS[(domain_shops)]
-    end
-    
-    subgraph FrontendLayer["Frontend"]
-        W_SHOPS[Shop Icons Grid]
-        CAROUSEL[Leaflet Carousel]
-        VIEWER[PDF/Image Viewer]
-        ARCHIVE[Archive Page]
-    end
-    
-    BLIX -->|HTML Scraping| SW
-    SW -->|Download| IMG
-    SW --> DB_SHOPS
-    SW --> DB_LEAFLETS
-    IMG --> DB_PAGES
-    
-    DB_DOMAIN_SHOPS --> W_SHOPS
-    DB_LEAFLETS --> CAROUSEL
-    DB_PAGES --> VIEWER
-    DB_LEAFLETS --> ARCHIVE
-```
-
-### 18.2 Struktura Danych
-
-#### Model: LeafletShop (Sklep)
-```typescript
-interface LeafletShop {
-  id: string;                    // UUID
-  external_id: number;           // ID z Blix (np. 10026)
-  slug: string;                  // "4f"
-  name: string;                  // "4F"
-  logo_url: string;              // URL logo sklepu
-  category: string;              // "Sport", "Spożywcze", "AGD"
-  website_url?: string;          // Strona sklepu
-  is_active: boolean;            // Czy sklep jest aktywny w systemie
-  auto_scrape: boolean;          // Czy scrapować automatycznie
-  created_at: Date;
-  updated_at: Date;
-}
-```
-
-#### Model: DomainShop (Przypisanie sklepu do domeny)
-```typescript
-interface DomainShop {
-  id: string;
-  domain_id: string;             // FK do domains
-  shop_id: string;               // FK do leaflet_shops
-  display_order: number;         // Kolejność wyświetlania
-  is_featured: boolean;          // Czy wyróżnić na stronie głównej
-  custom_name?: string;          // Niestandardowa nazwa (opcjonalnie)
-  created_at: Date;
-  
-  // Relacja
-  shop: LeafletShop;
-}
-```
-
-#### Model: Leaflet (Gazetka)
-```typescript
-interface Leaflet {
-  id: string;                    // UUID
-  external_id: number;           // ID z Blix (np. 477759)
-  shop_id: string;               // FK do leaflet_shops
-  title: string;                 // "Trekking do -50% – ubierz się na szlak!"
-  slug: string;                  // "trekking-do-50"
-  
-  // Daty
-  valid_from: Date;              // Data początkowa
-  valid_to: Date;                // Data końcowa
-  
-  // Status
-  status: 'active' | 'upcoming' | 'expired' | 'archived';
-  availability: 'new' | 'available' | 'ending_soon' | 'last_day';
-  
-  // Okładka
-  cover_image_url: string;       // URL okładki (360x510 lub większy)
-  cover_image_local?: string;    // Lokalna ścieżka do pobranego pliku
-  
-  // Metadane
-  page_count: number;            // Liczba stron
-  external_url: string;          // URL do pełnej gazetki na Blix
-  
-  // Flagi
-  is_featured: boolean;          // Wyróżniona
-  download_count: number;        // Licznik pobrań/preview
-  
-  created_at: Date;
-  updated_at: Date;
-}
-```
-
-#### Model: LeafletPage (Strona gazetki)
-```typescript
-interface LeafletPage {
-  id: string;
-  leaflet_id: string;            // FK do leaflets
-  page_number: number;           // 1, 2, 3...
-  image_url: string;             // URL obrazka strony (800x1200)
-  image_local?: string;          // Lokalna ścieżka
-  image_size: {                  // Wymiary
-    width: number;               // 786
-    height: number;              // 1200
-  };
-  created_at: Date;
-}
-```
-
-### 18.3 Schemat Bazy Danych (SQL)
-
-```sql
--- Tabela sklepów
-CREATE TABLE leaflet_shops (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    external_id INTEGER UNIQUE,
-    slug VARCHAR(50) NOT NULL UNIQUE,
-    name VARCHAR(100) NOT NULL,
-    logo_url VARCHAR(500),
-    category VARCHAR(50),
-    website_url VARCHAR(500),
-    is_active BOOLEAN DEFAULT true,
-    auto_scrape BOOLEAN DEFAULT true,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Tabela przypisań sklepów do domen
-CREATE TABLE domain_shops (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    domain_id UUID NOT NULL REFERENCES domains(id) ON DELETE CASCADE,
-    shop_id UUID NOT NULL REFERENCES leaflet_shops(id) ON DELETE CASCADE,
-    display_order INTEGER DEFAULT 0,
-    is_featured BOOLEAN DEFAULT false,
-    custom_name VARCHAR(100),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(domain_id, shop_id)
-);
-
--- Tabela gazetek
-CREATE TABLE leaflets (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    external_id INTEGER UNIQUE,
-    shop_id UUID NOT NULL REFERENCES leaflet_shops(id) ON DELETE CASCADE,
-    title VARCHAR(255) NOT NULL,
-    slug VARCHAR(255) NOT NULL,
-    valid_from DATE NOT NULL,
-    valid_to DATE NOT NULL,
-    status VARCHAR(20) DEFAULT 'active',
-    availability VARCHAR(20) DEFAULT 'available',
-    cover_image_url VARCHAR(500) NOT NULL,
-    cover_image_local VARCHAR(500),
-    page_count INTEGER DEFAULT 1,
-    external_url VARCHAR(500),
-    is_featured BOOLEAN DEFAULT false,
-    download_count INTEGER DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Tabela stron gazetek
-CREATE TABLE leaflet_pages (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    leaflet_id UUID NOT NULL REFERENCES leaflets(id) ON DELETE CASCADE,
-    page_number INTEGER NOT NULL,
-    image_url VARCHAR(500) NOT NULL,
-    image_local VARCHAR(500),
-    image_width INTEGER,
-    image_height INTEGER,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(leaflet_id, page_number)
-);
-
--- Indeksy
-CREATE INDEX idx_leaflets_shop ON leaflets(shop_id);
-CREATE INDEX idx_leaflets_dates ON leaflets(valid_from, valid_to);
-CREATE INDEX idx_leaflets_status ON leaflets(status);
-CREATE INDEX idx_domain_shops_domain ON domain_shops(domain_id);
-CREATE INDEX idx_leaflet_pages_leaflet ON leaflet_pages(leaflet_id);
-```
-
-### 18.4 Konfiguracja Scrapera
-
-#### Typ: `BLIX_LEAFLETS`
-
-```typescript
-interface BlixLeafletScraperConfig {
-  type: 'BLIX_LEAFLETS';
-  
-  // Lista sklepów do scrapowania (pusta = wszystkie aktywne)
-  shopIds?: number[];
-  
-  // Opcje scrapowania
-  options: {
-    scrapePages: boolean;          // Czy pobierać wszystkie strony
-    maxPagesPerLeaflet: number;    // Maksymalna liczba stron (0 = wszystkie)
-    downloadImages: boolean;       // Czy pobierać obrazki lokalnie
-    imageQuality: 'low' | 'medium' | 'high';  // 400, 800, 1200px
-  };
-  
-  // Archiwizacja
-  archive: {
-    enabled: boolean;              // Czy archiwizować stare gazetki
-    archiveAfterDays: number;      // Po ilu dniach przenieść do archiwum
-    deleteAfterDays?: number;      // Usunąć całkowicie po X dniach (opcjonalnie)
-  };
-  
-  // Harmonogram
-  schedule: {
-    frequency: 'hourly' | 'twice_daily' | 'daily';
-    time?: string;                 // "06:00,18:00" dla twice_daily
-  };
-}
-```
-
-#### Parser - selektory CSS (Blix.pl)
-
-```python
-BLIX_SELECTORS = {
-    # Lista sklepów
-    'shops_list': '.section-n__items--brands',
-    'shop_item': '.brand.section-n__item',
-    'shop_name': '.brand__name',
-    'shop_logo': '.brand__logo',
-    'shop_count': '.brand__count',
-    'shop_link': 'a[href*="/sklep/"]',
-    
-    # Kategorie
-    'category_list': '.pills',
-    'category_item': '.pill',
-    'category_name': '.pill__brand-name',
-    
-    # Lista gazetek w sklepie
-    'leaflets_list': '.section-n__items--leaflets',
-    'leaflet_item': '.leaflet.section-n__item',
-    'leaflet_id': '[data-leaflet-id]',
-    'leaflet_name': '[data-leaflet-name]',
-    'leaflet_title': '.leaflet__leaflet-name',
-    'leaflet_cover': '.leaflet__cover img',
-    'leaflet_availability': '.availability__label',
-    'leaflet_date_start': '[data-date-start]',
-    'leaflet_date_end': '[data-date-end]',
-    
-    # Szczegóły gazetki (podstrona)
-    'page_count': '.page-count',
-    'current_page': '.current-page',
-    'page_image': '.page-img',
-    'leaflet_title_full': '.leaflet-data__name',
-}
-```
-
-### 18.5 API Endpoints
-
-```typescript
-// Sklepy
-GET    /api/v1/leaflet-shops                          // Lista wszystkich sklepów
-POST   /api/v1/leaflet-shops                          // Dodaj sklep ręcznie
-GET    /api/v1/leaflet-shops/:id
-PUT    /api/v1/leaflet-shops/:id
-DELETE /api/v1/leaflet-shops/:id
-POST   /api/v1/leaflet-shops/sync                     // Synchronizuj z Blix
-
-// Przypisania do domeny
-GET    /api/v1/domains/:domainId/shops                // Sklepy przypisane do domeny
-POST   /api/v1/domains/:domainId/shops                // Przypisz sklep
-PUT    /api/v1/domains/:domainId/shops/:shopId        // Aktualizuj przypisanie
-DELETE /api/v1/domains/:domainId/shops/:shopId        // Usuń przypisanie
-POST   /api/v1/domains/:domainId/shops/reorder        // Zmień kolejność
-
-// Gazetki
-GET    /api/v1/leaflets?shop=:shopId&status=:status   // Lista gazetek
-GET    /api/v1/leaflets/featured                      // Wyróżnione gazetki
-GET    /api/v1/leaflets/current                       // Aktualne gazetki
-GET    /api/v1/leaflets/upcoming                      // Nadchodzące gazetki
-GET    /api/v1/leaflets/archived                      // Archiwum
-GET    /api/v1/leaflets/:id
-GET    /api/v1/leaflets/:id/pages                     // Strony gazetki
-POST   /api/v1/leaflets/:id/view                      // Zapisz wyświetlenie
-
-// Publiczne (dla konkretnej domeny)
-GET    /api/v1/public/:domain/leaflets                // Gazetki dla domeny
-GET    /api/v1/public/:domain/shops                   // Sklepy dla domeny
-GET    /api/v1/public/:domain/leaflets/:slug          // Szczegóły gazetki
-```
-
-### 18.6 Komponenty Frontend
-
-#### A. Widgety na Stronie Głównej
-
-```typescript
-// Grid ikon sklepów (jak na Blix)
-interface ShopIconsGridProps {
-  shops: DomainShop[];
-  maxIcons?: number;             // Maksymalna liczba ikon (np. 12)
-  showMoreButton?: boolean;      // Przycisk "Więcej sklepów"
-  iconSize?: 'sm' | 'md' | 'lg'; // 48px, 64px, 78px
-  onShopClick?: (shop: LeafletShop) => void;
-}
-
-// Karuzela gazetek
-interface LeafletCarouselProps {
-  leaflets: Leaflet[];
-  autoPlay?: boolean;
-  interval?: number;             // ms
-  slidesToShow?: number;         // 1, 2, 3, 4, 6
-  showNavigation?: boolean;
-  showPagination?: boolean;
-}
-
-// Karta gazetki
-interface LeafletCardProps {
-  leaflet: Leaflet;
-  variant: 'default' | 'compact' | 'featured';
-  showBadge?: boolean;           // "Nowa", "Ostatni dzień", "Od jutra"
-  onClick?: () => void;
-}
-```
-
-#### B. Komponenty Podstron
-
-```typescript
-// Strona gazetki (/gazetki)
-interface LeafletsPageProps {
-  domainId: string;
-  viewMode: 'grid' | 'list' | 'shops';
-  filterBy?: 'all' | 'active' | 'upcoming' | 'shop';
-  shopFilter?: string;
-}
-
-// Przeglądarka gazetki (/gazetki/:slug)
-interface LeafletViewerProps {
-  leaflet: Leaflet;
-  pages: LeafletPage[];
-  
-  // Opcje przeglądania
-  initialPage?: number;
-  allowZoom?: boolean;
-  allowFullscreen?: boolean;
-  showThumbnails?: boolean;
-  showPageNavigation?: boolean;
-}
-
-// Strona sklepu (/gazetki/sklep/:slug)
-interface ShopLeafletsPageProps {
-  shop: LeafletShop;
-  leaflets: Leaflet[];
-  currentLeaflet?: Leaflet;
-  upcomingLeaflets: Leaflet[];
-  archivedLeaflets: Leaflet[];
-}
-```
-
-### 18.7 Design System - Gazetki
-
-#### Rozmiary i Proporcje
-```css
-:root {
-  /* Ikony sklepów */
-  --shop-icon-sm: 48px;
-  --shop-icon-md: 64px;
-  --shop-icon-lg: 78px;
-  
-  /* Karty gazetek */
-  --leaflet-card-width: 220px;
-  --leaflet-card-height: 310px;  /* Proporcja ~0.71 (A4) */
-  --leaflet-card-gap: 16px;
-  
-  /* Okładka w karcie */
-  --leaflet-cover-ratio: 0.71;    /* 360:510 */
-  
-  /* Viewer */
-  --leaflet-viewer-max-width: 800px;
-  --leaflet-viewer-max-height: 1200px;
-}
-```
-
-#### Style Karty Gazetki
-```
-┌─────────────────────────────┐
-│                             │
-│      [OKŁADKA GAZETKI]      │
-│      (object-fit: cover)    │
-│                             │
-│  ┌─────────────────────┐    │
-│  │ 🔴 Nowa             │    │  <- Badge (opcjonalny)
-│  └─────────────────────┘    │
-│                             │
-├─────────────────────────────┤
-│ [LOGO 4F]  Nazwa sklepu     │
-│ Tytuł gazetki - promocja    │
-│                             │
-│ Ważna do: 19.02.2026        │
-└─────────────────────────────┘
-```
-
-#### Badges Statusu
-```css
-.badge-new { background: #22c55e; color: white; }        /* Od dziś */
-.badge-available { background: #3b82f6; color: white; }  /* Aktualna */
-.badge-ending { background: #f59e0b; color: white; }     /* Kończy się */
-.badge-last-day { background: #ef4444; color: white; }  /* Ostatni dzień */
-.badge-upcoming { background: #6b7280; color: white; }   /* Od jutra */
-```
-
-#### Efekty Interakcji
-```css
-/* Hover na karcie */
-.leaflet-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 24px rgba(0,0,0,0.15);
-}
-
-/* Hover na logo sklepu */
-.shop-icon:hover {
-  transform: scale(1.1);
-  filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));
-}
-
-/* Przejścia */
-.leaflet-card {
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-```
-
-### 18.8 Struktura Podstron
-
-#### URL: `/gazetki` - Lista wszystkich gazetek
-```
-┌─────────────────────────────────────────────────────────────┐
-│  🛍️ GAZETKI PROMOCYJNE                                      │
-├─────────────────────────────────────────────────────────────┤
-│  [Wszystkie] [Spożywcze] [AGD] [Odzież] [Budowlane]        │
-├─────────────────────────────────────────────────────────────┤
-│  Sortuj: [Najnowsze ▼]     Widok: [□] [≡]                   │
-├─────────────────────────────────────────────────────────────┤
-│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐           │
-│  │ GAZETKA │ │ GAZETKA │ │ GAZETKA │ │ GAZETKA │           │
-│  │   4F    │ │ BIEDRO  │ │  LIDL   │ │ CASTO   │           │
-│  │ -50%    │ │ OFERTA  │ │ TYGODN  │ │ RABATY  │           │
-│  │ 🔴 Nowa │ │ 4 dni   │ │ 2 dni   │ │ Od jutra│           │
-│  └─────────┘ └─────────┘ └─────────┘ └─────────┘           │
-│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐           │
-│  │ ...     │ │ ...     │ │ ...     │ │ ...     │           │
-│  └─────────┘ └─────────┘ └─────────┘ └─────────┘           │
-├─────────────────────────────────────────────────────────────┤
-│  [Poprzednie]  Strona 1 z 5  [Następne]                     │
-└─────────────────────────────────────────────────────────────┘
-```
-
-#### URL: `/gazetki/sklep/4f` - Gazetki konkretnego sklepu
-```
-┌─────────────────────────────────────────────────────────────┐
-│  🛍️ 4F - Gazetki Promocyjne                                 │
-│  [Logo 4F]  Aktualne oferty i promocje                      │
-├─────────────────────────────────────────────────────────────┤
-│  ▶ AKTUALNA GAZETKA                                         │
-│  ┌─────────────────────────────────────┐                    │
-│  │                                     │                    │
-│  │      [OKŁADKA - WIĘKSZA]            │                    │
-│  │      Trekking do -50%               │                    │
-│  │                                     │                    │
-│  │  Ważna: 12.02 - 19.02.2026          │                    │
-│  │  [Zobacz gazetkę →]                 │                    │
-│  └─────────────────────────────────────┘                    │
-├─────────────────────────────────────────────────────────────┤
-│  NADCHODZĄCE                                                │
-│  ┌─────────┐ ┌─────────┐                                    │
-│  │ ...     │ │ ...     │                                    │
-│  └─────────┘ └─────────┘                                    │
-├─────────────────────────────────────────────────────────────┤
-│  ARCHIWUM 2026                                              │
-│  [Styczeń ▼]                                                │
-│  ┌─────────┐ ┌─────────┐ ┌─────────┐                        │
-│  │ ...     │ │ ...     │ │ ...     │                        │
-│  └─────────┘ └─────────┘ └─────────┘                        │
-└─────────────────────────────────────────────────────────────┘
-```
-
-#### URL: `/gazetki/4f/trekking-do-50` - Przeglądarka gazetki
-```
-┌─────────────────────────────────────────────────────────────┐
-│  [← Wróć do gazetek]  4F - Trekking do -50%  [✕ Zamknij]   │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│                    ┌─────────────────┐                      │
-│                    │                 │                      │
-│      [←]          │   STRONA 1/10   │         [→]          │
-│                    │                 │                      │
-│                    │  [OBRAZ GAZETKI]│                      │
-│                    │                 │                      │
-│                    │  786 × 1200 px  │                      │
-│                    │                 │                      │
-│                    └─────────────────┘                      │
-│                                                             │
-├─────────────────────────────────────────────────────────────┤
-│  🔍 [+] [-]  |  ⛶ Pełny ekran  |  📄 Pobierz PDF  |  🖨️ Druk│
-│                                                             │
-│  ┌──┐ ┌──┐ ┌──┐ ┌──┐ ┌──┐ ┌──┐ ┌──┐ ┌──┐ ┌──┐ ┌──┐       │
-│  │ 1│ │ 2│ │ 3│ │ 4│ │ 5│ │ 6│ │ 7│ │ 8│ │ 9│ │10│       │
-│  └──┘ └──┘ └──┘ └──┘ └──┘ └──┘ └──┘ └──┘ └──┘ └──┘       │
-│  [Miniatury stron - klikalne]                               │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### 18.9 Integracja z Panelem Admina
-
-#### Nowe uprawnienia:
-```typescript
-'leaflets:manage'              // Dostęp do modułu gazetek
-'leaflets:shops:create'        // Dodawanie sklepów
-'leaflets:shops:assign'        // Przypisywanie sklepów do domen
-'leaflets:edit'                // Edycja gazetek
-'leaflets:scraper:manage'      // Zarządzanie scraperem
-```
-
-#### Nowe menu w Panelu:
-```
-🛍️ Gazetki Promocyjne
-├── 🏪 Sklepy
-│   ├── Lista sklepów
-│   ├── Dodaj sklep
-│   └── Synchronizuj z Blix
-├── 📰 Gazetki
-│   ├── Wszystkie gazetki
-│   ├── Aktualne
-│   ├── Nadchodzące
-│   └── Archiwum
-├── 🎯 Przypisania
-│   └── Sklepy per domena
-└── ⚙️ Scraper
-    ├── Konfiguracja
-    ├── Logi
-    └── Ręczne uruchomienie
-```
-
-### 18.10 Sekcja na Stronie Głównej
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│  🛍️ GAZETKI PROMOCYJNE                    [Zobacz wszystkie]│
-├─────────────────────────────────────────────────────────────┤
-│  Popularne sklepy:                                          │
-│  ┌────┐ ┌────┐ ┌────┐ ┌────┐ ┌────┐ ┌────┐ ┌────┐          │
-│  │ 🏪 │ │ 🏪 │ │ 🏪 │ │ 🏪 │ │ 🏪 │ │ 🏪 │ │ +12│          │
-│  │4F  │ │Bied│ │Lidl│ │Cast│ │Pepc│ │Auch│ │    │          │
-│  └────┘ └────┘ └────┘ └────┘ └────┘ └────┘ └────┘          │
-│  [Klikalne loga sklepów - przekierowują do sklepu]          │
-├─────────────────────────────────────────────────────────────┤
-│  🔥 Aktualne promocje:                                      │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐       │
-│  │ GAZETKA  │ │ GAZETKA  │ │ GAZETKA  │ │ GAZETKA  │       │
-│  │ 🔴 Nowa  │ │ 3 dni    │ │ Od jutra │ │ 1 dzień  │       │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘       │
-│  [←] [Karuzela gazetek - auto scroll co 5s] [→]             │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 19. MODUŁ SŁAWNYCH OSÓB URODZONYCH W MIEŚCIE ⭐
-
-Moduł prezentujący sławne osoby urodzone w danym mieście. Dane pobierane z Wikipedii i przetwarzane przez AI (OpenAI) do ustrukturyzowanego formatu JSON.
-
-> **💰 Szacowane koszty OpenAI:**
-> - GPT-4o: ~$0.01-0.03 za stronę Wikipedii (przy 1000 osób = $10-30 jednorazowo)
-> - Przy działaniu ciągłym: ~$5-10/miesiąc na nowe osoby
-> - Można ograniczyć koszty przez batch processing i cachowanie
-
-### 19.1 Architektura Modułu
-
-```mermaid
-flowchart TB
-    subgraph External["External Sources"]
-        WIKI[Wikipedia.pl]
-        OPENAI[OpenAI API]
-    end
-    
-    subgraph ScrapingLayer["Processing Layer"]
-        SW[Wikipedia Scraper]
-        AI[AI Parser & Normalizer]
-    end
-    
-    subgraph DataLayer["Data Layer"]
-        DB_PEOPLE[(famous_people)]
-        DB_SOURCES[(person_sources)]
-        DB_DOMAIN_PEOPLE[(domain_people)]
-    end
-    
-    subgraph FrontendLayer["Frontend"]
-        WIDGET[Born Here Widget]
-        PAGE[Person Detail Page]
-        LIST[Famous People List]
-    end
-    
-    WIKI -->|HTML| SW
-    SW -->|Raw Text| AI
-    OPENAI <-->|GPT-4o| AI
-    AI -->|Structured JSON| DB_PEOPLE
-    SW -->|Source URLs| DB_SOURCES
-    
-    DB_PEOPLE --> WIDGET
-    DB_PEOPLE --> PAGE
-    DB_PEOPLE --> LIST
-```
-
-### 19.2 Struktura Danych
-
-#### Model: FamousPerson
-```typescript
-interface FamousPerson {
-  id: string;                    // UUID
-  
-  // Dane podstawowe (z Wikipedii)
-  wikipedia_url: string;         // https://pl.wikipedia.org/wiki/Natalia_Aleksiun
-  full_name: string;             // "Natalia Aleksiun-Mądrzak"
-  short_name: string;            // "Natalia Aleksiun"
-  slug: string;                  // "natalia-aleksiun"
-  
-  // Miejsce urodzenia (automatycznie lub manualnie)
-  birth_city: string;            // "Wrocław"
-  birth_city_slug: string;       // "wroclaw"
-  birth_date?: string;           // "1971-01-21"
-  birth_date_text?: string;      // "21 stycznia 1971"
-  
-  // Przyimek dla miasta ("we" vs "w")
-  city_preposition: 'w' | 'we';  // "we Wrocławiu" vs "w Warszawie"
-  
-  // Dane z AI
-  profession: string[];          // ["historyczka", "profesor"]
-  short_description: string;     // "Polska historyczka pochodzenia żydowskiego"
-  biography_summary: string;     // Skrócony życiorys (2-3 akapity)
-  achievements: string[];        // Lista osiągnięć
-  
-  // Obrazek
-  image_url?: string;            // URL zdjęcia z Wikimedia
-  image_local?: string;          // Lokalna ścieżka
-  image_attribution?: string;    // Autor zdjęcia
-  
-  // Status
-  status: 'active' | 'draft' | 'archived';
-  ai_processed: boolean;         // Czy przetworzone przez AI
-  ai_confidence: number;         // Pewność AI (0-1)
-  
-  // Metadane
-  view_count: number;
-  created_at: Date;
-  updated_at: Date;
-}
-```
-
-#### Model: DomainFamousPerson
-```typescript
-interface DomainFamousPerson {
-  id: string;
-  domain_id: string;
-  person_id: string;
-  
-  // Wyświetlanie
-  display_order: number;
-  is_featured: boolean;          // Wyróżniona na stronie głównej
-  custom_description?: string;   // Niestandardowy opis dla domeny
-  
-  // Categorization per domain
-  local_category?: string;       // "Honorowy Obywatel", "Znani absolwenci"
-  
-  created_at: Date;
-  
-  // Relacje
-  person: FamousPerson;
-}
-```
-
-#### Model: PersonSource (Historia źródeł)
-```typescript
-interface PersonSource {
-  id: string;
-  person_id: string;
-  source_type: 'wikipedia' | 'manual' | 'import';
-  source_url: string;
-  raw_content?: string;          // Surowy HTML/text (do debuggingu)
-  processed_at: Date;
-  ai_response?: JSON;            // Pełna odpowiedź AI
-}
-```
-
-### 19.3 Schemat Bazy Danych (SQL)
-
-```sql
--- Tabela sławnych osób
-CREATE TABLE famous_people (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    wikipedia_url VARCHAR(500) UNIQUE,
-    full_name VARCHAR(200) NOT NULL,
-    short_name VARCHAR(150),
-    slug VARCHAR(150) NOT NULL UNIQUE,
-    
-    -- Miejsce urodzenia
-    birth_city VARCHAR(100) NOT NULL,
-    birth_city_slug VARCHAR(100) NOT NULL,
-    birth_date DATE,
-    birth_date_text VARCHAR(50),
-    city_preposition VARCHAR(2) DEFAULT 'w',
-    
-    -- Dane AI
-    profession JSONB,             -- Array of strings
-    short_description TEXT,
-    biography_summary TEXT,
-    achievements JSONB,           -- Array of strings
-    
-    -- Obrazek
-    image_url VARCHAR(500),
-    image_local VARCHAR(500),
-    image_attribution VARCHAR(200),
-    
-    -- Status
-    status VARCHAR(20) DEFAULT 'draft',
-    ai_processed BOOLEAN DEFAULT false,
-    ai_confidence DECIMAL(3,2),
-    
-    -- Metadane
-    view_count INTEGER DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Tabela przypisań do domen
-CREATE TABLE domain_famous_people (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    domain_id UUID NOT NULL REFERENCES domains(id) ON DELETE CASCADE,
-    person_id UUID NOT NULL REFERENCES famous_people(id) ON DELETE CASCADE,
-    display_order INTEGER DEFAULT 0,
-    is_featured BOOLEAN DEFAULT false,
-    custom_description TEXT,
-    local_category VARCHAR(100),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(domain_id, person_id)
-);
-
--- Tabela źródeł
-CREATE TABLE person_sources (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    person_id UUID NOT NULL REFERENCES famous_people(id) ON DELETE CASCADE,
-    source_type VARCHAR(20) NOT NULL,
-    source_url VARCHAR(500) NOT NULL,
-    raw_content TEXT,
-    ai_response JSONB,
-    processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Indeksy
-CREATE INDEX idx_famous_people_city ON famous_people(birth_city_slug);
-CREATE INDEX idx_famous_people_status ON famous_people(status) WHERE status = 'active';
-CREATE INDEX idx_domain_famous_people_domain ON domain_famous_people(domain_id);
-CREATE INDEX idx_domain_famous_people_featured ON domain_famous_people(domain_id, is_featured) WHERE is_featured = true;
-```
-
-### 19.4 Prompt AI (OpenAI)
-
-#### System Prompt
-```
-Jesteś asystentem do ekstrakcji informacji biograficznych. 
-Twoim zadaniem jest przeanalizowanie tekstu z Wikipedii i wyodrębnienie kluczowych informacji o osobie w formacie JSON.
-Bądź dokładny, ale zwięzły. Jeśli jakiejś informacji brakuje, użyj null.
-```
-
-#### User Prompt Template
-```typescript
-const AI_PROMPT_TEMPLATE = `
-Przeanalizuj poniższy tekst z Wikipedii i wyodrębnij informacje o osobie.
-
-TEKST Z WIKIPEDII:
----
-{{WIKIPEDIA_CONTENT}}
----
-
-Zwróć odpowiedź w formacie JSON zgodnie z poniższym schematem:
-
-{
-  "full_name": "Pełne imię i nazwisko (z uwzględnieniem nazwiska panieńskiego, przydomków)",
-  "short_name": "Skrócona wersja do wyświetlania (bez drugiego imienia jeśli niepotrzebne)",
-  "birth_date": "YYYY-MM-DD lub null jeśli nieznana",
-  "birth_date_text": "Data w formacie polskim np. '21 stycznia 1971'",
-  "birth_place": "Miejsce urodzenia (tylko miasto, bez województwa)",
-  "profession": ["Tablica zawodów/profesji w dopełniaczu liczby pojedynczej, np. ['historyczka', 'profesor', 'pisarz']"],
-  "short_description": "Jednozdaniowy opis osoby (max 120 znaków)",
-  "biography_summary": "Skrócony życiorys w 2-3 zdaniach, bez dat szczegółowych",
-  "achievements": ["Tablica najważniejszych osiągnięć, nagród, tytułów (max 5 elementów)"],
-  "is_born_in_target_city": true/false,  // Czy potwierdzasz urodzenie w {{TARGET_CITY}}?
-  "confidence": 0.0-1.0  // Pewność co do poprawności danych (1.0 = pewny, 0.5 = niepewny)
-}
-
-Wskazówki:
-- Jeśli osoba nie urodziła się w {{TARGET_CITY}}, zwróć is_born_in_target_city: false
-- Profession powinno być w formie dopełniacza liczby pojedynczej ("historyczka", nie "historyk")
-- Short_description powinno zaczynać się od wielkiej litery i kończyć kropką
-- Biography_summary powinno być neutralne, encyklopedyczne
-- Achievements: wybierz najważniejsze, konkretne fakty (nagrody, stanowiska, publikacje)
-`;
-```
-
-### 19.5 Konfiguracja Scrapera
-
-#### Typ: `WIKIPEDIA_FAMOUS_PEOPLE`
-
-```typescript
-interface WikipediaFamousPeopleConfig {
-  type: 'WIKIPEDIA_FAMOUS_PEOPLE';
-  
-  // Miasto docelowe
-  targetCity: {
-    name: string;                // "Wrocław"
-    slug: string;                // "wroclaw"
-    preposition: 'w' | 'we';     // "we" dla Wrocław, Warszawa itp.
-  };
-  
-  // Lista URLi do przetworzenia
-  wikipediaUrls: string[];       // Lista URLi z osobami
-  
-  // Opcje AI
-  aiOptions: {
-    model: 'gpt-4o' | 'gpt-4o-mini';
-    temperature: number;         // 0.1 - 0.3 (niskie dla precyzji)
-    maxTokens: number;           // 1000-1500
-  };
-  
-  // Opcje przetwarzania
-  processing: {
-    batchSize: number;           // Ile osób przetwarzać naraz (5-10)
-    delayBetweenRequests: number; // ms (aby nie przeciążyć API)
-    autoApproveConfidence: number; // Automatycznie akceptuj jeśli confidence >= 0.85
-    requireManualApproval: boolean; // Czy wymagać ręcznej akceptacji
-  };
-  
-  // Pobieranie zdjęć
-  images: {
-    download: boolean;
-    preferredSize: '250px' | '500px' | 'max';
-    fallbackToPlaceholder: boolean;
-  };
-}
-```
-
-#### Parser - selektory CSS (Wikipedia)
-
-```python
-WIKIPEDIA_SELECTORS = {
-    # Główne dane
-    'title': 'h1.firstHeading .mw-page-title-main',
-    'content': '#mw-content-text .mw-parser-output',
-    
-    # Infobox
-    'infobox': 'table.infobox',
-    'infobox_caption': 'table.infobox caption',
-    'infobox_rows': 'table.infobox tr',
-    
-    # Data i miejsce urodzenia
-    'birth_date': 'th:contains("Data i miejsce urodzenia") + td, th:contains("Urodzenie") + td',
-    'birth_place': 'th:contains("Data i miejsce urodzenia") + td a[href*="/wiki/"], th:contains("Miejsce urodzenia") + td',
-    
-    # Zdjęcie
-    'main_image': 'table.infobox img, .mw-parser-output > figure img',
-    'image_caption': 'table.infobox .infobox-caption, figure figcaption',
-    
-    # Treść artykułu
-    'intro_paragraph': '#mw-content-text .mw-parser-output > p:not(.mw-empty-elt)',
-    'sections': '#mw-content-text .mw-parser-output > h2, #mw-content-text .mw-parser-output > h3',
-    
-    # Kategorie
-    'categories': '#catlinks li a',
-}
-```
-
-### 19.6 API Endpoints
-
-```typescript
-// Osoby (Admin)
-GET    /api/v1/famous-people
-POST   /api/v1/famous-people                          // Dodaj ręcznie
-GET    /api/v1/famous-people/:id
-PUT    /api/v1/famous-people/:id
-DELETE /api/v1/famous-people/:id
-POST   /api/v1/famous-people/:id/process-ai          // Przetwórz przez AI
-POST   /api/v1/famous-people/bulk-import             // Import zbiorczy z URLi
-GET    /api/v1/famous-people/by-city/:citySlug
-
-// Przypisania do domeny
-GET    /api/v1/domains/:domainId/famous-people
-POST   /api/v1/domains/:domainId/famous-people        // Przypisz osobę
-PUT    /api/v1/domains/:domainId/famous-people/:id
-DELETE /api/v1/domains/:domainId/famous-people/:id
-POST   /api/v1/domains/:domainId/famous-people/reorder
-
-// Publiczne
-GET    /api/v1/public/:domain/famous-people           // Lista dla domeny
-GET    /api/v1/public/:domain/famous-people/featured  // Wyróżnione
-GET    /api/v1/public/:domain/famous-people/:slug     // Szczegóły osoby
-POST   /api/v1/public/famous-people/:id/view          // Zapisz wyświetlenie
-```
-
-### 19.7 Komponenty Frontend
-
-#### A. Widget na Stronie Głównej
-
-```typescript
-// Widget "Sławni urodzeni we Wrocławiu"
-interface BornHereWidgetProps {
-  city: {
-    name: string;              // "Wrocław"
-    preposition: 'w' | 'we';   // "we"
-  };
-  people: FamousPerson[];
-  featuredCount?: number;      // Ilu wyróżnionych pokazać (3-5)
-  showViewAll?: boolean;
-}
-
-// Karta osoby
-interface PersonCardProps {
-  person: FamousPerson;
-  variant: 'horizontal' | 'vertical' | 'compact';
-  showImage?: boolean;
-  showProfession?: boolean;
-}
-```
-
-#### B. Podstrony
-
-```typescript
-// Lista osób (/slawni-urodzeni)
-interface FamousPeoplePageProps {
-  city: {
-    name: string;
-    preposition: 'w' | 'we';
-  };
-  people: FamousPerson[];
-  filterBy?: 'all' | 'profession' | 'alphabetical';
-  sortBy?: 'alphabetical' | 'popularity' | 'birth_date';
-}
-
-// Strona osoby (/slawni-urodzeni/:slug)
-interface PersonDetailPageProps {
-  person: FamousPerson;
-  relatedPeople?: FamousPerson[];  // Inni z tego samego miasta
-  prevPerson?: FamousPerson;       // Poprzedni alfabetycznie
-  nextPerson?: FamousPerson;       // Następny alfabetycznie
-}
-```
-
-### 19.8 Design System - Sławne Osoby
-
-#### Layout Widgetu na Stronie Głównej
-```
-┌─────────────────────────────────────────────────────────────┐
-│  ⭐ SŁAWNI URODZENI WE WROCŁAWIU         [Zobacz wszystkich]│
-├─────────────────────────────────────────────────────────────┤
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │ ┌────┐                                              │   │
-│  │ │ 👤 │  Natalia Aleksiun                           │   │
-│  │ │IMG │  Historyczka, profesor                      │   │
-│  │ └────┘  Polska historyczka pochodzenia żydowskiego│   │
-│  │         [Czytaj więcej →]                           │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                                                             │
-│  ┌────┐ ┌────┐ ┌────┐ ┌────┐                               │
-│  │ 👤 │ │ 👤 │ │ 👤 │ │ 👤 │                               │
-│  │IMG │ │IMG │ │IMG │ │IMG │                               │
-│  └────┘ └────┘ └────┘ └────┘                               │
-│  Piotr A.  Jan K.  Maria B.  Anna C.                       │
-│  [Klikalne miniaturki]                                      │
-└─────────────────────────────────────────────────────────────┘
-```
-
-#### Strona Szczegółów Osoby
-```
-┌─────────────────────────────────────────────────────────────┐
-│  [Strona główna] > [Sławni urodzeni] > Natalia Aleksiun    │
-├─────────────────────────────────────────────────────────────┤
-│  ┌────┐                                                     │
-│  │    │  Natalia Aleksiun-Mądrzak                          │
-│  │IMG │  ⭐ Historyczka, profesor                           │
-│  │    │                                                     │
-│  └────┘  📅 Urodzona: 21 stycznia 1971                     │
-│          📍 Miejsce: Wrocław                               │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  Osobie                                                     │
-│  ─────────────────────────────────────────────────────────  │
-│                                                             │
-│  Polska historyczka pochodzenia żydowskiego. Specjalizuje   │
-│  się w historii najnowszej Polski, dziejach Żydów polskich  │
-│  w XIX i XX wieku oraz stosunkach polsko-żydowskich.        │
-│                                                             │
-│  Jest córką malarki Miry Żelechower-Aleksiun i Jana         │
-│  Jaromira Aleksiuna. Studiowała na Wydziale Historycznym    │
-│  Uniwersytetu Warszawskiego...                              │
-│                                                             │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │ 🏆 OSIĄGNIĘCIA                                      │   │
-│  │ • Laureatka Nagrody Fundacji Nauki Polskiej         │   │
-│  │ • Stypendystka Fulbrighta                           │   │
-│  │ • Profesor NYU                                      │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                                                             │
-│  [Źródło: Wikipedia] [Zobacz w Wikipedii ↗]                │
-├─────────────────────────────────────────────────────────────┤
-│  Inni sławni urodzeni we Wrocławiu:                        │
-│  [← Piotr Adamczyk]  [Natalia Aleksiun]  [Jan Kowalski →]  │
-└─────────────────────────────────────────────────────────────┘
-```
-
-#### Style
-```css
-:root {
-  /* Karty osób */
-  --person-card-bg: var(--bg-primary);
-  --person-card-border: var(--border-subtle);
-  --person-card-radius: 12px;
-  --person-card-shadow: 0 2px 8px rgba(0,0,0,0.08);
-  
-  /* Zdjęcie */
-  --person-image-size-sm: 64px;
-  --person-image-size-md: 120px;
-  --person-image-size-lg: 200px;
-  --person-image-radius: 50%;    /* Okrągłe */
-  --person-image-border: 3px solid var(--primary-color);
-  
-  /* Cytaty/deskryptory */
-  --person-quote-font: 'Merriweather', serif;
-  --person-quote-size: 1.1rem;
-  --person-quote-style: italic;
-}
-```
-
-### 19.9 Integracja z Panelem Admina
-
-#### Nowe uprawnienia:
-```typescript
-'famous_people:manage'         // Dostęp do modułu
-'famous_people:create'         // Dodawanie osób
-'famous_people:edit'           // Edycja osób
-'famous_people:ai_process'     // Przetwarzanie przez AI
-'famous_people:assign'         // Przypisywanie do domen
-```
-
-#### Menu w Panelu:
-```
-⭐ Sławni Urodzeni
-├── 👥 Lista osób
-│   ├── Wszyscy
-│   ├── Aktywni
-│   ├── Do przetworzenia
-│   └── Archiwum
-├── ➕ Dodaj osobę
-│   ├── Ręcznie
-│   └── Import z Wikipedii
-├── 🤖 Przetwarzanie AI
-│   ├── Kolejka przetwarzania
-│   └── Wyniki AI
-├── 🎯 Przypisania
-│   └── Osoby per domena
-└── ⚙️ Konfiguracja
-    ├── Miasto domyślne
-    └── Ustawienia AI
-```
-
-### 19.10 Zadania Implementacyjne
-
-#### Etap 3 (Backend API):
-
-| # | Zadanie | Estymacja | Zależności |
-|---|---------|-----------|------------|
-| 3.22 | **Modele bazy leaflet_shops** | 2h | 3.1 |
-| 3.23 | **Modele bazy leaflets i pages** | 3h | 3.22 |
-| 3.24 | **Modele bazy domain_shops** | 2h | 3.22 |
-| 3.25 | **API endpoints dla sklepów** | 4h | 3.22 |
-| 3.26 | **API endpoints dla gazetek** | 4h | 3.23 |
-| 3.27 | **Modele bazy famous_people** | 2h | 3.1 |
-| 3.28 | **Modele bazy domain_famous_people** | 2h | 3.27 |
-| 3.29 | **API endpoints dla sławnych osób** | 4h | 3.27 |
-| 3.30 | **Integracja z OpenAI API** | 6h | 3.27 |
-
-#### Etap 4 (Scraping):
-
-| # | Zadanie | Estymacja | Zależności |
-|---|---------|-----------|------------|
-| 4.23 | **Parser Blix.pl - lista sklepów** | 6h | 4.1 |
-| 4.24 | **Parser Blix.pl - gazetki** | 6h | 4.23 |
-| 4.25 | **Downloader obrazków gazetek** | 4h | 4.24 |
-| 4.26 | **Archiwizacja starych gazetek** | 3h | 4.25 |
-| 4.27 | **Parser Wikipedii dla osób** | 5h | 4.1 |
-| 4.28 | **AI Processor dla biografii** | 6h | 4.27, 3.30 |
-| 4.29 | **Scheduler dla gazetek** | 3h | 4.24-4.26 |
-| 4.30 | **Scheduler dla sławnych osób** | 3h | 4.27-4.28 |
-
-#### Etap 5 (Frontend Publiczny):
-
-| # | Zadanie | Estymacja | Zależności |
-|---|---------|-----------|------------|
-| 5.25 | **Komponent ShopIcon** | 2h | 5.1 |
-| 5.26 | **Komponent ShopIconsGrid** | 3h | 5.25 |
-| 5.27 | **Komponent LeafletCard** | 3h | 5.1 |
-| 5.28 | **Komponent LeafletCarousel** | 4h | 5.27 |
-| 5.29 | **Przeglądarka gazetki (Viewer)** | 8h | 5.27 |
-| 5.30 | **Strona /gazetki** | 4h | 5.26, 5.28 |
-| 5.31 | **Strona /gazetki/sklep/:slug** | 4h | 5.30 |
-| 5.32 | **Komponent PersonCard** | 3h | 5.1 |
-| 5.33 | **Komponent BornHereWidget** | 4h | 5.32 |
-| 5.34 | **Strona /slawni-urodzeni** | 4h | 5.32 |
-| 5.35 | **Strona /slawni-urodzeni/:slug** | 5h | 5.34 |
-| 5.36 | **Sekcja gazetek na stronie głównej** | 3h | 5.26, 5.28 |
-| 5.37 | **Sekcja sławnych osób na stronie głównej** | 3h | 5.33 |
-
-#### Etap 6 (Panel Admina):
-
-| # | Zadanie | Estymacja | Zależności |
-|---|---------|-----------|------------|
-| 6.20 | **Lista sklepów w panelu** | 3h | 6.1, 3.25 |
-| 6.21 | **Formularz przypisania sklepów** | 4h | 6.20 |
-| 6.22 | **Zarządzanie gazetkami** | 4h | 6.1, 3.26 |
-| 6.23 | **Konfiguracja scrapera gazetek** | 3h | 6.22 |
-| 6.24 | **Lista sławnych osób** | 4h | 6.1, 3.29 |
-| 6.25 | **Formularz dodawania osoby (z URL Wikipedii)** | 4h | 6.24 |
-| 6.26 | **Widok podglądu AI dla osoby** | 4h | 6.25 |
-| 6.27 | **Kolejka przetwarzania AI** | 4h | 6.26 |
-| 6.28 | **Przypisywanie osób do domen** | 3h | 6.24 |
+### C. Kontakt i Wsparcie
+- Autor dokumentacji: [Twoje Imie]
+- Data utworzenia: 12 lutego 2026
+- Wersja: 1.0
 
 ---
 
 **KONIEC DOKUMENTACJI**
 
-*Wersja: 3.2 (Zintegrowana z modułami: Piłka Nożna, Gazetki, Sławni)*  
-*Data: 12 lutego 2026*  
-*Autor: System Architect*  
-*Status: Ready for Implementation*
+*Dokument zawiera 14 sekcji, 60+ podsekcji, 30+ tabele, 40+ przykladow kodu.*
+*Calkowity czas przygotowania: ~8h*
+*Rekomendowana implementacja: 15 tygodni (3.5 miesiaca)*
 
----
+## 21. STRATEGIA TESTOWANIA 🧪
 
+### 21.1 Strategia Testowania - Test Pyramid
 
+System Regionalne Serwisy wymaga wielopoziomowej strategii testowania zapewniającej jakość kodu, stabilność API oraz poprawne działanie interfejsów użytkownika.
 
----
+```
+                    /\
+                   /  \
+                  / E2E \          ← 10% testów (Cypress/Playwright)
+                 /--------\
+                /          \
+               / Integration \     ← 20% testów (Supertest + TestContainers)
+              /--------------\
+             /                \
+            /    UNIT TESTS     \   ← 70% testów (Jest)
+           /____________________\
+```
 
-## 20. STANDARDY DANYCH I STRUKTURY CPT 📊
+#### Cele Pokrycia Testami
 
-**Cel:** Jednolity format przechowywania i wymiany danych dla wszystkich typów contentu. Wszystkie scrapery MUSZĄ produkować dane w formacie `NormalizedContent`, który jest następnie mapowany do konkretnych tabel DB.
+| Typ Testu | Pokrycie Cel | Narzędzie | Priorytet |
+|-----------|-------------|-----------|-----------|
+| Unit Tests | >70% linii kodu | Jest | Krytyczny |
+| Integration Tests | >50% endpointów API | Supertest + PostgreSQL | Wysoki |
+| E2E Tests | Krytyczne ścieżki użytkownika | Cypress/Playwright | Wysoki |
+| Database Tests | 100% migracji | pg-tap | Średni |
+| Load Tests | Progi wydajności | k6/Artillery | Średni |
+| Security Tests | OWASP Top 10 | ZAP + Snyk | Krytyczny |
 
-### 20.1 Abstrakcyjny Format NormalizedContent
+#### Środowiska Testowe
 
-Wszystkie scrapery (niezależnie od źródła) produkują ten sam format wyjściowy:
-
-```typescript
-interface NormalizedContent {
-  // IDENTYFIKACJA
-  id?: string;                    // UUID (generowany przy zapisie)
-  external_id: string;            // ID ze źródła (unikalne w ramach źródła)
-  source_slug: string;            // np. "policja_torun", "urzad_miasta", "facebook_local"
-  content_type: ContentType;      // Enum: 'news' | 'police' | 'chronicle' | 'business' | 'classified' | 'job' | 'obituary'
-  
-  // TREŚĆ PODSTAWOWA
-  title: string;                  // Tytuł (znormalizowany, max 200 znaków)
-  slug: string;                   // URL-friendly (auto-generowany z tytułu)
-  excerpt?: string;               // Zajawka (max 500 znaków, auto-generowana jeśli brak)
-  content_html: string;           // Pełna treść w HTML (oczyszczona)
-  content_text: string;           // Treść plain text (dla wyszukiwarki)
-  
-  // METADANE CZASOWE
-  published_at: string;           // ISO 8601 (data publikacji w źródle)
-  modified_at?: string;           // ISO 8601 (data modyfikacji w źródle)
-  scraped_at: string;             // ISO 8601 (data scrapingu)
-  valid_until?: string;           // ISO 8601 (data ważności - dla ogłoszeń, pracy)
-  
-  // AUTORSTWO I ŹRÓDŁO
-  author_name?: string;           // Autor (jeśli znany)
-  author_email?: string;          // Email autora
-  source_url: string;             // URL do oryginału
-  source_name: string;            // Nazwa źródła (np. "Policja Toruń")
-  is_external: boolean;           // Czy content z zewnątrz (true dla scrapów)
-  
-  // KLASYFIKACJA
-  category?: string;              // Główna kategoria (znormalizowana)
-  subcategory?: string;           // Podkategoria
-  tags: string[];                 // Tagi (znormalizowane, lowercase)
-  locations: LocationRef[];       // Lokalizacje (miasto, dzielnica, adres)
-  
-  // MEDIA
-  featured_image?: ImageData;     // Główny obraz
-  gallery?: ImageData[];          // Galeria dodatkowych obrazów
-  attachments?: AttachmentData[]; // Załączniki (PDF, DOC)
-  videos?: VideoData[];           // Filmy
-  
-  // DANE SPECJALIZOWANE (zależne od content_type)
-  metadata: NewsMetadata | PoliceMetadata | BusinessMetadata | JobMetadata | ClassifiedMetadata | ObituaryMetadata | ChronicleMetadata;
-  
-  // STATUS I FLAGI
-  status: 'draft' | 'published' | 'archived' | 'pending_review';
-  is_highlighted: boolean;        // Czy wyróżnić na stronie głównej
-  is_urgent: boolean;             // Czy pilne (np. poszukiwania)
-  language: string;               // ISO 639-1 (np. 'pl', 'en')
-  
-  // STATYSTYKI (opcjonalnie)
-  view_count?: number;
-  share_count?: number;
-}
-
-// --- WSPÓLNE POD-TYPY ---
-
-interface LocationRef {
-  type: 'city' | 'district' | 'street' | 'address' | 'coordinates';
-  name: string;                   // Nazwa do wyświetlenia
-  slug: string;                   // URL-friendly
-  coordinates?: { lat: number; lng: number }; // Dla map
-}
-
-interface ImageData {
-  url: string;                    // URL oryginału
-  local_path?: string;            // Ścieżka lokalna po pobraniu
-  alt: string;                    // Tekst alternatywny
-  caption?: string;               // Podpis
-  credit?: string;                // Autor/źródło zdjęcia
-  width?: number;
-  height?: number;
-  file_size?: number;
-  mime_type?: string;
-}
-
-interface AttachmentData {
-  url: string;
-  local_path?: string;
-  filename: string;
-  file_size: number;
-  mime_type: string;
-  title?: string;
-}
-
-interface VideoData {
-  url: string;
-  platform?: 'youtube' | 'facebook' | 'vimeo' | 'local';
-  embed_code?: string;
-  thumbnail?: ImageData;
-  duration?: number;              // w sekundach
-}
-
-enum ContentType {
-  NEWS = 'news',                  // Wiadomości ogólne
-  POLICE = 'police',              // Komunikaty policji
-  CHRONICLE = 'chronicle',        // Kronika policyjna/zdarzenia
-  BUSINESS = 'business',          // Firmy/biznesy
-  CLASSIFIED = 'classified',      // Ogłoszenia drobne
-  JOB = 'job',                    // Oferty pracy
-  OBITUARY = 'obituary',          // Nekrologi
-  EVENT = 'event',                // Wydarzenia (kalendarz)
-  ANNOUNCEMENT = 'announcement'   // Ogłoszenia urzędowe
-}
+```yaml
+# environments.yml
+environments:
+  dev:
+    database: "regionalne_test_dev"
+    redis: "redis://localhost:6379/1"
+    api_url: "http://localhost:3001"
+    frontend_url: "http://localhost:3000"
+    
+  staging:
+    database: "regionalne_test_staging"
+    redis: "redis://staging-redis:6379/2"
+    api_url: "https://api-staging.serwisy-lokalne.pl"
+    frontend_url: "https://staging.serwisy-lokalne.pl"
+    
+  test:
+    database: "regionalne_test_${CI_JOB_ID}"
+    redis: "redis://test-redis:6379/15"
+    api_url: "http://test-api:3001"
+    use_testcontainers: true
 ```
 
 ---
 
-### 20.2 Struktury Danych per CPT
+### 21.2 Unit Tests
 
-#### 20.2.1 WIADOMOŚCI (news)
-
-Standardowe artykuły informacyjne.
+#### Konfiguracja Jest
 
 ```typescript
-interface NewsMetadata {
-  // KLASYFIKACJA TEMATYCZNA
-  news_type: 'local' | 'regional' | 'national' | 'world' | 'sport' | 'culture' | 'economy';
-  
-  // POWIĄZANIA
-  related_news_ids?: string[];    // ID powiązanych artykułów
-  series_name?: string;           // Nazwa cyklu (np. "Tygodniowy przegląd")
-  series_part?: number;           // Numer części w cyklu
-  
-  // ŹRÓDŁO I WERYFIKACJA
-  source_credibility: 'official' | 'verified' | 'unverified' | 'citizen_report';
-  fact_checked: boolean;          // Czy zweryfikowane
-  fact_check_notes?: string;      // Notatki weryfikacyjne
-  
-  // SEO I METADANE
-  keywords?: string[];            // Słowa kluczowe dla SEO
-  reading_time?: number;          // Szacowany czas czytania (min)
-}
+// jest.config.ts
+import type { Config } from 'jest';
+
+const config: Config = {
+  preset: 'ts-jest',
+  testEnvironment: 'jsdom',
+  roots: ['<rootDir>/src'],
+  testMatch: ['**/__tests__/**/*.test.ts', '**/?(*.)+(spec|test).ts'],
+  transform: {
+    '^.+\\.tsx?$': 'ts-jest',
+  },
+  moduleNameMapper: {
+    '^@/(.*)$': '<rootDir>/src/$1',
+    '^@components/(.*)$': '<rootDir>/src/components/$1',
+    '^@utils/(.*)$': '<rootDir>/src/utils/$1',
+    '^@api/(.*)$': '<rootDir>/src/api/$1',
+    '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
+  },
+  setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
+  collectCoverageFrom: [
+    'src/**/*.{ts,tsx}',
+    '!src/**/*.d.ts',
+    '!src/**/index.ts',
+    '!src/types/**',
+  ],
+  coverageThreshold: {
+    global: {
+      branches: 70,
+      functions: 70,
+      lines: 70,
+      statements: 70,
+    },
+  },
+  coverageReporters: ['text', 'text-summary', 'lcov', 'html'],
+};
+
+export default config;
 ```
 
-**Schemat SQL - tabela `posts` (rozszerzenie):**
+```typescript
+// jest.setup.ts
+import '@testing-library/jest-dom';
+import { server } from './src/mocks/server';
+
+// MSW server setup for API mocking
+beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
+
+// Mock next/router
+jest.mock('next/router', () => ({
+  useRouter: () => ({
+    route: '/',
+    pathname: '/',
+    query: {},
+    asPath: '/',
+    push: jest.fn(),
+    replace: jest.fn(),
+  }),
+}));
+
+// Mock next/image
+jest.mock('next/image', () => ({
+  __esModule: true,
+  default: (props: any) => {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img {...props} alt={props.alt || ''} />;
+  },
+}));
+```
+
+#### Testy Utils - Normalizacja i Walidacja
+
+```typescript
+// src/utils/__tests__/normalization.test.ts
+import { 
+  normalizePhone, 
+  normalizeSlug, 
+  normalizeAddress,
+  extractDistrict 
+} from '../normalization';
+
+describe('normalizePhone', () => {
+  it('should normalize various phone formats', () => {
+    expect(normalizePhone('123-456-789')).toBe('+48123456789');
+    expect(normalizePhone('(56) 123 45 67')).toBe('+48561234567');
+    expect(normalizePhone('+48 123 456 789')).toBe('+48123456789');
+    expect(normalizePhone('123456789')).toBe('+48123456789');
+  });
+
+  it('should handle invalid phone numbers', () => {
+    expect(normalizePhone('')).toBeNull();
+    expect(normalizePhone('abc')).toBeNull();
+    expect(normalizePhone('12')).toBeNull();
+  });
+
+  it('should preserve existing country code', () => {
+    expect(normalizePhone('+49 123 456 789')).toBe('+49123456789');
+  });
+});
+
+describe('normalizeSlug', () => {
+  it('should create URL-friendly slugs', () => {
+    expect(normalizeSlug('Wiadomość z miasta')).toBe('wiadomosc-z-miasta');
+    expect(normalizeSlug('POLICJA - zdarzenie drogowe!')).toBe('policja-zdarzenie-drogowe');
+    expect(normalizeSlug('  Multiple   spaces  ')).toBe('multiple-spaces');
+  });
+
+  it('should handle Polish characters', () => {
+    expect(normalizeSlug('Łódź - miasto łodzi')).toBe('lodz-miasto-lodzi');
+    expect(normalizeSlug('Żółć i źdźbło')).toBe('zolc-i-zdzblo');
+  });
+
+  it('should truncate long slugs', () => {
+    const longTitle = 'a'.repeat(300);
+    expect(normalizeSlug(longTitle).length).toBeLessThanOrEqual(220);
+  });
+});
+
+describe('extractDistrict', () => {
+  it('should extract district from address', () => {
+    expect(extractDistrict('ul. Długa 1, Chełmińskie Przedmieście, Toruń'))
+      .toBe('Chełmińskie Przedmieście');
+    expect(extractDistrict('ul. Słowackiego 5, Bydgoszcz - Bielawy'))
+      .toBe('Bielawy');
+  });
+
+  it('should return null for addresses without district', () => {
+    expect(extractDistrict('ul. Długa 1, Toruń')).toBeNull();
+  });
+});
+```
+
+```typescript
+// src/utils/__tests__/validation.test.ts
+import { 
+  validateNIP, 
+  validateREGON, 
+  validateEmail,
+  validatePostalCode,
+  isValidDateRange 
+} from '../validation';
+
+describe('validateNIP', () => {
+  it('should validate correct NIP numbers', () => {
+    expect(validateNIP('1234563218')).toBe(true);
+    expect(validateNIP('876-543-21-98')).toBe(true);
+  });
+
+  it('should reject invalid NIP numbers', () => {
+    expect(validateNIP('1234567890')).toBe(false);
+    expect(validateNIP('')).toBe(false);
+    expect(validateNIP('123')).toBe(false);
+  });
+});
+
+describe('validateREGON', () => {
+  it('should validate 9-digit REGON', () => {
+    expect(validateREGON('123456785')).toBe(true);
+  });
+
+  it('should validate 14-digit REGON', () => {
+    expect(validateREGON('12345678512347')).toBe(true);
+  });
+
+  it('should reject invalid REGON', () => {
+    expect(validateREGON('123456789')).toBe(false);
+  });
+});
+
+describe('isValidDateRange', () => {
+  it('should validate correct date ranges', () => {
+    expect(isValidDateRange('2024-01-01', '2024-12-31')).toBe(true);
+    expect(isValidDateRange('2024-06-15', '2024-06-15')).toBe(true); // Same day
+  });
+
+  it('should reject invalid date ranges', () => {
+    expect(isValidDateRange('2024-12-31', '2024-01-01')).toBe(false); // End before start
+    expect(isValidDateRange('', '2024-12-31')).toBe(false);
+  });
+});
+```
+
+#### Testy API Handlers (Mocked DB)
+
+```typescript
+// src/api/handlers/__tests__/posts.test.ts
+import { createMocks } from 'node-mocks-http';
+import { POST, GET } from '@/app/api/posts/route';
+import { prismaMock } from '@/mocks/prisma';
+
+describe('Posts API', () => {
+  describe('POST /api/posts', () => {
+    it('should create a new post with valid data', async () => {
+      const postData = {
+        title: 'Test Post',
+        content: 'Test content',
+        category_id: 1,
+        domain_id: 1,
+      };
+
+      prismaMock.posts.create.mockResolvedValue({
+        id: 1,
+        ...postData,
+        slug: 'test-post',
+        created_at: new Date(),
+        updated_at: new Date(),
+      });
+
+      const { req } = createMocks({
+        method: 'POST',
+        body: postData,
+      });
+
+      const response = await POST(req);
+      const data = await response.json();
+
+      expect(response.status).toBe(201);
+      expect(data.title).toBe('Test Post');
+      expect(data.slug).toBe('test-post');
+    });
+
+    it('should reject post without required fields', async () => {
+      const { req } = createMocks({
+        method: 'POST',
+        body: { title: '' },
+      });
+
+      const response = await POST(req);
+      expect(response.status).toBe(400);
+    });
+
+    it('should reject unauthorized requests', async () => {
+      const { req } = createMocks({
+        method: 'POST',
+        body: { title: 'Test' },
+        headers: { authorization: '' },
+      });
+
+      const response = await POST(req);
+      expect(response.status).toBe(401);
+    });
+  });
+
+  describe('GET /api/posts', () => {
+    it('should return paginated posts', async () => {
+      const mockPosts = Array.from({ length: 10 }, (_, i) => ({
+        id: i + 1,
+        title: `Post ${i + 1}`,
+        slug: `post-${i + 1}`,
+        created_at: new Date(),
+      }));
+
+      prismaMock.posts.findMany.mockResolvedValue(mockPosts);
+      prismaMock.posts.count.mockResolvedValue(25);
+
+      const { req } = createMocks({
+        method: 'GET',
+        query: { page: '1', limit: '10' },
+      });
+
+      const response = await GET(req);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.posts).toHaveLength(10);
+      expect(data.pagination.total).toBe(25);
+      expect(data.pagination.totalPages).toBe(3);
+    });
+  });
+});
+```
+
+#### Testy React Components (React Testing Library)
+
+```typescript
+// src/components/__tests__/NewsCard.test.tsx
+import { render, screen, fireEvent } from '@testing-library/react';
+import { NewsCard } from '@/components/NewsCard';
+import { formatDistanceToNow } from 'date-fns';
+import { pl } from 'date-fns/locale';
+
+const mockPost = {
+  id: 1,
+  title: 'Ważna wiadomość z Torunia',
+  slug: 'wazna-wiadomosc-z-torunia',
+  excerpt: 'To jest krótki opis wiadomości...',
+  featured_image: '/uploads/test-image.jpg',
+  category: { name: 'Wiadomości', slug: 'wiadomosci' },
+  published_at: new Date().toISOString(),
+  author: { name: 'Jan Kowalski' },
+  view_count: 150,
+};
+
+describe('NewsCard', () => {
+  it('renders post information correctly', () => {
+    render(<NewsCard post={mockPost} variant="default" />);
+    
+    expect(screen.getByText(mockPost.title)).toBeInTheDocument();
+    expect(screen.getByText(mockPost.excerpt)).toBeInTheDocument();
+    expect(screen.getByText(mockPost.category.name)).toBeInTheDocument();
+    expect(screen.getByText(mockPost.author.name)).toBeInTheDocument();
+  });
+
+  it('displays formatted publish date', () => {
+    render(<NewsCard post={mockPost} variant="default" />);
+    
+    const formattedDate = formatDistanceToNow(new Date(mockPost.published_at), {
+      addSuffix: true,
+      locale: pl,
+    });
+    
+    expect(screen.getByText(formattedDate)).toBeInTheDocument();
+  });
+
+  it('links to correct post page', () => {
+    render(<NewsCard post={mockPost} variant="default" />);
+    
+    const link = screen.getByRole('link');
+    expect(link).toHaveAttribute('href', `/${mockPost.category.slug}/${mockPost.slug}`);
+  });
+
+  it('renders featured variant correctly', () => {
+    render(<NewsCard post={mockPost} variant="featured" />);
+    
+    const card = screen.getByTestId('news-card');
+    expect(card).toHaveClass('featured');
+  });
+
+  it('shows view count when provided', () => {
+    render(<NewsCard post={mockPost} variant="default" showViews />);
+    
+    expect(screen.getByText('150 wyświetleń')).toBeInTheDocument();
+  });
+});
+```
+
+```typescript
+// src/components/__tests__/LoginForm.test.tsx
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { LoginForm } from '@/components/LoginForm';
+
+const mockSubmit = jest.fn();
+
+describe('LoginForm', () => {
+  beforeEach(() => {
+    mockSubmit.mockClear();
+  });
+
+  it('renders all form fields', () => {
+    render(<LoginForm onSubmit={mockSubmit} />);
+    
+    expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/hasło/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /zaloguj/i })).toBeInTheDocument();
+  });
+
+  it('validates required fields', async () => {
+    render(<LoginForm onSubmit={mockSubmit} />);
+    
+    const submitButton = screen.getByRole('button', { name: /zaloguj/i });
+    fireEvent.click(submitButton);
+    
+    await waitFor(() => {
+      expect(screen.getByText(/email jest wymagany/i)).toBeInTheDocument();
+      expect(screen.getByText(/hasło jest wymagane/i)).toBeInTheDocument();
+    });
+    
+    expect(mockSubmit).not.toHaveBeenCalled();
+  });
+
+  it('validates email format', async () => {
+    render(<LoginForm onSubmit={mockSubmit} />);
+    
+    const emailInput = screen.getByLabelText(/email/i);
+    await userEvent.type(emailInput, 'invalid-email');
+    
+    fireEvent.click(screen.getByRole('button', { name: /zaloguj/i }));
+    
+    await waitFor(() => {
+      expect(screen.getByText(/nieprawidłowy format email/i)).toBeInTheDocument();
+    });
+  });
+
+  it('submits form with valid data', async () => {
+    render(<LoginForm onSubmit={mockSubmit} />);
+    
+    await userEvent.type(screen.getByLabelText(/email/i), 'test@example.com');
+    await userEvent.type(screen.getByLabelText(/hasło/i), 'password123');
+    
+    fireEvent.click(screen.getByRole('button', { name: /zaloguj/i }));
+    
+    await waitFor(() => {
+      expect(mockSubmit).toHaveBeenCalledWith({
+        email: 'test@example.com',
+        password: 'password123',
+      });
+    });
+  });
+
+  it('shows loading state during submission', async () => {
+    mockSubmit.mockImplementation(() => new Promise(() => {})); // Never resolves
+    
+    render(<LoginForm onSubmit={mockSubmit} />);
+    
+    await userEvent.type(screen.getByLabelText(/email/i), 'test@example.com');
+    await userEvent.type(screen.getByLabelText(/hasło/i), 'password123');
+    
+    fireEvent.click(screen.getByRole('button', { name: /zaloguj/i }));
+    
+    await waitFor(() => {
+      expect(screen.getByRole('button')).toBeDisabled();
+      expect(screen.getByText(/logowanie/i)).toBeInTheDocument();
+    });
+  });
+});
+```
+
+---
+
+### 21.3 Integration Tests
+
+#### Konfiguracja Supertest z TestContainers
+
+```typescript
+// tests/integration/setup.ts
+import { PostgreSqlContainer } from '@testcontainers/postgresql';
+import { RedisContainer } from '@testcontainers/redis';
+import { execSync } from 'child_process';
+import { PrismaClient } from '@prisma/client';
+
+let postgresContainer: any;
+let redisContainer: any;
+export let prisma: PrismaClient;
+
+beforeAll(async () => {
+  // Start PostgreSQL container
+  postgresContainer = await new PostgreSqlContainer()
+    .withDatabase('regionalne_test')
+    .withUsername('test')
+    .withPassword('test')
+    .start();
+
+  // Start Redis container
+  redisContainer = await new RedisContainer().start();
+
+  // Set environment variables
+  process.env.DATABASE_URL = postgresContainer.getConnectionUri();
+  process.env.REDIS_URL = redisContainer.getConnectionUrl();
+
+  // Run migrations
+  execSync('npx prisma migrate deploy', { stdio: 'inherit' });
+
+  // Initialize Prisma
+  prisma = new PrismaClient();
+}, 120000);
+
+afterAll(async () => {
+  await prisma?.$disconnect();
+  await postgresContainer?.stop();
+  await redisContainer?.stop();
+});
+
+beforeEach(async () => {
+  // Clean database before each test
+  const tables = await prisma.$queryRaw`
+    SELECT tablename FROM pg_tables WHERE schemaname = 'public'
+  `;
+  
+  for (const { tablename } of tables as any[]) {
+    if (tablename !== '_prisma_migrations') {
+      await prisma.$executeRawUnsafe(`TRUNCATE TABLE "${tablename}" CASCADE`);
+    }
+  }
+});
+```
+
+```typescript
+// tests/integration/api/posts.integration.test.ts
+import request from 'supertest';
+import { app } from '@/app';
+import { prisma } from '../setup';
+import { createTestUser, createTestDomain, authToken } from '../helpers';
+
+describe('Posts API Integration', () => {
+  let user: any;
+  let domain: any;
+  let token: string;
+
+  beforeEach(async () => {
+    user = await createTestUser({ role: 'editor' });
+    domain = await createTestDomain();
+    token = authToken(user);
+  });
+
+  describe('POST /api/posts', () => {
+    it('should create post and store in database', async () => {
+      const postData = {
+        title: 'Integration Test Post',
+        content: 'Content for integration test',
+        category_id: 1,
+        domain_id: domain.id,
+      };
+
+      const response = await request(app)
+        .post('/api/posts')
+        .set('Authorization', `Bearer ${token}`)
+        .send(postData)
+        .expect(201);
+
+      // Verify response
+      expect(response.body.title).toBe(postData.title);
+      expect(response.body.slug).toBe('integration-test-post');
+
+      // Verify database
+      const dbPost = await prisma.posts.findUnique({
+        where: { id: response.body.id },
+      });
+      expect(dbPost).toBeTruthy();
+      expect(dbPost?.title).toBe(postData.title);
+    });
+
+    it('should handle concurrent post creation', async () => {
+      const postData = {
+        title: 'Concurrent Post',
+        content: 'Content',
+        category_id: 1,
+        domain_id: domain.id,
+      };
+
+      // Create 5 posts simultaneously
+      const promises = Array.from({ length: 5 }, (_, i) =>
+        request(app)
+          .post('/api/posts')
+          .set('Authorization', `Bearer ${token}`)
+          .send({ ...postData, title: `Concurrent Post ${i}` })
+      );
+
+      const responses = await Promise.all(promises);
+      
+      // All should succeed
+      responses.forEach((res, i) => {
+        expect(res.status).toBe(201);
+        expect(res.body.title).toBe(`Concurrent Post ${i}`);
+      });
+
+      // Verify unique slugs were generated
+      const slugs = responses.map(r => r.body.slug);
+      expect(new Set(slugs).size).toBe(5);
+    });
+
+    it('should rollback on validation error', async () => {
+      const initialCount = await prisma.posts.count();
+
+      await request(app)
+        .post('/api/posts')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ title: '', content: 'Invalid' })
+        .expect(400);
+
+      const finalCount = await prisma.posts.count();
+      expect(finalCount).toBe(initialCount);
+    });
+  });
+
+  describe('GET /api/posts', () => {
+    beforeEach(async () => {
+      // Seed test data
+      await prisma.posts.createMany({
+        data: Array.from({ length: 25 }, (_, i) => ({
+          title: `Post ${i + 1}`,
+          slug: `post-${i + 1}`,
+          content: `Content ${i + 1}`,
+          domain_id: domain.id,
+          category_id: 1,
+          published_at: new Date(),
+        })),
+      });
+    });
+
+    it('should return paginated results', async () => {
+      const response = await request(app)
+        .get('/api/posts?page=1&limit=10')
+        .expect(200);
+
+      expect(response.body.posts).toHaveLength(10);
+      expect(response.body.pagination).toEqual({
+        page: 1,
+        limit: 10,
+        total: 25,
+        totalPages: 3,
+      });
+    });
+
+    it('should filter by domain', async () => {
+      const otherDomain = await createTestDomain({ name: 'Other' });
+      
+      await prisma.posts.create({
+        data: {
+          title: 'Other Domain Post',
+          slug: 'other-domain-post',
+          content: 'Other content',
+          domain_id: otherDomain.id,
+          category_id: 1,
+        },
+      });
+
+      const response = await request(app)
+        .get(`/api/posts?domain_id=${domain.id}`)
+        .expect(200);
+
+      expect(response.body.posts.every((p: any) => p.domain_id === domain.id)).toBe(true);
+    });
+  });
+});
+```
+
+#### Testy Przepływów (Scraping → DB)
+
+```typescript
+// tests/integration/scraping.integration.test.ts
+import request from 'supertest';
+import { app } from '@/app';
+import { prisma } from './setup';
+
+describe('Scraping Integration Flow', () => {
+  it('should scrape, parse and save content to database', async () => {
+    // 1. Create scraper configuration
+    const scraperConfig = await prisma.scraper_configs.create({
+      data: {
+        name: 'Test Police Scraper',
+        source_type: 'POLICE_RSS',
+        source_url: 'https://test.police.gov.pl/feed',
+        domain_id: 1,
+        parser_config: {
+          selectors: {
+            title: 'h1.post-title',
+            content: 'div.post-content',
+            date: 'span.publish-date',
+          },
+        },
+        is_active: true,
+      },
+    });
+
+    // 2. Trigger scraping (mock external API)
+    const response = await request(app)
+      .post('/api/scraper/run')
+      .send({ config_id: scraperConfig.id })
+      .expect(200);
+
+    // 3. Verify scraping job was created
+    const job = await prisma.scraper_jobs.findFirst({
+      where: { config_id: scraperConfig.id },
+    });
+    expect(job).toBeTruthy();
+    expect(job?.status).toBe('completed');
+
+    // 4. Verify normalized content was created
+    const posts = await prisma.posts.findMany({
+      where: {
+        metadata: {
+          path: ['source', 'scraper_id'],
+          equals: scraperConfig.id,
+        },
+      },
+    });
+    expect(posts.length).toBeGreaterThan(0);
+
+    // 5. Verify audit log
+    const auditLog = await prisma.audit_logs.findFirst({
+      where: { entity_type: 'scraper_job' },
+      orderBy: { created_at: 'desc' },
+    });
+    expect(auditLog).toBeTruthy();
+  });
+
+  it('should handle duplicate content detection', async () => {
+    // Create existing post
+    await prisma.posts.create({
+      data: {
+        title: 'Existing Post',
+        slug: 'existing-post',
+        content: 'Existing content',
+        domain_id: 1,
+        category_id: 1,
+        source_url: 'https://test.police.gov.pl/post/123',
+      },
+    });
+
+    // Try to scrape same content
+    const response = await request(app)
+      .post('/api/scraper/run')
+      .send({ config_id: 1 })
+      .expect(200);
+
+    // Verify deduplication worked
+    const posts = await prisma.posts.findMany({
+      where: { source_url: 'https://test.police.gov.pl/post/123' },
+    });
+    expect(posts).toHaveLength(1);
+  });
+});
+```
+
+---
+
+### 21.4 E2E Tests
+
+#### Konfiguracja Cypress
+
+```typescript
+// cypress.config.ts
+import { defineConfig } from 'cypress';
+
+export default defineConfig({
+  e2e: {
+    baseUrl: 'http://localhost:3000',
+    supportFile: 'cypress/support/e2e.ts',
+    specPattern: 'cypress/e2e/**/*.cy.ts',
+    viewportWidth: 1280,
+    viewportHeight: 720,
+    video: true,
+    screenshotOnRunFailure: true,
+    defaultCommandTimeout: 10000,
+    requestTimeout: 10000,
+    responseTimeout: 10000,
+    env: {
+      apiUrl: 'http://localhost:3001',
+      adminEmail: 'admin@test.com',
+      adminPassword: 'TestPassword123!',
+    },
+    setupNodeEvents(on, config) {
+      // Database seeding task
+      on('task', {
+        async seedDatabase() {
+          // Seed test data via API or direct DB connection
+          const { seed } = require('./cypress/support/seed');
+          return await seed();
+        },
+        async cleanupDatabase() {
+          const { cleanup } = require('./cypress/support/seed');
+          return await cleanup();
+        },
+      });
+      return config;
+    },
+  },
+  component: {
+    devServer: {
+      framework: 'next',
+      bundler: 'webpack',
+    },
+  },
+});
+```
+
+```typescript
+// cypress/support/e2e.ts
+import './commands';
+
+// Global beforeEach - seed database
+deforeEach(() => {
+  cy.task('seedDatabase');
+});
+
+// Global afterEach - cleanup
+afterEach(() => {
+  cy.task('cleanupDatabase');
+});
+
+// Handle uncaught exceptions
+Cypress.on('uncaught:exception', (err) => {
+  // Return false to prevent Cypress from failing the test
+  if (err.message.includes('ResizeObserver')) {
+    return false;
+  }
+});
+```
+
+```typescript
+// cypress/support/commands.ts
+declare global {
+  namespace Cypress {
+    interface Chainable {
+      login(email: string, password: string): Chainable<void>;
+      loginAsAdmin(): Chainable<void>;
+      createPost(postData: any): Chainable<void>;
+      createDomain(domainData: any): Chainable<void>;
+      getByTestId(testId: string): Chainable<JQuery<HTMLElement>>;
+    }
+  }
+}
+
+Cypress.Commands.add('login', (email: string, password: string) => {
+  cy.session([email, password], () => {
+    cy.visit('/login');
+    cy.getByTestId('email-input').type(email);
+    cy.getByTestId('password-input').type(password);
+    cy.getByTestId('login-submit').click();
+    cy.url().should('not.include', '/login');
+  });
+});
+
+Cypress.Commands.add('loginAsAdmin', () => {
+  cy.login(Cypress.env('adminEmail'), Cypress.env('adminPassword'));
+});
+
+Cypress.Commands.add('createPost', (postData: any) => {
+  cy.request({
+    method: 'POST',
+    url: `${Cypress.env('apiUrl')}/api/posts`,
+    headers: {
+      Authorization: `Bearer ${window.localStorage.getItem('token')}`,
+    },
+    body: postData,
+  });
+});
+
+Cypress.Commands.add('createDomain', (domainData: any) => {
+  cy.request({
+    method: 'POST',
+    url: `${Cypress.env('apiUrl')}/api/domains`,
+    headers: {
+      Authorization: `Bearer ${window.localStorage.getItem('token')}`,
+    },
+    body: domainData,
+  });
+});
+
+Cypress.Commands.add('getByTestId', (testId: string) => {
+  return cy.get(`[data-testid="${testId}"]`);
+});
+```
+
+#### Scenariusze E2E
+
+```typescript
+// cypress/e2e/auth/login.cy.ts
+describe('Authentication', () => {
+  beforeEach(() => {
+    cy.visit('/login');
+  });
+
+  it('should login with valid credentials', () => {
+    cy.getByTestId('email-input').type('admin@test.com');
+    cy.getByTestId('password-input').type('TestPassword123!');
+    cy.getByTestId('login-submit').click();
+
+    cy.url().should('include', '/dashboard');
+    cy.getByTestId('user-menu').should('be.visible');
+  });
+
+  it('should show error for invalid credentials', () => {
+    cy.getByTestId('email-input').type('wrong@email.com');
+    cy.getByTestId('password-input').type('wrongpassword');
+    cy.getByTestId('login-submit').click();
+
+    cy.getByTestId('login-error')
+      .should('be.visible')
+      .and('contain', 'Nieprawidłowe dane logowania');
+  });
+
+  it('should validate required fields', () => {
+    cy.getByTestId('login-submit').click();
+
+    cy.getByTestId('email-error')
+      .should('be.visible')
+      .and('contain', 'Email jest wymagany');
+    cy.getByTestId('password-error')
+      .should('be.visible')
+      .and('contain', 'Hasło jest wymagane');
+  });
+
+  it('should persist session after page reload', () => {
+    cy.loginAsAdmin();
+    cy.visit('/dashboard');
+    cy.reload();
+    cy.getByTestId('user-menu').should('be.visible');
+  });
+
+  it('should logout successfully', () => {
+    cy.loginAsAdmin();
+    cy.getByTestId('user-menu').click();
+    cy.getByTestId('logout-button').click();
+
+    cy.url().should('include', '/login');
+    cy.visit('/dashboard');
+    cy.url().should('include', '/login');
+  });
+});
+```
+
+```typescript
+// cypress/e2e/posts/create-post.cy.ts
+describe('Create Post', () => {
+  beforeEach(() => {
+    cy.loginAsAdmin();
+    cy.visit('/admin/posts/new');
+  });
+
+  it('should create a new post', () => {
+    const postTitle = 'Test Post ' + Date.now();
+
+    cy.getByTestId('post-title').type(postTitle);
+    cy.getByTestId('post-category').select('Wiadomości');
+    cy.getByTestId('post-content').type('This is test content for the post.');
+    
+    // Upload featured image
+    cy.getByTestId('image-upload').selectFile('cypress/fixtures/test-image.jpg');
+    cy.getByTestId('upload-progress').should('not.exist');
+
+    cy.getByTestId('save-draft').click();
+
+    cy.getByTestId('success-message')
+      .should('be.visible')
+      .and('contain', 'Wpis zapisany');
+
+    // Verify post appears in list
+    cy.visit('/admin/posts');
+    cy.getByTestId('posts-table').should('contain', postTitle);
+  });
+
+  it('should validate required fields', () => {
+    cy.getByTestId('publish-post').click();
+
+    cy.getByTestId('title-error')
+      .should('be.visible')
+      .and('contain', 'Tytuł jest wymagany');
+    cy.getByTestId('category-error')
+      .should('be.visible')
+      .and('contain', 'Kategoria jest wymagana');
+  });
+
+  it('should auto-generate slug from title', () => {
+    cy.getByTestId('post-title').type('Test Post Title');
+    cy.getByTestId('post-slug').should('have.value', 'test-post-title');
+  });
+
+  it('should schedule post for future date', () => {
+    cy.getByTestId('post-title').type('Scheduled Post');
+    cy.getByTestId('post-category').select('Wiadomości');
+    cy.getByTestId('publish-date').type('2030-01-01T12:00');
+    cy.getByTestId('schedule-post').click();
+
+    cy.getByTestId('status-badge').should('contain', 'Zaplanowany');
+  });
+});
+```
+
+```typescript
+// cypress/e2e/domains/create-domain.cy.ts
+describe('Create Domain', () => {
+  beforeEach(() => {
+    cy.loginAsAdmin();
+    cy.visit('/admin/domains/new');
+  });
+
+  it('should create a new domain', () => {
+    const domainName = 'testcity' + Date.now();
+
+    cy.getByTestId('domain-name').type(domainName);
+    cy.getByTestId('domain-slug').should('have.value', domainName);
+    cy.getByTestId('domain-title').type('Test City Portal');
+    cy.getByTestId('domain-city').type('Test City');
+    cy.getByTestId('domain-region').select('kujawsko-pomorskie');
+    
+    // Configure theme
+    cy.getByTestId('primary-color').clear().type('#ff0000');
+    cy.getByTestId('secondary-color').clear().type('#00ff00');
+
+    cy.getByTestId('create-domain').click();
+
+    cy.url().should('include', '/admin/domains');
+    cy.getByTestId('domains-table').should('contain', domainName);
+  });
+
+  it('should validate unique domain name', () => {
+    cy.createDomain({ name: 'existing', title: 'Existing' });
+    
+    cy.visit('/admin/domains/new');
+    cy.getByTestId('domain-name').type('existing');
+    cy.getByTestId('create-domain').click();
+
+    cy.getByTestId('name-error')
+      .should('be.visible')
+      .and('contain', 'Domena o tej nazwie już istnieje');
+  });
+});
+```
+
+```typescript
+// cypress/e2e/scraping/scraping.cy.ts
+describe('Scraping and Display', () => {
+  beforeEach(() => {
+    cy.loginAsAdmin();
+  });
+
+  it('should configure and run scraper', () => {
+    cy.visit('/admin/scrapers/new');
+
+    // Configure scraper
+    cy.getByTestId('scraper-name').type('Test Police Scraper');
+    cy.getByTestId('scraper-type').select('POLICE_RSS');
+    cy.getByTestId('source-url').type('https://policja.gov.pl/rss');
+    cy.getByTestId('target-domain').select('4torun.pl');
+
+    // Add parser rules
+    cy.getByTestId('add-selector').click();
+    cy.getByTestId('selector-name-0').type('title');
+    cy.getByTestId('selector-value-0').type('h1.article-title');
+
+    cy.getByTestId('save-scraper').click();
+    cy.getByTestId('success-message').should('be.visible');
+
+    // Run scraper
+    cy.getByTestId('run-scraper').click();
+    cy.getByTestId('scraping-status').should('contain', 'Trwa scrapowanie');
+    cy.getByTestId('scraping-status', { timeout: 30000 }).should('contain', 'Zakończono');
+
+    // Verify scraped content
+    cy.visit('/admin/content/pending');
+    cy.getByTestId('pending-list').should('have.length.at.least', 1);
+  });
+
+  it('should display scraped content on frontend', () => {
+    // Create test post via API
+    cy.createPost({
+      title: 'Scraped News',
+      content: 'Content from scraping',
+      category: 'news',
+      status: 'published',
+    });
+
+    cy.visit('/');
+    cy.getByTestId('news-section').should('contain', 'Scraped News');
+    
+    cy.getByTestId('news-card').first().click();
+    cy.url().should('include', '/news/');
+    cy.getByTestId('article-content').should('contain', 'Content from scraping');
+  });
+});
+```
+
+#### Page Object Model
+
+```typescript
+// cypress/pages/BasePage.ts
+export abstract class BasePage {
+  protected abstract url: string;
+
+  visit(): void {
+    cy.visit(this.url);
+  }
+
+  getElement(testId: string): Cypress.Chainable<JQuery<HTMLElement>> {
+    return cy.getByTestId(testId);
+  }
+
+  waitForLoading(): void {
+    cy.getByTestId('loading-spinner').should('not.exist');
+  }
+}
+
+// cypress/pages/LoginPage.ts
+import { BasePage } from './BasePage';
+
+export class LoginPage extends BasePage {
+  protected url = '/login';
+
+  elements = {
+    emailInput: () => this.getElement('email-input'),
+    passwordInput: () => this.getElement('password-input'),
+    submitButton: () => this.getElement('login-submit'),
+    errorMessage: () => this.getElement('login-error'),
+  };
+
+  login(email: string, password: string): void {
+    this.elements.emailInput().type(email);
+    this.elements.passwordInput().type(password);
+    this.elements.submitButton().click();
+  }
+
+  assertLoginError(message: string): void {
+    this.elements.errorMessage()
+      .should('be.visible')
+      .and('contain', message);
+  }
+}
+
+// cypress/pages/DashboardPage.ts
+import { BasePage } from './BasePage';
+
+export class DashboardPage extends BasePage {
+  protected url = '/dashboard';
+
+  elements = {
+    userMenu: () => this.getElement('user-menu'),
+    postsLink: () => this.getElement('nav-posts'),
+    domainsLink: () => this.getElement('nav-domains'),
+    statsCards: () => this.getElement('stats-cards'),
+  };
+
+  navigateToPosts(): void {
+    this.elements.postsLink().click();
+  }
+
+  navigateToDomains(): void {
+    this.elements.domainsLink().click();
+  }
+
+  assertLoggedIn(): void {
+    this.elements.userMenu().should('be.visible');
+  }
+}
+
+// cypress/pages/PostEditorPage.ts
+import { BasePage } from './BasePage';
+
+export class PostEditorPage extends BasePage {
+  protected url = '/admin/posts/new';
+
+  elements = {
+    titleInput: () => this.getElement('post-title'),
+    slugInput: () => this.getElement('post-slug'),
+    categorySelect: () => this.getElement('post-category'),
+    contentEditor: () => this.getElement('post-content'),
+    imageUpload: () => this.getElement('image-upload'),
+    saveDraftButton: () => this.getElement('save-draft'),
+    publishButton: () => this.getElement('publish-post'),
+    successMessage: () => this.getElement('success-message'),
+  };
+
+  fillPost(data: {
+    title: string;
+    category: string;
+    content: string;
+    image?: string;
+  }): void {
+    this.elements.titleInput().type(data.title);
+    this.elements.categorySelect().select(data.category);
+    this.elements.contentEditor().type(data.content);
+    
+    if (data.image) {
+      this.elements.imageUpload().selectFile(data.image);
+    }
+  }
+
+  saveAsDraft(): void {
+    this.elements.saveDraftButton().click();
+  }
+
+  publish(): void {
+    this.elements.publishButton().click();
+  }
+
+  assertSuccess(message: string): void {
+    this.elements.successMessage()
+      .should('be.visible')
+      .and('contain', message);
+  }
+}
+
+// Usage in tests
+describe('Using Page Objects', () => {
+  const loginPage = new LoginPage();
+  const dashboardPage = new DashboardPage();
+  const postEditorPage = new PostEditorPage();
+
+  beforeEach(() => {
+    loginPage.visit();
+    loginPage.login('admin@test.com', 'TestPassword123!');
+    dashboardPage.assertLoggedIn();
+  });
+
+  it('should create post using page objects', () => {
+    dashboardPage.navigateToPosts();
+    postEditorPage.visit();
+    postEditorPage.fillPost({
+      title: 'Page Object Test',
+      category: 'Wiadomości',
+      content: 'Content created with page object pattern',
+    });
+    postEditorPage.saveAsDraft();
+    postEditorPage.assertSuccess('Wpis zapisany');
+  });
+});
+```
+
+---
+
+### 21.5 Database Tests
+
+#### Testy Migracji
 
 ```sql
--- Tabela główna (już istnieje w schemacie bazowym)
-CREATE TABLE tenant_${domain}.posts (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  content_type VARCHAR(20) DEFAULT 'news' CHECK (content_type IN ('news', 'police', 'chronicle', 'business', 'classified', 'job', 'obituary', 'event', 'announcement')),
-  
-  -- Podstawowe pola
-  title VARCHAR(200) NOT NULL,
-  slug VARCHAR(220) NOT NULL UNIQUE,
-  excerpt TEXT,
-  content_html TEXT NOT NULL,
-  content_text TEXT,              -- Dla full-text search
-  
-  -- Czas
-  published_at TIMESTAMP WITH TIME ZONE,
-  modified_at TIMESTAMP WITH TIME ZONE,
-  scraped_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  valid_until TIMESTAMP WITH TIME ZONE, -- Dla ogłoszeń czasowych
-  
-  -- Autorstwo
-  author_name VARCHAR(100),
-  author_email VARCHAR(100),
-  source_url TEXT,
-  source_name VARCHAR(100),
-  is_external BOOLEAN DEFAULT true,
-  
-  -- Klasyfikacja
-  category_id UUID REFERENCES tenant_${domain}.categories(id),
-  tags TEXT[],                    -- Array tagów
-  
-  -- Media
-  featured_image JSONB,
-  gallery JSONB[],
-  attachments JSONB[],
-  
-  -- Status
-  status VARCHAR(20) DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'archived', 'pending_review')),
-  is_highlighted BOOLEAN DEFAULT false,
-  is_urgent BOOLEAN DEFAULT false,
-  language VARCHAR(2) DEFAULT 'pl',
-  
-  -- Metadane specyficzne per type
-  metadata JSONB,                 -- Tutaj trafia NewsMetadata/PoliceMetadata/etc.
-  
-  -- Statystyki
-  view_count INTEGER DEFAULT 0,
-  share_count INTEGER DEFAULT 0,
-  
-  -- Zarządzanie
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  created_by UUID,
-  updated_by UUID,
-  
-  -- Indeksy
-  CONSTRAINT valid_email CHECK (author_email IS NULL OR author_email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')
-);
+-- tests/database/migrations.test.sql
+-- Test: Verify all migrations are applied
+SELECT COUNT(*) as migration_count 
+FROM _prisma_migrations 
+WHERE finished_at IS NOT NULL;
 
--- Indeksy dla wyszukiwania
-CREATE INDEX idx_posts_type ON tenant_${domain}.posts(content_type);
-CREATE INDEX idx_posts_status ON tenant_${domain}.posts(status);
-CREATE INDEX idx_posts_published ON tenant_${domain}.posts(published_at DESC);
-CREATE INDEX idx_posts_category ON tenant_${domain}.posts(category_id);
-CREATE INDEX idx_posts_tags ON tenant_${domain}.posts USING GIN(tags);
-CREATE INDEX idx_posts_metadata ON tenant_${domain}.posts USING GIN(metadata);
-CREATE INDEX idx_posts_external ON tenant_${domain}.posts(source_slug, external_id) WHERE is_external = true;
+-- Expected: migration_count >= expected_count
 
--- Full-text search
-CREATE INDEX idx_posts_search ON tenant_${domain}.posts 
-  USING gin(to_tsvector('polish', COALESCE(title, '') || ' ' || COALESCE(content_text, '')));
+-- Test: Verify schema consistency
+SELECT 
+  table_name,
+  column_name,
+  data_type,
+  is_nullable
+FROM information_schema.columns
+WHERE table_schema = 'public'
+ORDER BY table_name, ordinal_position;
+
+-- Test: Verify foreign key constraints
+SELECT
+  tc.constraint_name,
+  tc.table_name,
+  kcu.column_name,
+  ccu.table_name AS foreign_table_name,
+  ccu.column_name AS foreign_column_name
+FROM information_schema.table_constraints tc
+JOIN information_schema.key_column_usage kcu
+  ON tc.constraint_name = kcu.constraint_name
+JOIN information_schema.constraint_column_usage ccu
+  ON ccu.constraint_name = tc.constraint_name
+WHERE tc.constraint_type = 'FOREIGN KEY';
+```
+
+```typescript
+// tests/database/migrations.test.ts
+import { PostgreSqlContainer } from '@testcontainers/postgresql';
+import { execSync } from 'child_process';
+import { PrismaClient } from '@prisma/client';
+
+describe('Database Migrations', () => {
+  let container: any;
+  let prisma: PrismaClient;
+
+  beforeAll(async () => {
+    container = await new PostgreSqlContainer().start();
+    process.env.DATABASE_URL = container.getConnectionUri();
+  }, 60000);
+
+  afterAll(async () => {
+    await container?.stop();
+  });
+
+  beforeEach(() => {
+    prisma = new PrismaClient({
+      datasources: {
+        db: { url: container.getConnectionUri() },
+      },
+    });
+  });
+
+  afterEach(async () => {
+    await prisma.$disconnect();
+  });
+
+  it('should apply all migrations successfully', () => {
+    expect(() => {
+      execSync('npx prisma migrate deploy', { stdio: 'pipe' });
+    }).not.toThrow();
+  });
+
+  it('should have all required tables', async () => {
+    execSync('npx prisma migrate deploy', { stdio: 'pipe' });
+
+    const tables = await prisma.$queryRaw`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public'
+    `;
+
+    const tableNames = (tables as any[]).map(t => t.table_name);
+    
+    const requiredTables = [
+      'domains',
+      'users',
+      'posts',
+      'categories',
+      'scraper_configs',
+      'audit_logs',
+    ];
+
+    requiredTables.forEach(table => {
+      expect(tableNames).toContain(table);
+    });
+  });
+
+  it('should rollback migrations cleanly', () => {
+    // Apply migrations
+    execSync('npx prisma migrate deploy', { stdio: 'pipe' });
+    
+    // Rollback last migration
+    expect(() => {
+      execSync('npx prisma migrate resolve --rolled-back "migration_name"', { 
+        stdio: 'pipe' 
+      });
+    }).not.toThrow();
+  });
+});
+```
+
+#### Testy Constraintów
+
+```typescript
+// tests/database/constraints.test.ts
+import { prisma } from './setup';
+
+describe('Database Constraints', () => {
+  describe('Unique Constraints', () => {
+    it('should enforce unique domain names', async () => {
+      await prisma.domains.create({
+        data: { name: 'unique-domain', title: 'Test' },
+      });
+
+      await expect(
+        prisma.domains.create({
+          data: { name: 'unique-domain', title: 'Test 2' },
+        })
+      ).rejects.toThrow(/unique constraint/);
+    });
+
+    it('should enforce unique slugs per domain', async () => {
+      const domain = await prisma.domains.create({
+        data: { name: 'test-slug', title: 'Test' },
+      });
+
+      await prisma.posts.create({
+        data: {
+          title: 'Post 1',
+          slug: 'test-post',
+          domain_id: domain.id,
+          category_id: 1,
+        },
+      });
+
+      await expect(
+        prisma.posts.create({
+          data: {
+            title: 'Post 2',
+            slug: 'test-post',
+            domain_id: domain.id,
+            category_id: 1,
+          },
+        })
+      ).rejects.toThrow(/unique constraint/);
+    });
+  });
+
+  describe('Foreign Key Constraints', () => {
+    it('should prevent deleting domain with posts', async () => {
+      const domain = await prisma.domains.create({
+        data: { name: 'domain-with-posts', title: 'Test' },
+      });
+
+      await prisma.posts.create({
+        data: {
+          title: 'Test Post',
+          slug: 'test-post',
+          domain_id: domain.id,
+          category_id: 1,
+        },
+      });
+
+      await expect(
+        prisma.domains.delete({ where: { id: domain.id } })
+      ).rejects.toThrow(/foreign key constraint/);
+    });
+
+    it('should cascade delete related records', async () => {
+      const domain = await prisma.domains.create({
+        data: { name: 'cascade-test', title: 'Test' },
+      });
+
+      await prisma.domain_settings.create({
+        data: {
+          domain_id: domain.id,
+          primary_color: '#000000',
+        },
+      });
+
+      await prisma.domains.delete({
+        where: { id: domain.id },
+      });
+
+      const settings = await prisma.domain_settings.findFirst({
+        where: { domain_id: domain.id },
+      });
+
+      expect(settings).toBeNull();
+    });
+  });
+
+  describe('Check Constraints', () => {
+    it('should enforce valid email format', async () => {
+      await expect(
+        prisma.users.create({
+          data: {
+            email: 'invalid-email',
+            password_hash: 'hash',
+          },
+        })
+      ).rejects.toThrow();
+    });
+
+    it('should enforce positive prices', async () => {
+      await expect(
+        prisma.classifieds.create({
+          data: {
+            title: 'Test',
+            price: -100,
+            domain_id: 1,
+          },
+        })
+      ).rejects.toThrow(/check constraint/);
+    });
+  });
+});
+```
+
+#### Seed Data dla Testów
+
+```typescript
+// tests/database/seeds/test-data.ts
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+export async function seedTestData() {
+  // Create test domain
+  const domain = await prisma.domains.create({
+    data: {
+      name: 'test-domain',
+      title: 'Test Domain',
+      slug: 'test-domain',
+      city: 'Test City',
+      region: 'test-region',
+      settings: {
+        create: {
+          primary_color: '#3b82f6',
+          secondary_color: '#10b981',
+        },
+      },
+    },
+  });
+
+  // Create categories
+  const categories = await prisma.categories.createMany({
+    data: [
+      { name: 'Wiadomości', slug: 'wiadomosci', domain_id: domain.id },
+      { name: 'Sport', slug: 'sport', domain_id: domain.id },
+      { name: 'Kultura', slug: 'kultura', domain_id: domain.id },
+    ],
+  });
+
+  // Create test users with different roles
+  const users = await prisma.users.createMany({
+    data: [
+      {
+        email: 'admin@test.com',
+        password_hash: '$2b$10$...', // hashed
+        role: 'super_admin',
+      },
+      {
+        email: 'editor@test.com',
+        password_hash: '$2b$10$...',
+        role: 'editor',
+      },
+      {
+        email: 'moderator@test.com',
+        password_hash: '$2b$10$...',
+        role: 'moderator',
+      },
+    ],
+  });
+
+  // Create test posts
+  const posts = await prisma.posts.createMany({
+    data: Array.from({ length: 20 }, (_, i) => ({
+      title: `Test Post ${i + 1}`,
+      slug: `test-post-${i + 1}`,
+      content: `Content for test post ${i + 1}`,
+      excerpt: `Excerpt ${i + 1}`,
+      domain_id: domain.id,
+      category_id: 1,
+      status: i % 5 === 0 ? 'draft' : 'published',
+      published_at: i % 5 === 0 ? null : new Date(),
+    })),
+  });
+
+  // Create scraper configs
+  const scrapers = await prisma.scraper_configs.createMany({
+    data: [
+      {
+        name: 'Police RSS',
+        source_type: 'POLICE_RSS',
+        source_url: 'https://policja.gov.pl/rss',
+        domain_id: domain.id,
+        is_active: true,
+      },
+      {
+        name: 'City News',
+        source_type: 'CITY_FEED',
+        source_url: 'https://city.gov.pl/feed',
+        domain_id: domain.id,
+        is_active: true,
+      },
+    ],
+  });
+
+  return { domain, categories, users, posts, scrapers };
+}
+
+export async function cleanupTestData() {
+  const tables = [
+    'audit_logs',
+    'scraper_jobs',
+    'scraper_configs',
+    'posts',
+    'categories',
+    'domain_settings',
+    'domain_users',
+    'users',
+    'domains',
+  ];
+
+  for (const table of tables) {
+    await prisma.$executeRawUnsafe(`TRUNCATE TABLE "${table}" CASCADE`);
+  }
+}
 ```
 
 ---
 
-#### 20.2.2 POLICJA (police)
+### 21.6 Load Testing
 
-Komunikaty policyjne - wymagają specyficznej struktury ze względu na formalny charakter.
+#### Konfiguracja k6
 
 ```typescript
-interface PoliceMetadata {
-  // TYP KOMUNIKATU (znormalizowany)
-  incident_type: 
-    | 'accident'           // Wypadek
-    | 'collision'          // Kolizja
-    | 'theft'              // Kradzież
-    | 'burglary'           // Włamanie
-    | 'assault'            // Napad/pobicie
-    | 'fraud'              // Oszustwo
-    | 'drugs'              // Narkotyki
-    | 'dui'                // Jazda po alkoholu
-    | 'speeding'           // Przekroczenie prędkości
-    | 'wanted'             // Poszukiwania
-    | 'missing_person'     // Zaginięcie
-    | 'found_person'       // Odnalezienie
-    | 'appeal_witnesses'   // Apel o świadków
-    | 'safety_warning'     // Ostrzeżenie
-    | 'other';             // Inne
-  
-  // MIEJSCE ZDARZENIA
-  incident_location: {
-    address: string;              // Dokładny adres
-    city_district?: string;       // Dzielnica
-    coordinates?: { lat: number; lng: number };
-    description?: string;         // Dodatkowy opis miejsca
-  };
-  
-  // CZAS ZDARZENIA
-  incident_date: string;          // ISO 8601 (data zdarzenia)
-  incident_time?: string;         // HH:MM (czas)
-  
-  // PODMIOTY
-  perpetrator?: {
-    description?: string;         // Rysopis
-    age_range?: string;           // Przedział wiekowy
-    distinguishing_features?: string[]; // Znamiona szczególne
-    vehicle?: {
-      make?: string;              // Marka
-      model?: string;             // Model
-      color?: string;             // Kolor
-      registration?: string;      // Nr rejestracyjny
-      description?: string;       // Dodatkowy opis
-    };
-  };
-  
-  victim?: {
-    count?: number;               // Liczba poszkodowanych
-    description?: string;         // Opis poszkodowanych
-    injuries?: string;            // Zakres obrażeń
-  };
-  
-  // SKUTKI
-  damage_description?: string;    // Opis strat
-  items_stolen?: string[];        // Skradzione przedmioty
-  value_damaged?: number;         // Wartość strat (PLN)
-  value_stolen?: number;          // Wartość skradziona (PLN)
-  
-  // STATUS
-  case_status: 'open' | 'investigating' | 'closed' | 'solved';
-  case_number?: string;           // Numer sprawy
-  
-  // APELE
-  appeal_type?: 'witnesses' | 'information' | 'help_identify';
-  contact_phone?: string;         // Telefon do kontaktu
-  contact_email?: string;         // Email do kontaktu
+// load-tests/config/options.js
+export const options = {
+  stages: [
+    { duration: '2m', target: 100 },   // Ramp up to 100 users
+    { duration: '5m', target: 100 },   // Stay at 100 users
+    { duration: '2m', target: 200 },   // Ramp up to 200 users
+    { duration: '5m', target: 200 },   // Stay at 200 users
+    { duration: '2m', target: 0 },     // Ramp down
+  ],
+  thresholds: {
+    http_req_duration: ['p(95)<500'],   // 95% requests under 500ms
+    http_req_failed: ['rate<0.1'],      // Less than 0.1% errors
+  },
+};
+
+// load-tests/config/constants.js
+export const BASE_URL = __ENV.BASE_URL || 'http://localhost:3000';
+export const API_URL = __ENV.API_URL || 'http://localhost:3001';
+
+export const ENDPOINTS = {
+  home: '/',
+  news: '/wiadomosci',
+  apiPosts: '/api/posts',
+  apiCategories: '/api/categories',
+  login: '/api/auth/login',
+};
+
+export const USERS = [
+  { email: 'loadtest1@test.com', password: 'Test123!' },
+  { email: 'loadtest2@test.com', password: 'Test123!' },
+  { email: 'loadtest3@test.com', password: 'Test123!' },
+];
+```
+
+```javascript
+// load-tests/scenarios/frontend-load.js
+import http from 'k6/http';
+import { check, sleep, group } from 'k6';
+import { Rate, Trend } from 'k6/metrics';
+import { options, BASE_URL, ENDPOINTS } from '../config/options';
+
+const errorRate = new Rate('errors');
+const pageLoadTime = new Trend('page_load_time');
+
+export { options };
+
+export default function () {
+  group('Homepage', () => {
+    const start = Date.now();
+    const response = http.get(`${BASE_URL}${ENDPOINTS.home}`);
+    const duration = Date.now() - start;
+    
+    pageLoadTime.add(duration);
+    
+    const success = check(response, {
+      'homepage status is 200': (r) => r.status === 200,
+      'homepage loads under 1s': (r) => duration < 1000,
+      'homepage has content': (r) => r.body.includes('Regionalny'),
+    });
+    
+    errorRate.add(!success);
+  });
+
+  group('News Page', () => {
+    const response = http.get(`${BASE_URL}${ENDPOINTS.news}`);
+    
+    const success = check(response, {
+      'news page status is 200': (r) => r.status === 200,
+      'news page has articles': (r) => r.body.includes('article'),
+    });
+    
+    errorRate.add(!success);
+  });
+
+  group('API - Posts List', () => {
+    const response = http.get(`${BASE_URL}${ENDPOINTS.apiPosts}?page=1&limit=10`);
+    
+    const success = check(response, {
+      'posts API status is 200': (r) => r.status === 200,
+      'posts API returns JSON': (r) => r.headers['Content-Type'].includes('json'),
+      'posts API has data': (r) => JSON.parse(r.body).posts !== undefined,
+    });
+    
+    errorRate.add(!success);
+  });
+
+  sleep(Math.random() * 3 + 1); // Random sleep 1-4 seconds
 }
 ```
 
-**Przykład JSON (zescrapowany komunikat policji):**
+```javascript
+// load-tests/scenarios/api-load.js
+import http from 'k6/http';
+import { check, sleep } from 'k6';
+import { Rate } from 'k6/metrics';
+import { API_URL, ENDPOINTS, USERS } from '../config/constants';
+
+const errorRate = new Rate('errors');
+
+export const options = {
+  scenarios: {
+    constant_request_rate: {
+      executor: 'constant-arrival-rate',
+      rate: 1000,                          // 1000 iterations per minute
+      timeUnit: '1m',
+      duration: '10m',
+      preAllocatedVUs: 100,
+      maxVUs: 200,
+    },
+  },
+  thresholds: {
+    http_req_duration: ['p(99)<1000'],     // 99% under 1s
+    errors: ['rate<0.05'],                 // Less than 5% errors
+  },
+};
+
+let authToken = null;
+
+export function setup() {
+  // Login and get token
+  const loginRes = http.post(`${API_URL}${ENDPOINTS.login}`, {
+    email: USERS[0].email,
+    password: USERS[0].password,
+  });
+  
+  if (loginRes.status === 200) {
+    authToken = JSON.parse(loginRes.body).token;
+  }
+  
+  return { token: authToken };
+}
+
+export default function (data) {
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+  
+  if (data.token) {
+    headers['Authorization'] = `Bearer ${data.token}`;
+  }
+
+  // GET posts
+  const getRes = http.get(`${API_URL}${ENDPOINTS.apiPosts}?page=1&limit=20`, { headers });
+  
+  check(getRes, {
+    'GET posts status 200': (r) => r.status === 200,
+    'GET posts response time < 200ms': (r) => r.timings.duration < 200,
+  });
+
+  // GET categories
+  const catRes = http.get(`${API_URL}${ENDPOINTS.apiCategories}`, { headers });
+  
+  check(catRes, {
+    'GET categories status 200': (r) => r.status === 200,
+  });
+
+  sleep(0.1);
+}
+```
+
+```javascript
+// load-tests/scenarios/scraping-load.js
+import http from 'k6/http';
+import { check, sleep } from 'k6';
+import { Rate } from 'k6/metrics';
+import { API_URL } from '../config/constants';
+
+const rateLimitHits = new Rate('rate_limit_hits');
+
+export const options = {
+  stages: [
+    { duration: '1m', target: 10 },     // 10 concurrent scraping jobs
+    { duration: '5m', target: 10 },
+    { duration: '1m', target: 20 },     // Increase to 20
+    { duration: '5m', target: 20 },
+    { duration: '1m', target: 0 },
+  ],
+  thresholds: {
+    rate_limit_hits: ['rate<0.1'],       // Less than 10% rate limited
+  },
+};
+
+export default function () {
+  // Simulate multiple scraper requests
+  const scraperConfigs = [1, 2, 3, 4, 5];
+  
+  for (const configId of scraperConfigs) {
+    const response = http.post(`${API_URL}/api/scraper/run`, {
+      config_id: configId,
+    });
+    
+    // Check if rate limited (429)
+    if (response.status === 429) {
+      rateLimitHits.add(1);
+    }
+    
+    check(response, {
+      'scraper accepts or rate limits': (r) => r.status === 200 || r.status === 429,
+    });
+    
+    sleep(1); // Wait between requests
+  }
+  
+  sleep(5); // Wait between cycles
+}
+```
+
+#### Konfiguracja Artillery
+
+```yaml
+# load-tests/artillery/frontend.yml
+config:
+  target: 'http://localhost:3000'
+  phases:
+    - duration: 60
+      arrivalRate: 10
+      name: "Warm up"
+    - duration: 120
+      arrivalRate: 10
+      rampTo: 50
+      name: "Ramp up"
+    - duration: 300
+      arrivalRate: 50
+      name: "Sustained load"
+  plugins:
+    metrics-by-endpoint:
+      useOnlyRequestNames: true
+
+scenarios:
+  - name: "Browse homepage"
+    weight: 40
+    requests:
+      - get:
+          url: "/"
+          name: "homepage"
+          
+  - name: "Browse news"
+    weight: 30
+    requests:
+      - get:
+          url: "/wiadomosci"
+          name: "news_list"
+      - get:
+          url: "/wiadomosci?page={{ $randomInt(1, 5) }}"
+          name: "news_paginated"
+          
+  - name: "Read article"
+    weight: 20
+    requests:
+      - get:
+          url: "/wiadomosci/sample-post-{{ $randomInt(1, 100) }}"
+          name: "article_detail"
+          
+  - name: "API calls"
+    weight: 10
+    requests:
+      - get:
+          url: "/api/posts?limit=10"
+          name: "api_posts"
+      - get:
+          url: "/api/categories"
+          name: "api_categories"
+```
+
+---
+
+### 21.7 Security Tests
+
+#### OWASP ZAP
+
+```yaml
+# security-tests/zap/zap-baseline.yml
+# ZAP Baseline Scan Configuration
+
+spider:
+  maxDepth: 5
+  threadCount: 4
+
+scanners:
+  - id: 40012
+    name: "Cross Domain Script Inclusion"
+    enabled: true
+  - id: 40014
+    name: "Cross Domain Misconfiguration"
+    enabled: true
+  - id: 40016
+    name: "Web Browser XSS Protection Not Enabled"
+    enabled: true
+  - id: 40017
+    name: "Cross Domain JavaScript Source File Included"
+    enabled: true
+  - id: 40018
+    name: "SQL Injection"
+    enabled: true
+  - id: 40019
+    name: "SQL Injection MySQL"
+    enabled: true
+  - id: 40020
+    name: "SQL Injection Hypersonic"
+    enabled: true
+  - id: 40021
+    name: "SQL Injection Oracle"
+    enabled: true
+  - id: 40022
+    name: "SQL Injection PostgreSQL"
+    enabled: true
+  - id: 40024
+    name: "SQL Injection SQLite"
+    enabled: true
+  - id: 40026
+    name: "Cross Site Scripting (DOM Based)"
+    enabled: true
+  - id: 40027
+    name: "Cross Site Scripting (Reflected)"
+    enabled: true
+  - id: 40028
+    name: "ELMAH Information Leak"
+    enabled: true
+  - id: 40029
+    name: "Trace.axd Information Leak"
+    enabled: true
+  - id: 40032
+    name: ".htaccess Information Leak"
+    enabled: true
+
+# Ignore certain alerts
+ignore:
+  - ruleId: 10027
+    reason: "Informational - Suspicious comments"
+  - ruleId: 10096
+    reason: "Informational - Timestamp disclosure"
+
+# Context for authentication
+context:
+  name: "Regionalne Serwisy"
+  includePaths:
+    - "http://localhost:3000.*"
+    - "http://localhost:3001.*"
+  excludePaths:
+    - ".*\\.js"
+    - ".*\\.css"
+    - ".*\\.png"
+    - ".*\\.jpg"
+```
+
+```bash
+#!/bin/bash
+# security-tests/zap/run-zap-scan.sh
+
+TARGET_URL=${1:-"http://localhost:3000"}
+API_URL=${2:-"http://localhost:3001"}
+REPORT_DIR="reports"
+
+echo "Starting OWASP ZAP Baseline Scan..."
+echo "Target: $TARGET_URL"
+echo "API: $API_URL"
+
+mkdir -p $REPORT_DIR
+
+# Run baseline scan on frontend
+docker run -t ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
+  -t $TARGET_URL \
+  -c security-tests/zap/zap-baseline.yml \
+  -r $REPORT_DIR/zap-report-frontend.html \
+  -w $REPORT_DIR/zap-report-frontend.md
+
+# Run API scan on backend
+docker run -t ghcr.io/zaproxy/zaproxy:stable zap-api-scan.py \
+  -t $API_URL/openapi.json \
+  -f openapi \
+  -c security-tests/zap/zap-baseline.yml \
+  -r $REPORT_DIR/zap-report-api.html \
+  -w $REPORT_DIR/zap-report-api.md
+
+# Run full scan (takes longer, more thorough)
+# docker run -t ghcr.io/zaproxy/zaproxy:stable zap-full-scan.py \
+#   -t $TARGET_URL \
+#   -r $REPORT_DIR/zap-full-report.html
+
+echo "Scan complete. Reports saved to $REPORT_DIR/"
+```
+
+#### npm audit
+
+```json
+// package.json audit configuration
+{
+  "scripts": {
+    "security:audit": "npm audit --audit-level=moderate",
+    "security:audit:fix": "npm audit fix",
+    "security:audit:ci": "npm audit --audit-level=moderate --production",
+    "security:outdated": "npm outdated",
+    "security:check": "npm-run-all security:audit security:outdated"
+  }
+}
+```
+
+```yaml
+# .github/workflows/security-audit.yml
+name: Security Audit
+
+on:
+  schedule:
+    - cron: '0 2 * * 1'  # Weekly on Monday at 2 AM
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Run npm audit
+        run: npm audit --audit-level=moderate
+        continue-on-error: true
+        
+      - name: Check for outdated packages
+        run: npm outdated || true
+        
+      - name: Upload audit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-report
+          path: audit-report.json
+```
+
+#### Snyk Integration
+
+```yaml
+# .snyk - Snyk policy file
+version: v1.25.0
+ignore:
+  SNYK-JS-LODASH-1018905:
+    - '*':
+        reason: 'No patch available, not exploitable in our context'
+        expires: '2024-12-31T00:00:00.000Z'
+  SNYK-JS-AXIOS-1038255:
+    - '*':
+        reason: 'Fixed in code review'
+        expires: '2024-12-31T00:00:00.000Z'
+patch: {}
+```
+
+```yaml
+# .github/workflows/snyk.yml
+name: Snyk Security Scan
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 3 * * *'  # Daily at 3 AM
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Run Snyk to check for vulnerabilities
+        uses: snyk/actions/node@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high --sarif-file-output=snyk.sarif
+          
+      - name: Upload result to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: snyk.sarif
+```
+
+#### Security Testy Manualne
+
+```typescript
+// security-tests/manual/security-checklist.ts
+/**
+ * Security Testing Checklist
+ * 
+ * Run these tests manually or automate via Cypress/Selenium
+ */
+
+export const securityTests = {
+  authentication: [
+    'Test login with SQL injection attempts: admin\' OR \'1\'=\'1',
+    'Test login with XSS in email: <script>alert(1)</script>@test.com',
+    'Verify password complexity requirements',
+    'Test brute force protection (rate limiting)',
+    'Verify session timeout after inactivity',
+    'Test concurrent session handling',
+    'Verify password reset token expiration',
+  ],
+  
+  authorization: [
+    'Access admin endpoints as regular user',
+    'Access other user\'s resources by modifying IDs',
+    'Test horizontal privilege escalation',
+    'Test vertical privilege escalation',
+    'Verify role-based access control on all endpoints',
+    'Test CORS configuration',
+  ],
+  
+  inputValidation: [
+    'Test XSS payloads in all input fields',
+    'Test SQL injection in search and filters',
+    'Test file upload with malicious extensions',
+    'Test file upload with oversized files',
+    'Test path traversal in file parameters',
+    'Verify output encoding in all responses',
+  ],
+  
+  sessionManagement: [
+    'Verify secure flag on session cookies',
+    'Verify httpOnly flag on session cookies',
+    'Verify SameSite cookie attribute',
+    'Test session fixation protection',
+    'Verify logout invalidates session',
+    'Test session hijacking via stolen cookie',
+  ],
+  
+  dataProtection: [
+    'Verify sensitive data encryption at rest',
+    'Verify HTTPS enforcement',
+    'Check for sensitive data in logs',
+    'Test for information disclosure in error messages',
+    'Verify PII handling compliance (GDPR)',
+  ],
+};
+```
+
+---
+
+### 21.8 Accessibility Tests
+
+#### axe-core Configuration
+
+```typescript
+// a11y-tests/axe-config.ts
+import { RunOptions } from 'axe-core';
+
+export const axeConfig: RunOptions = {
+  runOnly: {
+    type: 'tag',
+    values: ['wcag2a', 'wcag2aa', 'wcag21aa', 'best-practice'],
+  },
+  rules: {
+    'color-contrast': { enabled: true },
+    'document-title': { enabled: true },
+    'html-has-lang': { enabled: true },
+    'landmark-one-main': { enabled: true },
+    'page-has-heading-one': { enabled: true },
+    'region': { enabled: true },
+    'skip-link': { enabled: true },
+  },
+};
+
+// Priority rules for critical a11y issues
+export const criticalRules = [
+  'aria-roles',
+  'aria-required-attr',
+  'aria-required-children',
+  'aria-required-parent',
+  'aria-valid-attr-value',
+  'aria-valid-attr',
+  'button-name',
+  'color-contrast',
+  'image-alt',
+  'label',
+  'link-name',
+];
+```
+
+```typescript
+// cypress/e2e/a11y/accessibility.cy.ts
+import { axeConfig } from '../../../a11y-tests/axe-config';
+
+describe('Accessibility Tests', () => {
+  beforeEach(() => {
+    cy.injectAxe();
+  });
+
+  describe('Homepage', () => {
+    it('should have no accessibility violations', () => {
+      cy.visit('/');
+      cy.configureAxe(axeConfig);
+      cy.checkA11y();
+    });
+
+    it('should pass color contrast requirements', () => {
+      cy.visit('/');
+      cy.configureAxe({
+        runOnly: ['color-contrast'],
+      });
+      cy.checkA11y();
+    });
+  });
+
+  describe('News Page', () => {
+    it('should have no accessibility violations', () => {
+      cy.visit('/wiadomosci');
+      cy.checkA11y();
+    });
+  });
+
+  describe('Login Page', () => {
+    it('should have accessible form elements', () => {
+      cy.visit('/login');
+      cy.checkA11y(null, {
+        rules: {
+          'label': { enabled: true },
+          'button-name': { enabled: true },
+        },
+      });
+    });
+
+    it('should have proper focus management', () => {
+      cy.visit('/login');
+      cy.getByTestId('email-input').focus();
+      cy.checkA11y();
+    });
+  });
+
+  describe('Admin Panel', () => {
+    beforeEach(() => {
+      cy.loginAsAdmin();
+    });
+
+    it('should have accessible navigation', () => {
+      cy.visit('/dashboard');
+      cy.checkA11y('[data-testid="main-navigation"]', {
+        runOnly: ['landmark', 'aria-roles'],
+      });
+    });
+
+    it('should have accessible data tables', () => {
+      cy.visit('/admin/posts');
+      cy.checkA11y('[data-testid="posts-table"]', {
+        runOnly: ['aria-roles', 'aria-required-children'],
+      });
+    });
+  });
+
+  describe('Keyboard Navigation', () => {
+    it('should be fully navigable by keyboard', () => {
+      cy.visit('/');
+      cy.get('body').tab();
+      
+      // Tab through main elements
+      const tabbableElements = [
+        'skip-link',
+        'logo-link',
+        'nav-news',
+        'nav-sport',
+        'nav-business',
+        'search-input',
+        'first-article',
+      ];
+
+      tabbableElements.forEach((testId) => {
+        cy.focused().should('have.attr', 'data-testid', testId);
+        cy.focused().tab();
+      });
+    });
+
+    it('should show focus indicators', () => {
+      cy.visit('/');
+      cy.get('a').first().focus();
+      cy.get('a').first().should('have.css', 'outline');
+    });
+  });
+});
+```
+
+#### Lighthouse CI
+
+```json
+// lighthouserc.js
+module.exports = {
+  ci: {
+    collect: {
+      url: [
+        'http://localhost:3000/',
+        'http://localhost:3000/wiadomosci',
+        'http://localhost:3000/login',
+        'http://localhost:3000/dashboard',
+      ],
+      numberOfRuns: 3,
+      startServerCommand: 'npm run start',
+      startServerReadyPattern: 'Ready on',
+      startServerReadyTimeout: 120000,
+    },
+    assert: {
+      preset: 'lighthouse:recommended',
+      assertions: {
+        'categories:performance': ['error', { minScore: 0.8 }],
+        'categories:accessibility': ['error', { minScore: 0.95 }],
+        'categories:best-practices': ['error', { minScore: 0.9 }],
+        'categories:seo': ['error', { minScore: 0.9 }],
+        'color-contrast': 'error',
+        'document-title': 'error',
+        'html-has-lang': 'error',
+        'image-alt': 'error',
+        'label': 'error',
+        'link-name': 'error',
+        'list': 'error',
+        'listitem': 'error',
+        'meta-viewport': 'error',
+      },
+    },
+    upload: {
+      target: 'temporary-public-storage',
+    },
+  },
+};
+```
+
+```yaml
+# .github/workflows/lighthouse.yml
+name: Lighthouse CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lighthouse:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Build application
+        run: npm run build
+        
+      - name: Run Lighthouse CI
+        run: |
+          npm install -g @lhci/cli
+          lhci autorun
+        env:
+          LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
+          
+      - name: Upload Lighthouse reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-reports
+          path: '.lighthouseci/'
+```
+
+#### WCAG 2.1 AA Compliance Checklist
+
+```markdown
+<!-- a11y-tests/WCAG21-AA-CHECKLIST.md -->
+# WCAG 2.1 AA Compliance Checklist
+
+## 1. Perceivable
+
+### 1.1 Text Alternatives
+- [ ] All images have meaningful alt text
+- [ ] Decorative images have empty alt
+- [ ] Complex images have extended descriptions
+- [ ] Form inputs have associated labels
+- [ ] Buttons have accessible names
+
+### 1.2 Time-based Media
+- [ ] Videos have captions
+- [ ] Videos have transcripts
+- [ ] Audio content has transcripts
+
+### 1.3 Adaptable
+- [ ] Content is readable without CSS
+- [ ] Tables have proper headers
+- [ ] Form fields have associated labels
+- [ ] Content order is logical
+
+### 1.4 Distinguishable
+- [ ] Color contrast ratio >= 4.5:1 for normal text
+- [ ] Color contrast ratio >= 3:1 for large text
+- [ ] Color contrast ratio >= 3:1 for UI components
+- [ ] Text can be resized up to 200%
+- [ ] Content reflows at 320px width
+
+## 2. Operable
+
+### 2.1 Keyboard Accessible
+- [ ] All functionality available via keyboard
+- [ ] No keyboard traps
+- [ ] Skip links provided
+- [ ] Focus order is logical
+- [ ] Focus indicator is visible
+
+### 2.2 Enough Time
+- [ ] No time limits without option to extend
+- [ ] Moving content can be paused
+- [ ] Session timeout warnings provided
+
+### 2.3 Seizures and Physical Reactions
+- [ ] No content flashes more than 3 times per second
+
+### 2.4 Navigable
+- [ ] Page titles are descriptive
+- [ ] Links have descriptive text
+- [ ] Multiple ways to find pages
+- [ ] Focus indicator visible
+
+### 2.5 Input Modalities
+- [ ] Touch targets are at least 44x44px
+- [ ] Motion actions can be disabled
+- [ ] Functionality doesn't rely on single pointer gestures
+
+## 3. Understandable
+
+### 3.1 Readable
+- [ ] HTML lang attribute is set
+- [ ] Language changes are marked
+
+### 3.2 Predictable
+- [ ] Navigation is consistent
+- [ ] Components with same function look consistent
+- [ ] No unexpected context changes
+
+### 3.3 Input Assistance
+- [ ] Error messages are clear
+- [ ] Required fields are marked
+- [ ] Error prevention for legal/financial data
+- [ ] Suggestions for error correction
+
+## 4. Robust
+
+### 4.1 Compatible
+- [ ] Valid HTML markup
+- [ ] ARIA used correctly
+- [ ] Name, role, value available for components
+```
+
+---
+
+### 21.9 CI/CD Integration
+
+#### GitHub Actions Workflow
+
+```yaml
+# .github/workflows/test.yml
+name: Test Suite
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  NODE_VERSION: '20'
+  DATABASE_URL: postgresql://test:test@localhost:5432/regionalne_test
+
+jobs:
+  # Unit Tests
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Run unit tests
+        run: npm run test:unit -- --coverage
+        
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage/lcov.info
+          flags: unit
+          name: unit-tests
+
+  # Integration Tests
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: regionalne_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+          
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+          
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Run database migrations
+        run: npx prisma migrate deploy
+        
+      - name: Run integration tests
+        run: npm run test:integration -- --coverage
+        
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage/lcov.info
+          flags: integration
+          name: integration-tests
+
+  # E2E Tests
+  e2e-tests:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Build application
+        run: npm run build
+        
+      - name: Run Cypress tests
+        uses: cypress-io/github-action@v6
+        with:
+          start: npm start
+          wait-on: 'http://localhost:3000'
+          wait-on-timeout: 120
+          browser: chrome
+          record: true
+        env:
+          CYPRESS_RECORD_KEY: ${{ secrets.CYPRESS_RECORD_KEY }}
+          
+      - name: Upload screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cypress-screenshots
+          path: cypress/screenshots
+
+  # Database Tests
+  database-tests:
+    name: Database Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: regionalne_test
+        ports:
+          - 5432:5432
+          
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Run database tests
+        run: npm run test:db
+
+  # Lint and Type Check
+  lint-and-typecheck:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Run ESLint
+        run: npm run lint
+        
+      - name: Run TypeScript check
+        run: npm run typecheck
+        
+      - name: Check formatting
+        run: npm run format:check
+
+  # Security Audit
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          
+      - name: Run npm audit
+        run: npm audit --audit-level=moderate
+        
+      - name: Run Snyk test
+        uses: snyk/actions/node@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+  # Coverage Report
+  coverage:
+    name: Coverage Report
+    needs: [unit-tests, integration-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download all coverage reports
+        uses: actions/download-artifact@v4
+        
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          fail_ci_if_error: true
+          verbose: true
+```
+
+#### Coverage Reporting (Codecov)
+
+```yaml
+# codecov.yml
+codecov:
+  require_ci_to_pass: yes
+  notify:
+    wait_for_ci: yes
+
+coverage:
+  precision: 2
+  round: down
+  range: "70...100"
+  
+  status:
+    project:
+      default:
+        target: 70%
+        threshold: 5%
+        paths:
+          - "src"
+      frontend:
+        target: 70%
+        paths:
+          - "src/components"
+          - "src/pages"
+          - "src/hooks"
+      backend:
+        target: 70%
+        paths:
+          - "src/api"
+          - "src/lib"
+      
+    patch:
+      default:
+        target: 70%
+        threshold: 5%
+
+parsers:
+  gcov:
+    branch_detection:
+      conditional: yes
+      loop: yes
+      method: no
+      macro: no
+
+comment:
+  layout: "reach,diff,flags,files,footer"
+  behavior: default
+  require_changes: no
+  require_base: no
+  require_head: yes
+```
+
+```typescript
+// scripts/merge-coverage.ts
+import * as fs from 'fs';
+import * as path from 'path';
+
+/**
+ * Merge coverage reports from multiple test runs
+ */
+async function mergeCoverage() {
+  const coverageDir = './coverage';
+  const reports = [
+    './coverage/unit/coverage-final.json',
+    './coverage/integration/coverage-final.json',
+  ];
+
+  const merged: any = { total: {}, files: {} };
+
+  for (const reportPath of reports) {
+    if (fs.existsSync(reportPath)) {
+      const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+      
+      for (const [file, data] of Object.entries(report)) {
+        if (!merged.files[file]) {
+          merged.files[file] = data;
+        } else {
+          // Merge coverage data
+          merged.files[file].statementMap = {
+            ...merged.files[file].statementMap,
+            ...((data as any).statementMap || {}),
+          };
+        }
+      }
+    }
+  }
+
+  // Write merged report
+  if (!fs.existsSync(coverageDir)) {
+    fs.mkdirSync(coverageDir, { recursive: true });
+  }
+
+  fs.writeFileSync(
+    path.join(coverageDir, 'coverage-merged.json'),
+    JSON.stringify(merged.files, null, 2)
+  );
+
+  console.log('Coverage reports merged successfully');
+}
+
+mergeCoverage().catch(console.error);
+```
+
+---
+
+### 21.10 Test Data Management
+
+#### Fixtures / Factories
+
+```typescript
+// tests/factories/PostFactory.ts
+import { faker } from '@faker-js/faker/locale/pl';
+import { PrismaClient, PostStatus } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+interface PostFactoryOptions {
+  domainId: number;
+  categoryId: number;
+  status?: PostStatus;
+  overrides?: Partial<any>;
+}
+
+export class PostFactory {
+  static async create(options: PostFactoryOptions) {
+    const title = faker.lorem.sentence();
+    
+    return await prisma.posts.create({
+      data: {
+        title,
+        slug: faker.helpers.slugify(title).toLowerCase(),
+        content: faker.lorem.paragraphs(3),
+        excerpt: faker.lorem.paragraph(),
+        featured_image: faker.image.url(),
+        domain_id: options.domainId,
+        category_id: options.categoryId,
+        status: options.status || 'published',
+        published_at: options.status === 'published' ? new Date() : null,
+        view_count: faker.number.int({ min: 0, max: 10000 }),
+        metadata: {
+          author: faker.person.fullName(),
+          source: 'factory',
+        },
+        ...options.overrides,
+      },
+    });
+  }
+
+  static async createMany(count: number, options: PostFactoryOptions) {
+    return Promise.all(
+      Array.from({ length: count }, () => this.create(options))
+    );
+  }
+}
+
+// tests/factories/UserFactory.ts
+import { faker } from '@faker-js/faker/locale/pl';
+import bcrypt from 'bcryptjs';
+
+interface UserFactoryOptions {
+  role?: string;
+  overrides?: Partial<any>;
+}
+
+export class UserFactory {
+  static async create(options: UserFactoryOptions = {}) {
+    const password = 'TestPassword123!';
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    return await prisma.users.create({
+      data: {
+        email: faker.internet.email(),
+        password_hash: passwordHash,
+        first_name: faker.person.firstName(),
+        last_name: faker.person.lastName(),
+        role: options.role || 'editor',
+        is_active: true,
+        email_verified_at: new Date(),
+        ...options.overrides,
+      },
+    });
+  }
+
+  static async createAdmin(options: UserFactoryOptions = {}) {
+    return this.create({ ...options, role: 'super_admin' });
+  }
+}
+
+// tests/factories/DomainFactory.ts
+import { slugify } from '@/utils/slugify';
+
+interface DomainFactoryOptions {
+  overrides?: Partial<any>;
+}
+
+export class DomainFactory {
+  static async create(options: DomainFactoryOptions = {}) {
+    const city = faker.location.city();
+    const name = `4${slugify(city)}`;
+
+    return await prisma.domains.create({
+      data: {
+        name,
+        slug: name,
+        title: `4${city} - Regionalny Portal`,
+        city,
+        region: faker.helpers.arrayElement([
+          'kujawsko-pomorskie',
+          'mazowieckie',
+          'malopolskie',
+          'slaskie',
+        ]),
+        is_active: true,
+        settings: {
+          create: {
+            primary_color: faker.color.rgb(),
+            secondary_color: faker.color.rgb(),
+            font_family: 'Inter',
+          },
+        },
+        ...options.overrides,
+      },
+    });
+  }
+}
+```
+
+#### Seeding
+
+```typescript
+// tests/seeds/development.seed.ts
+import { PostFactory } from '../factories/PostFactory';
+import { UserFactory } from '../factories/UserFactory';
+import { DomainFactory } from '../factories/DomainFactory';
+
+export async function seedDevelopmentData() {
+  console.log('Seeding development data...');
+
+  // Create domains
+  const domains = await Promise.all([
+    DomainFactory.create({ overrides: { name: '4torun', city: 'Toruń' } }),
+    DomainFactory.create({ overrides: { name: '4bydgoszcz', city: 'Bydgoszcz' } }),
+    DomainFactory.create({ overrides: { name: '4warszawa', city: 'Warszawa' } }),
+  ]);
+
+  // Create users
+  const users = await Promise.all([
+    UserFactory.createAdmin({ overrides: { email: 'admin@example.com' } }),
+    UserFactory.create({ role: 'editor', overrides: { email: 'editor@example.com' } }),
+    UserFactory.create({ role: 'moderator', overrides: { email: 'moderator@example.com' } }),
+  ]);
+
+  // Create posts for each domain
+  for (const domain of domains) {
+    const categories = await prisma.categories.createMany({
+      data: [
+        { name: 'Wiadomości', slug: 'wiadomosci', domain_id: domain.id },
+        { name: 'Sport', slug: 'sport', domain_id: domain.id },
+        { name: 'Kultura', slug: 'kultura', domain_id: domain.id },
+      ],
+    });
+
+    await PostFactory.createMany(50, {
+      domainId: domain.id,
+      categoryId: 1,
+      status: 'published',
+    });
+
+    await PostFactory.createMany(10, {
+      domainId: domain.id,
+      categoryId: 1,
+      status: 'draft',
+    });
+  }
+
+  // Create test scraper configs
+  await prisma.scraper_configs.createMany({
+    data: domains.map(domain => ({
+      name: `Police Scraper - ${domain.city}`,
+      source_type: 'POLICE_RSS',
+      source_url: 'https://policja.gov.pl/rss',
+      domain_id: domain.id,
+      is_active: true,
+    })),
+  });
+
+  console.log('Development data seeded successfully');
+  return { domains, users };
+}
+```
+
+#### Mock External APIs
+
+```typescript
+// tests/mocks/handlers.ts
+import { http, HttpResponse } from 'msw';
+
+export const handlers = [
+  // Mock weather API
+  http.get('https://api.openweathermap.org/data/2.5/weather', () => {
+    return HttpResponse.json({
+      coord: { lon: 18.6, lat: 53.01 },
+      weather: [{ id: 800, main: 'Clear', description: 'clear sky' }],
+      main: {
+        temp: 20.5,
+        feels_like: 19.8,
+        humidity: 65,
+        pressure: 1013,
+      },
+      wind: { speed: 3.5, deg: 180 },
+      clouds: { all: 0 },
+      name: 'Toruń',
+    });
+  }),
+
+  // Mock police RSS feed
+  http.get('https://policja.gov.pl/rss', () => {
+    return HttpResponse.xml(`
+      <?xml version="1.0" encoding="UTF-8"?>
+      <rss version="2.0">
+        <channel>
+          <title>Komenda Miejska Policji w Toruniu</title>
+          <item>
+            <title>Zdarzenie drogowe na ul. Długiej</title>
+            <link>https://policja.gov.pl/123</link>
+            <pubDate>Mon, 12 Feb 2024 10:00:00 GMT</pubDate>
+            <description>Wypadek samochodowy bez osób poszkodowanych.</description>
+          </item>
+          <item>
+            <title>Kradzież w sklepie</title>
+            <link>https://policja.gov.pl/124</link>
+            <pubDate>Mon, 12 Feb 2024 09:30:00 GMT</pubDate>
+            <description>Ujęcie sprawcy kradzieży.</description>
+          </item>
+        </channel>
+      </rss>
+    `);
+  }),
+
+  // Mock OpenAI API
+  http.post('https://api.openai.com/v1/chat/completions', () => {
+    return HttpResponse.json({
+      id: 'chatcmpl-test',
+      object: 'chat.completion',
+      created: Date.now(),
+      model: 'gpt-4',
+      choices: [{
+        index: 0,
+        message: {
+          role: 'assistant',
+          content: JSON.stringify({
+            normalized_title: 'Zdarzenie drogowe na ulicy Długiej w Toruniu',
+            category: 'news',
+            tags: ['wypadek', 'drogówka', 'toruń'],
+            sentiment: 'neutral',
+          }),
+        },
+        finish_reason: 'stop',
+      }],
+    });
+  }),
+
+  // Mock image upload (MinIO/S3)
+  http.post('http://minio:9000/uploads', () => {
+    return HttpResponse.json({
+      etag: '"test-etag"',
+      location: 'https://cdn.example.com/uploads/test-image.jpg',
+    });
+  }),
+];
+```
+
+```typescript
+// tests/mocks/server.ts
+import { setupServer } from 'msw/node';
+import { handlers } from './handlers';
+
+export const server = setupServer(...handlers);
+```
+
+```typescript
+// jest.setup.ts
+import { server } from './tests/mocks/server';
+
+beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
+```
+
+---
+
+### 21.11 Podsumowanie Testów
+
+| Typ Testu | Narzędzie | Pokrycie | Częstotliwość | Czas Wykonania |
+|-----------|-----------|----------|---------------|----------------|
+| Unit Tests | Jest | >70% | Każdy PR | ~2 min |
+| Integration Tests | Supertest + TestContainers | >50% | Każdy PR | ~5 min |
+| E2E Tests | Cypress | Krytyczne ścieżki | Każdy PR + Nightly | ~10 min |
+| Database Tests | pg-tap + Prisma | 100% migracji | Każdy PR | ~3 min |
+| Load Tests | k6/Artillery | Progi wydajności | Weekly + Release | ~30 min |
+| Security Tests | ZAP + Snyk | OWASP Top 10 | Weekly | ~20 min |
+| A11y Tests | axe-core + Lighthouse | WCAG 2.1 AA | Każdy PR | ~5 min |
+
+**KONIEC SEKCJI 21**
+
+
+
+---
+
+## 22. CI/CD i DevOps 🚀
+
+**Cel:** Zapewnienie automatycznego, bezpiecznego i powtarzalnego procesu wdrażania zmian na środowiska staging i production. Pipeline CI/CD eliminuje błędy ludzkie, przyspiesza deployment i zapewnia wysoką jakość kodu poprzez automatyczne testy.
+
+---
+
+### 22.1 Git Workflow
+
+**Model:** Git Flow (uproszczony) - zoptymalizowany pod ciągłe dostarczanie.
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           GIT WORKFLOW                                   │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│   feature/login-page                                                    │
+│          │                                                              │
+│          ▼                                                              │
+│   ╔═══════════╗    PR #123    ╔═══════════╗    PR #124    ╔═══════════╗ │
+│   ║  feature  ║──────────────▶║  develop  ║──────────────▶║  staging  ║ │
+│   ║    /*     ║   (review)    ║           ║   (review)    ║           ║ │
+│   ╚═══════════╝               ╚═════╤═════╝               ╚═════╤═════╝ │
+│                                     │                           │       │
+│                                     │         hotfix/bug-456    │       │
+│                                     │              │              │       │
+│                                     │              ▼              │       │
+│                                     │      ╔═══════════╗          │       │
+│                                     └──────║  hotfix   ║──────────┘       │
+│                                            ║    /*     ║   (direct PR)    │
+│                                            ╚═════╤═════╝   to main        │
+│                                                  │                        │
+│                                                  ▼                        │
+│   ╔═══════════╗    PR #125    ╔═══════════╗   ╔═══════════╗             │
+│   ║  staging  ║──────────────▶║   main    ║◄──║  hotfix   ║             │
+│   ║           ║  (approved)   ║ (production║   ║   (fast)  ║             │
+│   ╚═══════════╝               ║   ready)  ║   ╚═══════════╝             │
+│                               ╚═════╤═════╝                             │
+│                                     │                                    │
+│                                     ▼                                    │
+│                            [AUTO-DEPLOY]                                │
+│                              production                                 │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+#### 22.1.1 Opis Branchy
+
+| Branch | Cel | Ochrona | Deployment |
+|--------|-----|---------|------------|
+| `main` | Kod produkcyjny | 🔒 Wymagany PR + 2 approve | Auto → Production |
+| `staging` | Pre-produkcja, testy QA | 🔒 Wymagany PR + 1 approve | Auto → Staging |
+| `develop` | Integracja feature'ów | 🔒 Wymagany PR | Ręczny (dev) |
+| `feature/*` | Nowe funkcjonalności | ❌ Push wolny | Lokalnie |
+| `hotfix/*` | Krytyczne naprawy | 🔒 Fast-track PR | Auto → Production |
+| `release/*` | Przygotowanie release'u (opcjonalnie) | 🔒 PR required | Ręczny |
+
+#### 22.1.2 Konwencja Nazewnictwa Branchy
+
+```bash
+# Feature branches
+feature/SCRAPER-123-dodanie-scrapera-policji
+feature/FRONTEND-456-nowy-komponent-hero
+feature/API-789-optmalizacja-zapytan
+
+# Bug fix branches
+fix/BUG-321-naprawa-paginacji
+fix/SEO-654-poprawa-meta-tagow
+
+# Hotfix branches (krytyczne)
+hotfix/CRITICAL-001-naprawa-logowania
+hotfix/SECURITY-002-patch-xss
+
+# Release branches (opcjonalnie)
+release/v1.2.0
+release/v2.0.0-beta
+```
+
+#### 22.1.3 Konwencja Commit Message
+
+```bash
+# Format: <type>(<scope>): <subject>
+# Example: feat(scraper): dodano obsługę paginacji dla policji
+
+type:
+  feat:     Nowa funkcjonalność
+  fix:      Naprawa błędu
+  docs:     Zmiany w dokumentacji
+  style:    Formatowanie (bez zmian w kodzie)
+  refactor: Refaktoryzacja kodu
+  perf:     Optymalizacja wydajności
+  test:     Dodanie/testy
+  chore:    Zadania konserwacyjne (build, deps)
+  ci:       Zmiany w CI/CD
+  security: Poprawki bezpieczeństwa
+
+scope:
+  scraper   - moduł scrapowania
+  api       - backend API
+  frontend  - aplikacja frontendowa
+  db        - baza danych/migracje
+  auth      - autentykacja
+  admin     - panel administracyjny
+  config    - konfiguracja
+  deps      - zależności
+
+# Przykłady:
+git commit -m "feat(scraper): dodano parser dla gazetek Biedronka"
+git commit -m "fix(api): naprawiono N+1 queries w endpoincie /news"
+git commit -m "perf(frontend): zoptymalizowano lazy loading obrazków"
+git commit -m "docs: aktualizacja README z instrukcją deploymentu"
+git commit -m "security(auth): dodano rate limiting dla logowania"
+```
+
+---
+
+### 22.2 GitHub Actions Pipeline
+
+#### 22.2.1 Główny Workflow CI/CD
+
+```yaml
+# .github/workflows/ci-cd.yml
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, staging, develop]
+  pull_request:
+    branches: [main, staging, develop]
+  workflow_dispatch:  # Ręczne uruchomienie
+
+env:
+  NODE_VERSION: '20'
+  PNPM_VERSION: '8'
+  REGISTRY: ghcr.io
+
+jobs:
+  # ═══════════════════════════════════════════════════════════
+  # JOB 1: LINT & FORMAT CHECK
+  # ═══════════════════════════════════════════════════════════
+  lint:
+    name: 🔍 Lint & Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run ESLint
+        run: pnpm lint
+
+      - name: Run Prettier check
+        run: pnpm format:check
+
+      - name: Type check
+        run: pnpm type-check
+
+  # ═══════════════════════════════════════════════════════════
+  # JOB 2: UNIT TESTS
+  # ═══════════════════════════════════════════════════════════
+  test-unit:
+    name: 🧪 Unit Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run unit tests
+        run: pnpm test:unit --coverage
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage/lcov.info
+          flags: unittests
+          name: codecov-umbrella
+
+  # ═══════════════════════════════════════════════════════════
+  # JOB 3: INTEGRATION TESTS
+  # ═══════════════════════════════════════════════════════════
+  test-integration:
+    name: 🔗 Integration Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Setup test database
+        run: pnpm prisma migrate deploy
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/test_db
+
+      - name: Run integration tests
+        run: pnpm test:integration
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: test-secret-key
+
+  # ═══════════════════════════════════════════════════════════
+  # JOB 4: SECURITY SCAN
+  # ═══════════════════════════════════════════════════════════
+  security-scan:
+    name: 🔒 Security Scan
+    runs-on: ubuntu-latest
+    needs: lint
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: Run npm audit
+        run: npm audit --audit-level=moderate
+        continue-on-error: true
+
+      - name: Check for secrets
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: main
+          head: HEAD
+
+  # ═══════════════════════════════════════════════════════════
+  # JOB 5: BUILD APPLICATION
+  # ═══════════════════════════════════════════════════════════
+  build:
+    name: 🏗️ Build Application
+    runs-on: ubuntu-latest
+    needs: [test-unit, test-integration, security-scan]
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tags }}
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Generate version
+        id: version
+        run: |
+          VERSION=$(date +'%Y.%m.%d')-${GITHUB_SHA::7}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+            type=raw,value=${{ steps.version.outputs.version }}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push API image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/Dockerfile.api
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}-api
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ steps.version.outputs.version }}
+
+      - name: Build and push Frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/Dockerfile.frontend
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}-frontend
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ steps.version.outputs.version }}
+
+  # ═══════════════════════════════════════════════════════════
+  # JOB 6: DEPLOY TO STAGING
+  # ═══════════════════════════════════════════════════════════
+  deploy-staging:
+    name: 🚀 Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/main'
+    environment:
+      name: staging
+      url: https://staging.serwisy-lokalne.pl
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.STAGING_SSH_KEY }}
+
+      - name: Deploy to Staging
+        run: |
+          ./scripts/deploy.sh \
+            --environment staging \
+            --version ${{ needs.build.outputs.version }} \
+            --host ${{ secrets.STAGING_HOST }}
+
+      - name: Run database migrations
+        run: |
+          ssh ${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }} \
+            "cd /opt/app && docker-compose exec -T api pnpm prisma migrate deploy"
+
+      - name: Health check
+        run: |
+          sleep 10
+          curl -f https://staging.serwisy-lokalne.pl/api/health || exit 1
+
+      - name: Notify Slack
+        if: always()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          channel: '#deployments'
+          text: 'Staging deployment ${{ job.status }}'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # ═══════════════════════════════════════════════════════════
+  # JOB 7: E2E TESTS (after staging deploy)
+  # ═══════════════════════════════════════════════════════════
+  test-e2e:
+    name: 🎭 E2E Tests
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    if: github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Playwright
+        run: |
+          npm install -g @playwright/test
+          npx playwright install-deps
+
+      - name: Run E2E tests against staging
+        run: pnpm test:e2e
+        env:
+          BASE_URL: https://staging.serwisy-lokalne.pl
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: playwright-report
+          path: playwright-report/
+
+  # ═══════════════════════════════════════════════════════════
+  # JOB 8: DEPLOY TO PRODUCTION
+  # ═══════════════════════════════════════════════════════════
+  deploy-production:
+    name: 🚀 Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build, test-e2e]
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: production
+      url: https://serwisy-lokalne.pl
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.PRODUCTION_SSH_KEY }}
+
+      - name: Backup database before deploy
+        run: |
+          ssh ${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }} \
+            "cd /opt/app && ./scripts/backup-db.sh pre-deploy-${{ needs.build.outputs.version }}"
+
+      - name: Deploy to Production (Blue/Green)
+        run: |
+          ./scripts/deploy-blue-green.sh \
+            --version ${{ needs.build.outputs.version }} \
+            --host ${{ secrets.PRODUCTION_HOST }} \
+            --blue-port 3000 \
+            --green-port 3001
+
+      - name: Run database migrations
+        run: |
+          ssh ${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }} \
+            "cd /opt/app && docker-compose exec -T api pnpm prisma migrate deploy"
+
+      - name: Health check
+        run: |
+          sleep 10
+          curl -f https://serwisy-lokalne.pl/api/health || exit 1
+
+      - name: Check error rate
+        run: |
+          ./scripts/monitor-error-rate.sh \
+            --url https://serwisy-lokalne.pl \
+            --threshold 5 \
+            --duration 300
+
+      - name: Notify Slack
+        if: always()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          channel: '#deployments'
+          text: 'Production deployment ${{ job.status }} - v${{ needs.build.outputs.version }}'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Create GitHub Release
+        if: success()
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ needs.build.outputs.version }}
+          name: Release ${{ needs.build.outputs.version }}
+          generate_release_notes: true
+```
+
+#### 22.2.2 Workflow dla PR (szybki check)
+
+```yaml
+# .github/workflows/pr-check.yml
+name: PR Check
+
+on:
+  pull_request:
+    branches: [main, staging, develop]
+
+jobs:
+  pr-check:
+    name: Quick PR Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: '8'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Type check
+        run: pnpm type-check
+
+      - name: Unit tests (changed files only)
+        run: pnpm test:unit --changedSince=origin/main
+
+      - name: Check PR title
+        uses: amannn/action-semantic-pull-request@v5
+        with:
+          requireScope: true
+          scopes: |
+            scraper
+            api
+            frontend
+            db
+            auth
+            admin
+            config
+            deps
+            ci
+```
+
+---
+
+### 22.3 Branch Protection Rules
+
+#### 22.3.1 Konfiguracja GitHub
+
+```yaml
+# .github/settings.yml (przez Probot Settings)
+branches:
+  - name: main
+    protection:
+      required_pull_request_reviews:
+        required_approving_review_count: 2
+        dismiss_stale_reviews: true
+        require_code_owner_reviews: true
+      required_status_checks:
+        strict: true
+        contexts:
+          - "🔍 Lint & Format Check"
+          - "🧪 Unit Tests"
+          - "🔗 Integration Tests"
+          - "🔒 Security Scan"
+          - "🏗️ Build Application"
+      enforce_admins: true
+      required_linear_history: true
+      allow_force_pushes: false
+      allow_deletions: false
+      required_signatures: true
+
+  - name: staging
+    protection:
+      required_pull_request_reviews:
+        required_approving_review_count: 1
+        dismiss_stale_reviews: true
+      required_status_checks:
+        strict: true
+        contexts:
+          - "🔍 Lint & Format Check"
+          - "🧪 Unit Tests"
+          - "🔗 Integration Tests"
+          - "🔒 Security Scan"
+      enforce_admins: false
+      allow_force_pushes: false
+      allow_deletions: false
+
+  - name: develop
+    protection:
+      required_pull_request_reviews:
+        required_approving_review_count: 1
+      required_status_checks:
+        strict: false
+        contexts:
+          - "🔍 Lint & Format Check"
+          - "🧪 Unit Tests"
+      enforce_admins: false
+```
+
+#### 22.3.2 Code Owners
+
+```
+# .github/CODEOWNERS
+# Global owners
+* @lead-developer @tech-lead
+
+# API and backend
+/apps/api/ @backend-team @lead-developer
+/apps/api/src/scrapers/ @scraper-team @backend-team
+/apps/api/prisma/ @database-admin @backend-team
+
+# Frontend
+/apps/frontend/ @frontend-team @lead-developer
+/apps/frontend/components/ @ui-team @frontend-team
+
+# Infrastructure and DevOps
+/docker/ @devops-team
+/.github/workflows/ @devops-team @lead-developer
+/scripts/ @devops-team
+
+# Documentation
+/docs/ @tech-writer @lead-developer
+*.md @tech-writer
+
+# Security-sensitive files
+/apps/api/src/auth/ @security-team @lead-developer
+/apps/api/src/middleware/security/ @security-team
+```
+
+---
+
+### 22.4 Environments i Konfiguracja
+
+#### 22.4.1 Struktura Środowisk
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        ENVIRONMENTS ARCHITECTURE                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌──────────────┐      ┌──────────────┐      ┌──────────────┐              │
+│  │ Development  │─────▶│   Staging    │─────▶│  Production  │              │
+│  │  (local)     │      │  (staging)   │      │   (prod)     │              │
+│  └──────────────┘      └──────────────┘      └──────────────┘              │
+│         │                     │                     │                       │
+│         ▼                     ▼                     ▼                       │
+│  ┌──────────────┐      ┌──────────────┐      ┌──────────────┐              │
+│  │ Localhost    │      │ staging.*    │      │ www.*        │              │
+│  │ Docker       │      │ Cloud VPS    │      │ Cloud VPS    │              │
+│  │ SQLite/Local │      │ PostgreSQL   │      │ PostgreSQL   │              │
+│  │              │      │ Redis        │      │ Redis        │              │
+│  └──────────────┘      └──────────────┘      └──────────────┘              │
+│                                                                              │
+│  URL: localhost:3000   URL: staging.*.pl     URL: www.*.pl                  │
+│  DB:  local            DB:  staging-db       DB:  production-db             │
+│  SSL: no               SSL: Let's Encrypt    SSL: Let's Encrypt             │
+│  CDN: no               CDN: no               CDN: CloudFlare                │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### 22.4.2 Environment Variables per Environment
+
+```bash
+# .env.development (lokalny development)
+NODE_ENV=development
+APP_ENV=development
+
+# Database
+DATABASE_URL="postgresql://user:pass@localhost:5432/serwisy_dev"
+
+# Redis
+REDIS_URL="redis://localhost:6379"
+
+# API
+API_URL="http://localhost:3001"
+API_PORT=3001
+
+# Frontend
+FRONTEND_URL="http://localhost:3000"
+FRONTEND_PORT=3000
+
+# Auth
+JWT_SECRET="dev-secret-do-not-use-in-production"
+JWT_EXPIRES_IN="7d"
+
+# External APIs (mock/sandbox)
+OPENWEATHER_API_KEY="test-key"
+GOOGLE_MAPS_API_KEY="test-key"
+
+# Feature flags
+ENABLE_SCRAPERS=true
+ENABLE_NOTIFICATIONS=false
+ENABLE_ANALYTICS=false
+
+# Logging
+LOG_LEVEL="debug"
+LOG_PRETTY=true
+```
+
+```bash
+# .env.staging (staging environment)
+NODE_ENV=production
+APP_ENV=staging
+
+# Database
+DATABASE_URL="postgresql://user:pass@staging-db:5432/serwisy_staging"
+
+# Redis
+REDIS_URL="redis://staging-redis:6379"
+
+# API
+API_URL="https://staging.serwisy-lokalne.pl/api"
+API_PORT=3001
+
+# Frontend
+FRONTEND_URL="https://staging.serwisy-lokalne.pl"
+FRONTEND_PORT=3000
+
+# Auth
+JWT_SECRET="${STAGING_JWT_SECRET}"  # From GitHub Secrets
+JWT_EXPIRES_IN="1d"
+
+# External APIs (production keys)
+OPENWEATHER_API_KEY="${STAGING_WEATHER_API_KEY}"
+GOOGLE_MAPS_API_KEY="${STAGING_MAPS_API_KEY}"
+
+# Feature flags
+ENABLE_SCRAPERS=true
+ENABLE_NOTIFICATIONS=true
+ENABLE_ANALYTICS=false
+
+# Logging
+LOG_LEVEL="info"
+LOG_PRETTY=false
+```
+
+```bash
+# .env.production (production environment)
+NODE_ENV=production
+APP_ENV=production
+
+# Database (with read replica)
+DATABASE_URL="postgresql://user:pass@prod-primary:5432/serwisy_prod"
+DATABASE_READ_URL="postgresql://user:pass@prod-replica:5432/serwisy_prod"
+
+# Redis (cluster)
+REDIS_URL="redis://prod-redis:6379"
+
+# API
+API_URL="https://serwisy-lokalne.pl/api"
+API_PORT=3001
+
+# Frontend
+FRONTEND_URL="https://serwisy-lokalne.pl"
+FRONTEND_PORT=3000
+
+# Auth
+JWT_SECRET="${PRODUCTION_JWT_SECRET}"  # From GitHub Secrets (rotated monthly)
+JWT_EXPIRES_IN="7d"
+
+# External APIs
+OPENWEATHER_API_KEY="${PRODUCTION_WEATHER_API_KEY}"
+GOOGLE_MAPS_API_KEY="${PRODUCTION_MAPS_API_KEY}"
+
+# Feature flags
+ENABLE_SCRAPERS=true
+ENABLE_NOTIFICATIONS=true
+ENABLE_ANALYTICS=true
+
+# Logging & Monitoring
+LOG_LEVEL="warn"
+LOG_PRETTY=false
+SENTRY_DSN="${PRODUCTION_SENTRY_DSN}"
+DATADOG_API_KEY="${PRODUCTION_DATADOG_KEY}"
+
+# Performance
+CACHE_TTL=3600
+CDN_URL="https://cdn.serwisy-lokalne.pl"
+```
+
+---
+
+### 22.5 Deployment Strategy
+
+#### 22.5.1 Blue/Green Deployment
+
+```bash
+#!/bin/bash
+# scripts/deploy-blue-green.sh
+
+set -e
+
+# Parametry
+VERSION=$1
+BLUE_PORT=3000
+GREEN_PORT=3001
+HEALTH_CHECK_URL="/api/health"
+MAX_RETRIES=30
+RETRY_DELAY=5
+
+# Kolory dla outputu
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+echo -e "${YELLOW}🚀 Starting Blue/Green Deployment...${NC}"
+echo "Version: $VERSION"
+
+# Sprawdź który kolor jest aktualnie aktywny
+check_active_color() {
+    if curl -sf "http://localhost:$BLUE_PORT$HEALTH_CHECK_URL" > /dev/null 2>&1; then
+        echo "blue"
+    else
+        echo "green"
+    fi
+}
+
+ACTIVE_COLOR=$(check_active_color)
+echo -e "${GREEN}✓ Active color: $ACTIVE_COLOR${NC}"
+
+# Ustal nowy kolor (inactive)
+if [ "$ACTIVE_COLOR" = "blue" ]; then
+    NEW_COLOR="green"
+    NEW_PORT=$GREEN_PORT
+    OLD_PORT=$BLUE_PORT
+else
+    NEW_COLOR="blue"
+    NEW_PORT=$BLUE_PORT
+    OLD_PORT=$GREEN_PORT
+fi
+
+echo "Deploying to: $NEW_COLOR (port $NEW_PORT)"
+
+# 1. Pobierz nowe obrazy
+echo -e "${YELLOW}📦 Pulling new images...${NC}"
+docker pull ghcr.io/serwisy-lokalne/api:$VERSION
+docker pull ghcr.io/serwisy-lokalne/frontend:$VERSION
+
+# 2. Uruchom nowe kontenery (green/blue)
+echo -e "${YELLOW}🐳 Starting new containers ($NEW_COLOR)...${NC}"
+COMPOSE_PROJECT_NAME="app-$NEW_COLOR" docker-compose -f docker-compose.$NEW_COLOR.yml up -d
+
+# 3. Health check nowych kontenerów
+echo -e "${YELLOW}🏥 Health check...${NC}"
+RETRIES=0
+while [ $RETRIES -lt $MAX_RETRIES ]; do
+    if curl -sf "http://localhost:$NEW_PORT$HEALTH_CHECK_URL" > /dev/null 2>&1; then
+        echo -e "${GREEN}✓ New containers are healthy${NC}"
+        break
+    fi
+    RETRIES=$((RETRIES + 1))
+    echo "  Attempt $RETRIES/$MAX_RETRIES..."
+    sleep $RETRY_DELAY
+done
+
+if [ $RETRIES -eq $MAX_RETRIES ]; then
+    echo -e "${RED}✗ Health check failed! Rolling back...${NC}"
+    COMPOSE_PROJECT_NAME="app-$NEW_COLOR" docker-compose -f docker-compose.$NEW_COLOR.yml down
+    exit 1
+fi
+
+# 4. Migracja bazy danych (przed switch)
+echo -e "${YELLOW}🗄️ Running database migrations...${NC}"
+docker-compose exec -T api-$NEW_COLOR pnpm prisma migrate deploy
+
+# 5. Przełącz Nginx na nowy kolor
+echo -e "${YELLOW}🔄 Switching traffic to $NEW_COLOR...${NC}"
+sed -i "s/proxy_pass http:\/\/localhost:$OLD_PORT/proxy_pass http:\/\/localhost:$NEW_PORT/g" /etc/nginx/sites-enabled/app
+nginx -t && nginx -s reload
+
+echo -e "${GREEN}✓ Traffic switched to $NEW_COLOR${NC}"
+
+# 6. Poczekaj chwilę i sprawdź czy wszystko działa
+echo -e "${YELLOW}⏱️ Monitoring for 60 seconds...${NC}"
+sleep 60
+
+# 7. Sprawdź error rate
+ERROR_RATE=$(curl -s "http://localhost:$NEW_PORT/api/metrics/error-rate" || echo "0")
+if (( $(echo "$ERROR_RATE > 5" | bc -l) )); then
+    echo -e "${RED}⚠️ High error rate detected ($ERROR_RATE%)! Rolling back...${NC}"
+    # Rollback
+    sed -i "s/proxy_pass http:\/\/localhost:$NEW_PORT/proxy_pass http:\/\/localhost:$OLD_PORT/g" /etc/nginx/sites-enabled/app
+    nginx -s reload
+    COMPOSE_PROJECT_NAME="app-$NEW_COLOR" docker-compose -f docker-compose.$NEW_COLOR.yml down
+    exit 1
+fi
+
+echo -e "${GREEN}✓ Error rate acceptable: $ERROR_RATE%${NC}"
+
+# 8. Zatrzymaj stare kontenery (po 5 minutach)
+echo -e "${YELLOW}🛑 Old containers will be stopped in 5 minutes...${NC}"
+(
+    sleep 300
+    COMPOSE_PROJECT_NAME="app-$ACTIVE_COLOR" docker-compose -f docker-compose.$ACTIVE_COLOR.yml down
+    echo "Old containers ($ACTIVE_COLOR) stopped"
+) &
+
+echo -e "${GREEN}🎉 Deployment completed successfully!${NC}"
+echo "Active color: $NEW_COLOR (port $NEW_PORT)"
+echo "Previous color: $ACTIVE_COLOR (will be stopped in 5 min)"
+```
+
+#### 22.5.2 Canary Deployment (opcjonalnie)
+
+```yaml
+# docker-compose.canary.yml
+version: '3.8'
+
+services:
+  nginx:
+    image: nginx:alpine
+    volumes:
+      - ./nginx/canary.conf:/etc/nginx/nginx.conf
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - api-stable
+      - api-canary
+
+  api-stable:
+    image: ghcr.io/serwisy-lokalne/api:stable
+    environment:
+      - NODE_ENV=production
+    deploy:
+      replicas: 3
+
+  api-canary:
+    image: ghcr.io/serwisy-lokalne/api:canary
+    environment:
+      - NODE_ENV=production
+      - CANARY=true
+    deploy:
+      replicas: 1  # 25% traffic
+```
+
+```nginx
+# nginx/canary.conf - prosty load balancing z wagami
+upstream backend {
+    server api-stable:3000 weight=75;
+    server api-canary:3000 weight=25;
+}
+
+server {
+    listen 80;
+    location / {
+        proxy_pass http://backend;
+    }
+}
+```
+
+#### 22.5.3 Rollback Procedure
+
+```bash
+#!/bin/bash
+# scripts/rollback.sh
+
+set -e
+
+VERSION=$1  # Opcjonalnie: konkretna wersja do przywrócenia
+
+echo "🔄 Initiating rollback..."
+
+# 1. Znajdź poprzednią działającą wersję
+if [ -z "$VERSION" ]; then
+    VERSION=$(docker images ghcr.io/serwisy-lokalne/api --format "{{.Tag}}" | grep -v "latest\|canary" | head -2 | tail -1)
+    echo "Rolling back to version: $VERSION"
+fi
+
+# 2. Sprawdź który kolor jest aktywny
+if docker-compose -f docker-compose.blue.yml ps | grep -q "Up"; then
+    ACTIVE_COLOR="blue"
+    ROLLBACK_COLOR="green"
+else
+    ACTIVE_COLOR="green"
+    ROLLBACK_COLOR="blue"
+fi
+
+echo "Active: $ACTIVE_COLOR, Rolling back to: $ROLLBACK_COLOR"
+
+# 3. Uruchom poprzednią wersję na nieaktywnym kolorze
+docker pull ghcr.io/serwisy-lokalne/api:$VERSION
+COMPOSE_PROJECT_NAME="app-$ROLLBACK_COLOR" VERSION=$VERSION docker-compose -f docker-compose.$ROLLBACK_COLOR.yml up -d
+
+# 4. Poczekaj na health check
+sleep 30
+
+# 5. Przełącz traffic
+sed -i "s/proxy_pass http:\/\/localhost:[0-9]*/proxy_pass http:\/\/localhost:$( [ $ROLLBACK_COLOR = 'blue' ] && echo 3000 || echo 3001)/g" /etc/nginx/sites-enabled/app
+nginx -s reload
+
+echo "✅ Rollback completed to version $VERSION"
+
+# 6. Notify
+slack-notify "⚠️ ROLLBACK EXECUTED" "Rolled back to $VERSION" "#ff0000"
+```
+
+---
+
+### 22.6 Docker Configuration
+
+#### 22.6.1 Dockerfile dla API
+
+```dockerfile
+# docker/Dockerfile.api
+# ═══════════════════════════════════════════════════════════
+# STAGE 1: Dependencies
+# ═══════════════════════════════════════════════════════════
+FROM node:20-alpine AS deps
+
+RUN apk add --no-cache libc6-compat openssl
+
+WORKDIR /app
+
+# Install pnpm
+RUN npm install -g pnpm@8
+
+# Copy package files
+COPY package.json pnpm-lock.yaml* ./
+COPY apps/api/package.json ./apps/api/
+COPY packages/database/package.json ./packages/database/
+COPY packages/shared/package.json ./packages/shared/
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile
+
+# ═══════════════════════════════════════════════════════════
+# STAGE 2: Builder
+# ═══════════════════════════════════════════════════════════
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+RUN npm install -g pnpm@8
+
+# Copy dependencies from deps stage
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/api/node_modules ./apps/api/node_modules
+
+# Copy source code
+COPY . .
+
+# Generate Prisma Client
+RUN pnpm --filter database prisma generate
+
+# Build application
+RUN pnpm --filter api build
+
+# ═══════════════════════════════════════════════════════════
+# STAGE 3: Runner (production)
+# ═══════════════════════════════════════════════════════════
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV PORT=3001
+
+RUN apk add --no-cache dumb-init curl
+
+# Create non-root user
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 apiuser
+
+# Copy built application
+COPY --from=builder --chown=apiuser:nodejs /app/apps/api/dist ./dist
+COPY --from=builder --chown=apiuser:nodejs /app/apps/api/package.json ./
+COPY --from=builder --chown=apiuser:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=apiuser:nodejs /app/apps/api/node_modules ./node_modules
+COPY --from=builder --chown=apiuser:nodejs /app/apps/api/prisma ./prisma
+
+# Copy Prisma schema and migrations
+COPY --from=builder /app/packages/database/prisma ./prisma
+
+USER apiuser
+
+EXPOSE 3001
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:3001/api/health || exit 1
+
+CMD ["dumb-init", "node", "dist/main.js"]
+```
+
+#### 22.6.2 Dockerfile dla Frontend
+
+```dockerfile
+# docker/Dockerfile.frontend
+# ═══════════════════════════════════════════════════════════
+# STAGE 1: Dependencies
+# ═══════════════════════════════════════════════════════════
+FROM node:20-alpine AS deps
+
+RUN apk add --no-cache libc6-compat
+
+WORKDIR /app
+
+RUN npm install -g pnpm@8
+
+COPY package.json pnpm-lock.yaml* ./
+COPY apps/frontend/package.json ./apps/frontend/
+COPY packages/ui/package.json ./packages/ui/
+COPY packages/shared/package.json ./packages/shared/
+
+RUN pnpm install --frozen-lockfile
+
+# ═══════════════════════════════════════════════════════════
+# STAGE 2: Builder
+# ═══════════════════════════════════════════════════════════
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+RUN npm install -g pnpm@8
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+# Build arguments for environment variables
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_APP_NAME
+ARG NEXT_PUBLIC_ANALYTICS_ID
+
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+ENV NEXT_PUBLIC_APP_NAME=${NEXT_PUBLIC_APP_NAME}
+ENV NEXT_PUBLIC_ANALYTICS_ID=${NEXT_PUBLIC_ANALYTICS_ID}
+
+# Build Next.js app
+RUN pnpm --filter frontend build
+
+# ═══════════════════════════════════════════════════════════
+# STAGE 3: Runner
+# ═══════════════════════════════════════════════════════════
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV PORT=3000
+
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
+
+# Copy only necessary files
+COPY --from=builder /app/apps/frontend/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/apps/frontend/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/apps/frontend/.next/static ./.next/static
+
+USER nextjs
+
+EXPOSE 3000
+
+ENV HOSTNAME="0.0.0.0"
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:3000/api/health || exit 1
+
+CMD ["node", "server.js"]
+```
+
+#### 22.6.3 Docker Compose dla Development
+
+```yaml
+# docker-compose.yml (development)
+version: '3.8'
+
+services:
+  # ═════════════════════════════════════════════════════════
+  # PostgreSQL Database
+  # ═════════════════════════════════════════════════════════
+  postgres:
+    image: postgres:16-alpine
+    container_name: serwisy-postgres
+    environment:
+      POSTGRES_USER: devuser
+      POSTGRES_PASSWORD: devpass
+      POSTGRES_DB: serwisy_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U devuser -d serwisy_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ═════════════════════════════════════════════════════════
+  # Redis Cache
+  # ═════════════════════════════════════════════════════════
+  redis:
+    image: redis:7-alpine
+    container_name: serwisy-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ═════════════════════════════════════════════════════════
+  # MinIO (S3-compatible storage)
+  # ═════════════════════════════════════════════════════════
+  minio:
+    image: minio/minio:latest
+    container_name: serwisy-minio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # ═════════════════════════════════════════════════════════
+  # Backend API
+  # ═════════════════════════════════════════════════════════
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+      target: runner
+    container_name: serwisy-api
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://devuser:devpass@postgres:5432/serwisy_dev
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: dev-jwt-secret-change-in-production
+      STORAGE_ENDPOINT: minio
+      STORAGE_PORT: 9000
+      STORAGE_USE_SSL: "false"
+      STORAGE_ACCESS_KEY: minioadmin
+      STORAGE_SECRET_KEY: minioadmin
+      STORAGE_BUCKET: serwisy-uploads
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./apps/api:/app/apps/api
+      - /app/apps/api/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    command: pnpm --filter api dev
+
+  # ═════════════════════════════════════════════════════════
+  # Frontend
+  # ═════════════════════════════════════════════════════════
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+      target: runner
+    container_name: serwisy-frontend
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_API_URL: http://localhost:3001
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./apps/frontend:/app/apps/frontend
+      - /app/apps/frontend/node_modules
+      - /app/apps/frontend/.next
+    depends_on:
+      - api
+    command: pnpm --filter frontend dev
+
+  # ═════════════════════════════════════════════════════════
+  # Scraper Worker (separate container for heavy tasks)
+  # ═════════════════════════════════════════════════════════
+  scraper-worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    container_name: serwisy-scraper
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://devuser:devpass@postgres:5432/serwisy_dev
+      REDIS_URL: redis://redis:6379
+      WORKER_TYPE: scraper
+    volumes:
+      - ./apps/api:/app/apps/api
+      - /app/apps/api/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    profiles:
+      - scraper  # Only starts with: docker-compose --profile scraper up
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+```
+
+---
+
+### 22.7 Secrets Management
+
+#### 22.7.1 GitHub Secrets
+
+```yaml
+# Lista wymaganych sekretów w GitHub Repository
+# Settings > Secrets and variables > Actions
+
+# ═══════════════════════════════════════════════════════════
+# DEPLOYMENT SECRETS
+# ═══════════════════════════════════════════════════════════
+STAGING_SSH_KEY: |
+  -----BEGIN OPENSSH PRIVATE KEY-----
+  ... (staging server private key)
+  -----END OPENSSH PRIVATE KEY-----
+
+STAGING_HOST: staging.serwisy-lokalne.pl
+STAGING_USER: deploy
+
+PRODUCTION_SSH_KEY: |
+  -----BEGIN OPENSSH PRIVATE KEY-----
+  ... (production server private key)
+  -----END OPENSSH PRIVATE KEY-----
+
+PRODUCTION_HOST: serwisy-lokalne.pl
+PRODUCTION_USER: deploy
+
+# ═══════════════════════════════════════════════════════════
+# DATABASE SECRETS
+# ═══════════════════════════════════════════════════════════
+STAGING_DATABASE_URL: postgresql://user:pass@staging-db:5432/serwisy_staging
+PRODUCTION_DATABASE_URL: postgresql://user:pass@prod-db:5432/serwisy_prod
+
+# ═══════════════════════════════════════════════════════════
+# JWT & AUTH
+# ═══════════════════════════════════════════════════════════
+STAGING_JWT_SECRET: staging-jwt-secret-min-32-chars-long
+PRODUCTION_JWT_SECRET: production-jwt-secret-min-32-chars-long
+
+# ═══════════════════════════════════════════════════════════
+# EXTERNAL API KEYS
+# ═══════════════════════════════════════════════════════════
+STAGING_WEATHER_API_KEY: xxx
+PRODUCTION_WEATHER_API_KEY: xxx
+
+STAGING_MAPS_API_KEY: xxx
+PRODUCTION_MAPS_API_KEY: xxx
+
+# ═══════════════════════════════════════════════════════════
+# MONITORING & NOTIFICATIONS
+# ═══════════════════════════════════════════════════════════
+SLACK_WEBHOOK_URL: https://hooks.slack.com/services/xxx
+SENTRY_DSN: https://xxx@sentry.io/xxx
+DATADOG_API_KEY: xxx
+
+# ═══════════════════════════════════════════════════════════
+# CONTAINER REGISTRY (auto-generated)
+# ═══════════════════════════════════════════════════════════
+GITHUB_TOKEN: ${{ github.token }}  # Auto-generated
+```
+
+#### 22.7.2 Lokalne .env files (gitignored)
+
+```gitignore
+# .gitignore
+# Environment files
+.env
+.env.local
+.env.*.local
+.env.development
+.env.staging
+.env.production
+
+# Except examples
+!.env.example
+!.env.development.example
+```
+
+```bash
+# .env.example (template dla developerów)
+# Skopiuj do .env.development i uzupełnij
+
+# Database
+DATABASE_URL="postgresql://user:password@localhost:5432/dbname"
+
+# Redis
+REDIS_URL="redis://localhost:6379"
+
+# JWT (generate with: openssl rand -base64 32)
+JWT_SECRET="your-jwt-secret-here"
+JWT_EXPIRES_IN="7d"
+
+# External APIs
+OPENWEATHER_API_KEY=""
+GOOGLE_MAPS_API_KEY=""
+FACEBOOK_APP_ID=""
+FACEBOOK_APP_SECRET=""
+
+# Storage (MinIO/S3)
+STORAGE_ENDPOINT="localhost"
+STORAGE_PORT="9000"
+STORAGE_USE_SSL="false"
+STORAGE_ACCESS_KEY="minioadmin"
+STORAGE_SECRET_KEY="minioadmin"
+STORAGE_BUCKET="serwisy-uploads"
+
+# Email
+SMTP_HOST=""
+SMTP_PORT="587"
+SMTP_USER=""
+SMTP_PASS=""
+```
+
+#### 22.7.3 SOPS (Secrets OPerationS) - opcjonalnie
+
+```yaml
+# .sops.yaml - szyfrowanie sekretów w repo
+# Uwaga: wymaga zainstalowania Mozilla SOPS
+
+creation_rules:
+  - path_regex: secrets/.*\.yaml$
+    kms: arn:aws:kms:eu-central-1:xxx:key/xxx
+    # lub
+    pgp: 'FINGERPRINT_KEY_ADMINA'
+
+  - path_regex: secrets/development/.*\.yaml$
+    kms: arn:aws:kms:eu-central-1:xxx:key/dev-key
+```
+
+```bash
+# Szyfrowanie sekretów
+sops encrypt secrets/production/database.yaml > secrets/production/database.enc.yaml
+
+# Odszyfrowanie i edycja
+sops secrets/production/database.enc.yaml
+```
+
+---
+
+### 22.8 Automated Deployment Scripts
+
+#### 22.8.1 Główny skrypt deploymentu
+
+```bash
+#!/bin/bash
+# scripts/deploy.sh
+
+set -e
+
+# ═══════════════════════════════════════════════════════════
+# KONFIGURACJA
+# ═══════════════════════════════════════════════════════════
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VERSION=""
+ENVIRONMENT=""
+HOST=""
+DRY_RUN=false
+
+# Kolory
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+# ═══════════════════════════════════════════════════════════
+# FUNKCJE POMOCNICZE
+# ═══════════════════════════════════════════════════════════
+log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
+log_success() { echo -e "${GREEN}[OK]${NC} $1"; }
+log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
+log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+
+usage() {
+    cat << EOF
+Użycie: $0 [OPCJE]
+
+Opcje:
+    -e, --environment    Środowisko (staging|production)
+    -v, --version        Wersja do deploymentu (domyślnie: latest)
+    -h, --host           Host docelowy
+    -d, --dry-run        Symulacja (bez rzeczywistych zmian)
+    --help               Wyświetl tę pomoc
+
+Przykłady:
+    $0 -e staging -v 2024.02.12-abc1234
+    $0 -e production -v 2024.02.12-abc1234 -h serwisy-lokalne.pl
+EOF
+}
+
+# Parsowanie argumentów
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -e|--environment)
+            ENVIRONMENT="$2"
+            shift 2
+            ;;
+        -v|--version)
+            VERSION="$2"
+            shift 2
+            ;;
+        -h|--host)
+            HOST="$2"
+            shift 2
+            ;;
+        -d|--dry-run)
+            DRY_RUN=true
+            shift
+            ;;
+        --help)
+            usage
+            exit 0
+            ;;
+        *)
+            log_error "Nieznana opcja: $1"
+            usage
+            exit 1
+            ;;
+    esac
+done
+
+# Walidacja
+if [[ -z "$ENVIRONMENT" ]]; then
+    log_error "Wymagany parametr: --environment"
+    usage
+    exit 1
+fi
+
+if [[ "$ENVIRONMENT" != "staging" && "$ENVIRONMENT" != "production" ]]; then
+    log_error "Nieprawidłowe środowisko. Użyj: staging lub production"
+    exit 1
+fi
+
+# Domyślne wartości
+if [[ -z "$VERSION" ]]; then
+    VERSION="latest"
+    log_warn "Nie podano wersji, używam: latest"
+fi
+
+if [[ -z "$HOST" ]]; then
+    if [[ "$ENVIRONMENT" == "staging" ]]; then
+        HOST="staging.serwisy-lokalne.pl"
+    else
+        HOST="serwisy-lokalne.pl"
+    fi
+fi
+
+log_info "════════════════════════════════════════════════════"
+log_info "  Deployment Configuration"
+log_info "════════════════════════════════════════════════════"
+log_info "Environment: $ENVIRONMENT"
+log_info "Version:     $VERSION"
+log_info "Host:        $HOST"
+log_info "Dry Run:     $DRY_RUN"
+log_info "════════════════════════════════════════════════════"
+
+if [[ "$DRY_RUN" == true ]]; then
+    log_warn "TRYB SYMULACJI - żadne zmiany nie zostaną wprowadzone"
+    exit 0
+fi
+
+# ═══════════════════════════════════════════════════════════
+# DEPLOYMENT STEPS
+# ═══════════════════════════════════════════════════════════
+
+# 1. Pre-deployment checks
+log_info "Step 1: Pre-deployment checks"
+
+# Sprawdź czy obraz istnieje
+if ! docker pull "ghcr.io/serwisy-lokalne/api:$VERSION" > /dev/null 2>&1; then
+    log_error "Obraz API w wersji $VERSION nie istnieje!"
+    exit 1
+fi
+
+if ! docker pull "ghcr.io/serwisy-lokalne/frontend:$VERSION" > /dev/null 2>&1; then
+    log_error "Obraz Frontend w wersji $VERSION nie istnieje!"
+    exit 1
+fi
+
+log_success "Obrazy Docker istnieją"
+
+# 2. SSH do serwera i deployment
+log_info "Step 2: Remote deployment via SSH"
+
+ssh "deploy@$HOST" << EOF
+    set -e
+    
+    echo "[REMOTE] Changing to app directory..."
+    cd /opt/serwisy-lokalne
+    
+    echo "[REMOTE] Pulling new images..."
+    docker pull ghcr.io/serwisy-lokalne/api:$VERSION
+    docker pull ghcr.io/serwisy-lokalne/frontend:$VERSION
+    
+    echo "[REMOTE] Updating docker-compose..."
+    export VERSION=$VERSION
+    docker-compose -f docker-compose.$ENVIRONMENT.yml up -d
+    
+    echo "[REMOTE] Cleaning up old images..."
+    docker image prune -f
+    
+    echo "[REMOTE] Deployment complete!"
+EOF
+
+if [[ $? -ne 0 ]]; then
+    log_error "Deployment zakończony błędem!"
+    exit 1
+fi
+
+log_success "Kontenery zaktualizowane"
+
+# 3. Database migration
+log_info "Step 3: Database migration"
+
+ssh "deploy@$HOST" "cd /opt/serwisy-lokalne && docker-compose -f docker-compose.$ENVIRONMENT.yml exec -T api npx prisma migrate deploy"
+
+if [[ $? -ne 0 ]]; then
+    log_error "Migracja bazy danych nie powiodła się!"
+    exit 1
+fi
+
+log_success "Migracja zakończona"
+
+# 4. Health check
+log_info "Step 4: Health check"
+
+HEALTH_URL="https://$HOST/api/health"
+RETRIES=0
+MAX_RETRIES=30
+
+while [[ $RETRIES -lt $MAX_RETRIES ]]; do
+    if curl -sf "$HEALTH_URL" > /dev/null 2>&1; then
+        log_success "Health check passed"
+        break
+    fi
+    
+    RETRIES=$((RETRIES + 1))
+    log_warn "Health check attempt $RETRIES/$MAX_RETRIES..."
+    sleep 5
+done
+
+if [[ $RETRIES -eq $MAX_RETRIES ]]; then
+    log_error "Health check failed after $MAX_RETRIES attempts!"
+    exit 1
+fi
+
+# 5. Post-deployment verification
+log_info "Step 5: Post-deployment verification"
+
+# Sprawdź wersję API
+DEPLOYED_VERSION=$(curl -sf "$HEALTH_URL" | grep -o '"version":"[^"]*"' | cut -d'"' -f4)
+log_info "Deployed version: $DEPLOYED_VERSION"
+
+# ═══════════════════════════════════════════════════════════
+# NOTIFICATION
+# ═══════════════════════════════════════════════════════════
+log_info "Step 6: Sending notifications"
+
+# Slack notification (jeśli skonfigurowane)
+if [[ -n "$SLACK_WEBHOOK_URL" ]]; then
+    curl -s -X POST -H 'Content-type: application/json' \
+        --data "{\"text\":\"✅ Deployment successful: $ENVIRONMENT v$VERSION\"}" \
+        "$SLACK_WEBHOOK_URL" > /dev/null
+fi
+
+log_success "════════════════════════════════════════════════════"
+log_success "  Deployment Completed Successfully!"
+log_success "════════════════════════════════════════════════════"
+log_info "Environment: $ENVIRONMENT"
+log_info "Version:     $VERSION"
+log_info "Host:        $HOST"
+log_info "URL:         https://$HOST"
+```
+
+#### 22.8.2 Skrypt backupu bazy danych
+
+```bash
+#!/bin/bash
+# scripts/backup-db.sh
+
+set -e
+
+BACKUP_NAME=${1:-$(date +%Y%m%d_%H%M%S)}
+BACKUP_DIR="/opt/backups/postgres"
+RETENTION_DAYS=30
+
+# Upewnij się że katalog istnieje
+mkdir -p "$BACKUP_DIR"
+
+log_info() { echo "[$(date +'%Y-%m-%d %H:%M:%S')] INFO: $1"; }
+
+log_info "Starting database backup: $BACKUP_NAME"
+
+# Wykonaj backup
+docker-compose exec -T postgres pg_dumpall -c -U postgres | \
+    gzip > "$BACKUP_DIR/$BACKUP_NAME.sql.gz"
+
+if [[ $? -eq 0 ]]; then
+    log_info "Backup completed: $BACKUP_DIR/$BACKUP_NAME.sql.gz"
+    log_info "Size: $(du -h $BACKUP_DIR/$BACKUP_NAME.sql.gz | cut -f1)"
+else
+    echo "Backup failed!" >&2
+    exit 1
+fi
+
+# Usuń stare backupy
+log_info "Cleaning up backups older than $RETENTION_DAYS days"
+find "$BACKUP_DIR" -name "*.sql.gz" -mtime +$RETENTION_DAYS -delete
+
+log_info "Backup process completed"
+```
+
+---
+
+### 22.9 Monitoring Deployments
+
+#### 22.9.1 Health Check Endpoint
+
+```typescript
+// apps/api/src/health/health.controller.ts
+import { Controller, Get } from '@nestjs/common';
+import { HealthCheck, HealthCheckService, PrismaHealthIndicator } from '@nestjs/terminus';
+
+@Controller('api/health')
+export class HealthController {
+  constructor(
+    private health: HealthCheckService,
+    private prisma: PrismaHealthIndicator,
+  ) {}
+
+  @Get()
+  @HealthCheck()
+  async check() {
+    return this.health.check([
+      () => this.prisma.pingCheck('database'),
+      () => ({
+        api: {
+          status: 'up',
+          version: process.env.VERSION || 'unknown',
+          timestamp: new Date().toISOString(),
+        },
+      }),
+    ]);
+  }
+
+  @Get('ready')
+  async readiness() {
+    // Sprawdź czy wszystkie zależności są gotowe
+    return {
+      ready: true,
+      checks: {
+        database: await this.checkDatabase(),
+        redis: await this.checkRedis(),
+      },
+    };
+  }
+
+  @Get('live')
+  liveness() {
+    // Prosty check czy aplikacja żyje
+    return { status: 'alive' };
+  }
+}
+```
+
+#### 22.9.2 Monitoring Error Rate
+
+```bash
+#!/bin/bash
+# scripts/monitor-error-rate.sh
+
+URL=$1
+THRESHOLD=${2:-5}  # Domyślnie 5%
+DURATION=${3:-300} # Domyślnie 5 minut
+
+END_TIME=$(($(date +%s) + DURATION))
+TOTAL_REQUESTS=0
+ERROR_REQUESTS=0
+
+echo "Monitoring error rate for ${DURATION}s..."
+
+while [[ $(date +%s) -lt $END_TIME ]]; do
+    # Wykonaj request i sprawdź status
+    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$URL/api/health")
+    
+    TOTAL_REQUESTS=$((TOTAL_REQUESTS + 1))
+    
+    if [[ $HTTP_CODE -ge 400 ]]; then
+        ERROR_REQUESTS=$((ERROR_REQUESTS + 1))
+    fi
+    
+    # Oblicz procent błędów
+    if [[ $TOTAL_REQUESTS -gt 0 ]]; then
+        ERROR_RATE=$(echo "scale=2; ($ERROR_REQUESTS / $TOTAL_REQUESTS) * 100" | bc)
+        echo "Requests: $TOTAL_REQUESTS, Errors: $ERROR_REQUESTS, Rate: $ERROR_RATE%"
+        
+        if (( $(echo "$ERROR_RATE > $THRESHOLD" | bc -l) )); then
+            echo "ERROR: Error rate $ERROR_RATE% exceeds threshold $THRESHOLD%!"
+            exit 1
+        fi
+    fi
+    
+    sleep 5
+done
+
+echo "Monitoring complete. Final error rate: $ERROR_RATE%"
+```
+
+#### 22.9.3 Deployment Dashboard (Grafana)
 
 ```json
 {
-  "external_id": "policja_2025_0847",
-  "source_slug": "policja_torun",
-  "content_type": "police",
-  "title": "Włamanie do sklepu przy ul. Szerokiej",
-  "slug": "wlamanie-do-sklepu-przy-ul-szerokiej",
-  "excerpt": "Nieznani sprawcy włamali się do sklepu spożywczego. Skradziono papierosy i alkohol o wartości 5000 zł.",
-  "content_html": "<p>W nocy z 11 na 12 lutego...</p>",
-  "content_text": "W nocy z 11 na 12 lutego...",
-  "published_at": "2025-02-12T08:30:00Z",
-  "scraped_at": "2025-02-12T10:00:00Z",
-  "source_url": "https://torun.policja.gov.pl/...",
-  "source_name": "Policja Toruń",
-  "is_external": true,
-  "category": "bezpieczenstwo",
-  "tags": ["włamanie", "kradzież", "szeroka"],
-  "locations": [
-    { "type": "street", "name": "ul. Szeroka", "slug": "ul-szeroka" }
-  ],
-  "metadata": {
-    "incident_type": "burglary",
-    "incident_location": {
-      "address": "ul. Szeroka 24",
-      "city_district": "Stare Miasto"
-    },
-    "incident_date": "2025-02-12",
-    "incident_time": "02:30",
-    "items_stolen": ["papierosy", "alkohol"],
-    "value_stolen": 5000,
-    "case_status": "investigating",
-    "contact_phone": "997"
-  },
-  "status": "published",
-  "is_highlighted": false,
-  "is_urgent": false,
-  "language": "pl"
-}
-```
-
----
-
-#### 20.2.3 KRONIKA (chronicle)
-
-Krótkie, często nieoficjalne doniesienia o zdarzeniach (np. pożary, wypadki bez ofiar, awarie).
-
-```typescript
-interface ChronicleMetadata {
-  // TYP ZDARZENIA
-  event_type:
-    | 'fire'               // Pożar
-    | 'flood'              // Podtopienie
-    | 'storm_damage'       // Szkody po nawałnicy
-    | 'power_outage'       // Awaria prądu
-    | 'water_outage'       // Awaria wody
-    | 'gas_leak'           // Wyciek gazu
-    | 'road_closure'       // Zamknięcie drogi
-    | 'traffic_jam'        // Korki
-    | 'public_event'       // Wydarzenie publiczne
-    | 'animal_rescue'      // Akcja ratunkowa zwierząt
-    | 'other';
-  
-  // CZAS TRWANIA
-  duration_minutes?: number;      // Szacowany czas trwania zdarzenia
-  is_ongoing: boolean;            // Czy trwa w chwili publikacji
-  
-  // MIEJSCE
-  location_description: string;   // "Przy skrzyżowaniu ul. A i B"
-  
-  // PODMIOTY
-  services_involved?: string[];   // Straż pożarna, pogotowie, policja
-  
-  // SKUTKI
-  impact_level: 'minor' | 'moderate' | 'major' | 'critical';
-  affected_area?: string;         // Obszar objęty
-  evacuated_count?: number;       // Liczba ewakuowanych
-  
-  // STATUS AKTUALIZACJI
-  is_confirmed: boolean;          // Czy potwierdzone przez służby
-  updates?: {
-    timestamp: string;
-    content: string;
-  }[];
-}
-```
-
----
-
-#### 20.2.4 FIRMY (business)
-
-Baza firm - wymaga najbardziej rozbudowanej struktury ze względu na potrzebę klasyfikacji.
-
-```typescript
-interface BusinessMetadata {
-  // IDENTYFIKACJA FIRMY
-  tax_id?: string;                // NIP (10 cyfr)
-  regon?: string;                 // REGON (9 lub 14 cyfr)
-  krs_number?: string;            // Numer KRS
-  company_type: 'sole_proprietorship' | 'partnership' | 'llc' | 'corporation' | 'cooperative' | 'other';
-  
-  // DANE KONTAKTOWE
-  contact: {
-    phones: string[];             // Numery telefonów
-    emails: string[];             // Adresy email
-    website?: string;             // Strona WWW
-    facebook?: string;            // Fanpage
-    instagram?: string;
-    linkedin?: string;
-  };
-  
-  // ADRESY
-  addresses: {
-    type: 'main' | 'branch' | 'warehouse' | 'office';
-    street: string;
-    building_number: string;
-    apartment_number?: string;
-    postal_code: string;          // Format: XX-XXX
-    city: string;
-    district?: string;
-    coordinates?: { lat: number; lng: number };
-    is_primary: boolean;
-  }[];
-  
-  // KATEGORYZACJA PKD (Polska Klasyfikacja Dziaalności)
-  pkd_codes: {
-    code: string;                 // Format: XX.XX.X
-    name: string;                 // Nazwa kodu
-    is_primary: boolean;          // Główny kod PKD
-  }[];
-  
-  // KATEGORIE BIZNESOWE (nasza klasyfikacja)
-  business_categories: {
-    primary: string;              // Główna kategoria (np. "gastronomia")
-    secondary?: string;           // Podkategoria (np. "restauracje")
-    tertiary?: string;            // Szczegół (np. "kuchnia włoska")
-  };
-  
-  // GODZINY OTWARCIA
-  opening_hours: {
-    monday?: { open: string; close: string; is_24h: boolean; is_closed: boolean }[];
-    tuesday?: { open: string; close: string; is_24h: boolean; is_closed: boolean }[];
-    wednesday?: { open: string; close: string; is_24h: boolean; is_closed: boolean }[];
-    thursday?: { open: string; close: string; is_24h: boolean; is_closed: boolean }[];
-    friday?: { open: string; close: string; is_24h: boolean; is_closed: boolean }[];
-    saturday?: { open: string; close: string; is_24h: boolean; is_closed: boolean }[];
-    sunday?: { open: string; close: string; is_24h: boolean; is_closed: boolean }[];
-    holidays?: 'open' | 'closed' | 'same_as_sunday' | 'special_hours';
-    special_hours_notes?: string;
-  };
-  
-  // USŁUGI I OFERTA
-  services: {
-    name: string;
-    description?: string;
-    price_from?: number;
-    price_to?: number;
-    price_unit?: 'service' | 'hour' | 'day' | 'item';
-    currency: string;             // PLN, EUR, USD
-  }[];
-  
-  // PRODUKTY (dla sklepów)
-  products?: {
-    name: string;
-    category?: string;
-    brands?: string[];
-    is_available: boolean;
-  }[];
-  
-  // OPIS BIZNESU
-  year_established?: number;
-  employee_count_range?: '1' | '2-9' | '10-49' | '50-249' | '250+';
-  description_short?: string;     // 1-2 zdania
-  description_full?: string;      // Pełny opis
-  
-  // CERTYFIKATY I WYRÓŻNIENIA
-  certifications?: string[];      // ISO, HACCP, etc.
-  awards?: {
-    name: string;
-    year?: number;
-    issuer?: string;
-  }[];
-  
-  // PŁATNOŚCI
-  payment_methods: ('cash' | 'card' | 'transfer' | 'blik' | 'voucher')[];
-  
-  // DOSTĘPNOŚĆ
-  accessibility?: {
-    wheelchair_accessible: boolean;
-    wheelchair_toilet: boolean;
-    parking_available: boolean;
-    parking_private: boolean;
-  };
-  
-  // JĘZYKI
-  languages_spoken?: string[];    // pl, en, de, uk, etc.
-  
-  // GALERIA I LOGO
-  logo?: ImageData;
-  photos?: ImageData[];
-  
-  // OCENY I RECENZJE
-  rating?: {
-    average: number;              // 1-5
-    count: number;
-    source: 'internal' | 'google' | 'facebook' | 'combined';
-  };
-  
-  // STATUS WERYFIKACJI
-  verification_status: 'unverified' | 'pending' | 'verified' | 'premium';
-  verified_by?: string;           // Kto zweryfikował
-  verified_at?: string;           // Kiedy zweryfikowano
-  
-  // WYRÓŻNIENIA
-  is_premium: boolean;            // Płatne wyróżnienie
-  premium_until?: string;         // Data końca wyróżnienia
-  is_recommended: boolean;        // Polecane przez redakcję
-}
-```
-
-**Schemat SQL - tabela `businesses`:**
-
-```sql
-CREATE TABLE tenant_${domain}.businesses (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  
-  -- Podstawowe pola (dziedziczone z posts)
-  content_type VARCHAR(20) DEFAULT 'business',
-  title VARCHAR(200) NOT NULL,   -- Nazwa firmy
-  slug VARCHAR(220) NOT NULL UNIQUE,
-  excerpt TEXT,                  -- Krótki opis
-  content_html TEXT,             -- Pełny opis
-  
-  -- Identyfikacja
-  tax_id VARCHAR(10),            -- NIP
-  regon VARCHAR(14),             -- REGON
-  krs_number VARCHAR(20),
-  company_type VARCHAR(30),
-  
-  -- Kontakt (znormalizowany)
-  contact JSONB NOT NULL,
-  
-  -- Adresy (array)
-  addresses JSONB[] NOT NULL,
-  
-  -- Klasyfikacja
-  pkd_codes JSONB[],
-  business_categories JSONB NOT NULL,
-  
-  -- Godziny otwarcia
-  opening_hours JSONB,
-  
-  -- Oferta
-  services JSONB[],
-  products JSONB[],
-  
-  -- Metadane
-  year_established INTEGER,
-  employee_count_range VARCHAR(10),
-  certifications TEXT[],
-  payment_methods TEXT[],
-  languages_spoken TEXT[],
-  
-  -- Media
-  logo JSONB,
-  photos JSONB[],
-  
-  -- Statusy
-  verification_status VARCHAR(20) DEFAULT 'unverified',
-  is_premium BOOLEAN DEFAULT false,
-  is_recommended BOOLEAN DEFAULT false,
-  premium_until TIMESTAMP WITH TIME ZONE,
-  
-  -- Statystyki
-  view_count INTEGER DEFAULT 0,
-  rating_average DECIMAL(2,1),
-  rating_count INTEGER DEFAULT 0,
-  
-  -- Zarządzanie
-  status VARCHAR(20) DEFAULT 'draft',
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  
-  -- Indeksy
-  CONSTRAINT valid_nip CHECK (tax_id IS NULL OR tax_id ~ '^\d{10}$'),
-  CONSTRAINT valid_rating CHECK (rating_average IS NULL OR (rating_average >= 1 AND rating_average <= 5))
-);
-
--- Indeksy dla wyszukiwania firm
-CREATE INDEX idx_businesses_type ON tenant_${domain}.businesses(company_type);
-CREATE INDEX idx_businesses_premium ON tenant_${domain}.businesses(is_premium) WHERE is_premium = true;
-CREATE INDEX idx_businesses_verified ON tenant_${domain}.businesses(verification_status);
-CREATE INDEX idx_businesses_categories ON tenant_${domain}.businesses USING GIN(business_categories);
-CREATE INDEX idx_businesses_pkd ON tenant_${domain}.businesses USING GIN(pkd_codes);
-CREATE INDEX idx_businesses_coords ON tenant_${domain}.businesses 
-  USING gin((array_agg((a->>'coordinates')::jsonb))::text[]);
-```
-
-**Kategorie biznesowe (słownik):**
-
-```typescript
-const BUSINESS_CATEGORIES = {
-  gastronomia: {
-    icon: 'utensils',
-    subcategories: {
-      restauracje: ['kuchnia_polska', 'kuchnia_wloska', 'kuchnia_azjatycka', 'kuchnia_grill', 'fine_dining'],
-      kawiarnie: ['cafe', 'coffee_shop', 'kawiarnia_ksiegarnia'],
-      bary: ['bar', 'pub', 'cocktail_bar', 'wine_bar'],
-      fast_food: ['kebab', 'burger', 'pizza', 'zapiekanki'],
-      cukiernie: ['piekarnia', 'ciastkarnia', 'lodziarnia']
-    }
-  },
-  handel: {
-    icon: 'shopping-cart',
-    subcategories: {
-      sklepy_spozywcze: ['supermarket', 'delikatesy', 'sklep_spozywczy', 'warzywniak'],
-      odziez: ['boutique', 'sklep_odziezowy', 'second_hand', 'galeria'],
-      elektronika: ['rtv_agd', 'komputery', 'telefony'],
-      ksiazki: ['ksiegarnia', 'antykwariat'],
-      chemia: ['drogeria', 'apteka', 'sklep_chemiczny']
-    }
-  },
-  uslugi: {
-    icon: 'wrench',
-    subcategories: {
-      motoryzacja: ['warsztat', 'myjnia', 'wulkanizacja', 'stacja_paliw'],
-      budowlane: ['remonty', 'hydraulik', 'elektryk', 'murarz'],
-      beauty: ['fryzjer', 'kosmetyczka', 'salon_paznokci', 'spa'],
-      zdrowie: ['lekarz', 'dentysta', 'fizjoterapeuta', 'psycholog'],
-      finansowe: ['ksiegowa', 'ubezpieczenia', 'kredyty', 'biuro_rachunkowe'],
-      prawne: ['kancelaria', 'notariusz', 'radca_prawny', 'adwokat'],
-      it: ['serwis_komputerowy', 'tworzenie_stron', 'marketing']
-    }
-  },
-  rozrywka: {
-    icon: 'gamepad',
-    subcategories: {
-      kultura: ['kino', 'teatr', 'muzeum', 'galeria'],
-      sport: ['silownia', 'basen', 'klub_sportowy', 'korty'],
-      rozrywka: ['kręgielnia', 'escape_room', 'gokarty', 'park_rozrywki']
-    }
-  },
-  edukacja: {
-    icon: 'graduation-cap',
-    subcategories: {
-      szkoly: ['przedszkole', 'szkola_podstawowa', 'liceum', 'technikum'],
-      kursy: ['jezykowe', 'muzyczne', 'tance', 'sztuki_walki'],
-      szkolenia: ['zawodowe', 'komputerowe', 'biznesowe']
-    }
-  },
-  noclegi: {
-    icon: 'bed',
-    subcategories: {
-      hotele: ['hotel', 'pensjonat', 'motel'],
-      inne: ['hostel', 'apartament', 'kwatery', 'airbnb']
-    }
-  },
-  transport: {
-    icon: 'car',
-    subcategories: {
-      publiczny: ['przewoz_osobowy', 'taxi', 'uber'],
-      logistyka: ['kurier', 'przeprowadzki', 'transport_ciezki']
-    }
-  }
-};
-```
-
----
-
-#### 20.2.5 OGŁOSZENIA DROBNE (classified)
-
-Ogłoszenia od użytkowników - kupię, sprzedam, zamienię.
-
-```typescript
-interface ClassifiedMetadata {
-  // TYP TRANSAKCJI
-  transaction_type: 'sell' | 'buy' | 'exchange' | 'giveaway' | 'rent';
-  
-  // KATEGORIA
-  category: 
-    | 'electronics' | 'automotive' | 'real_estate' | 'furniture' 
-    | 'clothing' | 'books' | 'sports' | 'toys' | 'tools' 
-    | 'animals' | 'services' | 'other';
-  
-  // STAN PRZEDMIOTU
-  condition: 'new' | 'like_new' | 'good' | 'acceptable' | 'for_parts';
-  
-  // CENA
-  price: {
-    amount: number;
-    currency: string;             // PLN, EUR, USD
-    is_negotiable: boolean;
-    is_free: boolean;
-  };
-  
-  // Lokalizacja odbioru
-  pickup_location: {
-    address?: string;
-    city_district?: string;
-    coordinates?: { lat: number; lng: number };
-    is_pickup_only: boolean;      // Tylko odbiór osobisty
-    can_deliver: boolean;         // Możliwość dostawy
-    can_ship: boolean;            // Możliwość wysyłki
-  };
-  
-  // DANE SPRZEDAJĄCEGO
-  seller: {
-    name: string;
-    phone?: string;
-    email?: string;
-    is_private: boolean;          // true = osoba prywatna, false = firma
-    show_phone: boolean;          // Czy pokazywać numer publicznie
-  };
-  
-  // PARAMETRY SPECJALIZOWANE
-  // Dla elektroniki
-  electronics_params?: {
-    brand?: string;
-    model?: string;
-    year?: number;
-    warranty?: boolean;
-  };
-  
-  // Dla motoryzacji
-  automotive_params?: {
-    make?: string;
-    model?: string;
-    year?: number;
-    mileage?: number;
-    fuel_type?: 'petrol' | 'diesel' | 'electric' | 'hybrid' | 'lpg';
-    engine_size?: number;
-    power_kw?: number;
-  };
-  
-  // Dla nieruchomości
-  real_estate_params?: {
-    property_type: 'apartment' | 'house' | 'room' | 'land' | 'garage';
-    area_m2: number;
-    rooms_count?: number;
-    floor?: number;
-    total_floors?: number;
-    construction_year?: number;
-    heating_type?: string;
-  };
-  
-  // DATA WAŻNOŚCI
-  expires_at: string;             // Auto-usunięcie po 30/60/90 dniach
-  auto_renew: boolean;            // Czy auto-odnawiać
-  
-  // STATYSTYKI
-  view_count: number;
-  contact_count: number;          // Ile razy ktoś kliknął "pokaż telefon"
-}
-```
-
----
-
-#### 20.2.6 PRACA (job)
-
-Oferty pracy - struktura zgodna ze standardami pracuj.pl/OLX.
-
-```typescript
-interface JobMetadata {
-  // DANE STANOWISKA
-  position_title: string;         // Stanowisko (np. "Programista Java")
-  position_level: 'entry' | 'junior' | 'mid' | 'senior' | 'manager' | 'director' | 'executive';
-  
-  // PRACODAWCA
-  employer: {
-    name: string;
-    company_id?: string;          // FK do businesses
-    is_agency: boolean;           // Czy to agencja pracy
-    logo?: ImageData;
-    website?: string;
-  };
-  
-  // LOKALIZACJA
-  location: {
-    type: 'stationary' | 'remote' | 'hybrid';
-    city?: string;
-    address?: string;
-    remote_percentage?: number;   // % pracy zdalnej (dla hybrid)
-  };
-  
-  // WYNAGRODZENIE
-  salary: {
-    is_disclosed: boolean;
-    from?: number;
-    to?: number;
-    currency: string;
-    period: 'hour' | 'day' | 'week' | 'month' | 'year';
-    type: 'gross' | 'net';
-    has_bonus: boolean;
-    has_commission: boolean;
-  };
-  
-  // WYMAGANIA
-  requirements: {
-    experience_years?: number;    // Lata doświadczenia
-    education_level?: 'none' | 'primary' | 'vocational' | 'secondary' | 'bachelor' | 'master' | 'phd';
-    languages: {
-      language: string;
-      level: 'basic' | 'conversational' | 'fluent' | 'native';
-    }[];
-    skills: string[];             // Wymagane umiejętności
-    nice_to_have: string[];       // Mile widziane
-    certificates?: string[];      // Wymagane certyfikaty
-    drivers_license?: boolean;
-    drivers_license_categories?: string[]; // A, B, C, D
-    travel_willingness?: boolean;
-    availability?: 'immediate' | 'two_weeks' | 'month' | 'negotiable';
-  };
-  
-  // OFERUJEMY
-  benefits: {
-    contract_type: 'uop' | 'b2b' | 'uz' | 'uod' | 'internship' | 'other'; // Umowa o pracę, B2B, etc.
-    employment_type: 'full_time' | 'part_time' | 'temporary' | 'seasonal';
-    working_hours?: string;       // np. "8:00-16:00" lub "elastyczne"
-    benefits_list: string[];      // Lista benefitów
-    perks?: {
-      medical_care?: boolean;
-      dental_care?: boolean;
-      multisport?: boolean;
-      remote_work?: boolean;
-      flexible_hours?: boolean;
-      training_budget?: boolean;
-      parking?: boolean;
-      meals?: boolean;
-      phone?: boolean;
-      laptop?: boolean;
-    };
-  };
-  
-  // ZAKRES OBOWIĄZKÓW
-  responsibilities: string[];     // Lista obowiązków
-  
-  // PROCES REKRUTACJI
-  recruitment: {
-    stages_count?: number;        // Ile etapów rekrutacji
-    response_time_days?: number;  // Czas odpowiedzi
-    contact_person?: string;
-    contact_email?: string;
-    contact_phone?: string;
-    application_url?: string;     // Zewnętrzny formularz
-  };
-  
-  // DATA WAŻNOŚCI
-  expires_at: string;
-  is_featured: boolean;           // Wyróżniona oferta
-  
-  // STATYSTYKI
-  view_count: number;
-  application_count: number;
-}
-```
-
-**Schemat SQL - tabela `jobs`:**
-
-```sql
-CREATE TABLE tenant_${domain}.jobs (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  
-  -- Podstawowe
-  content_type VARCHAR(20) DEFAULT 'job',
-  title VARCHAR(200) NOT NULL,   -- Tytuł ogłoszenia
-  slug VARCHAR(220) NOT NULL UNIQUE,
-  excerpt TEXT,                  -- Krótki opis
-  content_html TEXT,             -- Pełny opis
-  
-  -- Metadane pracy
-  position_title VARCHAR(100) NOT NULL,
-  position_level VARCHAR(20),
-  
-  -- Pracodawca
-  employer JSONB NOT NULL,
-  employer_company_id UUID REFERENCES tenant_${domain}.businesses(id),
-  
-  -- Lokalizacja
-  location JSONB NOT NULL,
-  
-  -- Wynagrodzenie
-  salary JSONB,
-  
-  -- Wymagania i oferta
-  requirements JSONB,
-  benefits JSONB NOT NULL,
-  responsibilities TEXT[],
-  
-  -- Rekrutacja
-  recruitment JSONB,
-  
-  -- Statusy
-  status VARCHAR(20) DEFAULT 'published',
-  expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
-  is_featured BOOLEAN DEFAULT false,
-  
-  -- Statystyki
-  view_count INTEGER DEFAULT 0,
-  application_count INTEGER DEFAULT 0,
-  
-  -- Czas
-  published_at TIMESTAMP WITH TIME ZONE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  
-  -- Indeksy
-  CONSTRAINT valid_expiry CHECK (expires_at > created_at)
-);
-
--- Indeksy dla wyszukiwania pracy
-CREATE INDEX idx_jobs_level ON tenant_${domain}.jobs(position_level);
-CREATE INDEX idx_jobs_featured ON tenant_${domain}.jobs(is_featured);
-CREATE INDEX idx_jobs_expires ON tenant_${domain}.jobs(expires_at);
-CREATE INDEX idx_jobs_location ON tenant_${domain}.jobs USING GIN(location);
-CREATE INDEX idx_jobs_salary ON tenant_${domain}.jobs USING GIN(salary);
-```
-
----
-
-#### 20.2.7 NEKROLOGI (obituary)
-
-Wymagają specyficznego, wrażliwego podejścia.
-
-```typescript
-interface ObituaryMetadata {
-  // DANE ZMARŁEGO
-  deceased: {
-    full_name: string;
-    maiden_name?: string;         // Nazwisko panieńskie
-    birth_date: string;
-    death_date: string;
-    age_at_death: number;
-    birth_place?: string;
-    death_place?: string;
-    
-    // Życiorys
-    occupation?: string;          // Zawód
-    family_info?: string;         // Informacja o rodzinie
-    achievements?: string;        // Osiągnięcia życiowe
-  };
-  
-  // CEREMONIA POGRZEBOWA
-  funeral: {
-    date: string;
-    time: string;
-    location: string;             // Miejsce (np. "Kościół św. Katarzyny")
-    address?: string;
-    coordinates?: { lat: number; lng: number };
-    burial_place?: string;        // Miejsce pochówku
-    burial_coordinates?: { lat: number; lng: number };
-    
-    // Szczegóły
-    is_cremation: boolean;        // Czy kremacja
-    funeral_home?: string;        // Dom pogrzebowy
-    funeral_home_phone?: string;
-    
-    // Oględziny
-    viewing?: {
-      date: string;
-      time_from: string;
-      time_to: string;
-      location: string;
-    };
-  };
-  
-  // KONDOLENCJE
-  condolences: {
-    enabled: boolean;
-    online_book?: boolean;        // Księga kondolencyjna online
-    flowers_enabled: boolean;     // Można składać kwiaty
-    donations_enabled: boolean;   // Zamiast kwiatów - darowizny
-    donation_recipient?: string;  // Dla kogo darowizna
-  };
-  
-  // ZNICZE (wirtualne)
-  virtual_candles: {
-    enabled: boolean;
-    count: number;
-    last_24h: number;
-  };
-  
-  // ZDJĘCIE
-  photo?: ImageData;              // Zdjęcie zmarłego
-  photo_caption?: string;
-  
-  // NOTATKA REDAKCYJNA
-  editor_note?: string;           // Wspomnienie redakcyjne (opcjonalne)
-  
-  // ZGŁASZAJĄCY
-  submitted_by: {
-    name: string;
-    relationship: string;         // Pokrewieństwo ze zmarłym
-    phone?: string;
-    email?: string;
-  };
-  
-  // STATUS PUBLIKACJI
-  is_premium: boolean;            // Wyróżniony nekrolog
-  premium_until?: string;
-  
-  // WAŻNOŚĆ (auto-archiwizacja)
-  display_until: string;          // Domyślnie 30 dni od śmierci
-}
-```
-
-**Schemat SQL - tabela `obituaries`:**
-
-```sql
-CREATE TABLE tenant_${domain}.obituaries (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  
-  -- Podstawowe
-  content_type VARCHAR(20) DEFAULT 'obituary',
-  title VARCHAR(200) NOT NULL,   -- "Odszedł Jan Kowalski"
-  slug VARCHAR(220) NOT NULL UNIQUE,
-  excerpt TEXT,                  -- Krótkie podsumowanie
-  content_html TEXT,             -- Pełny nekrolog
-  
-  -- Dane zmarłego
-  deceased JSONB NOT NULL,
-  
-  -- Ceremonia
-  funeral JSONB NOT NULL,
-  
-  -- Opcje kondolencji
-  condolences JSONB,
-  virtual_candles_enabled BOOLEAN DEFAULT true,
-  virtual_candles_count INTEGER DEFAULT 0,
-  
-  -- Media
-  photo JSONB,
-  editor_note TEXT,
-  
-  -- Zgłaszający
-  submitted_by JSONB NOT NULL,
-  
-  -- Status
-  status VARCHAR(20) DEFAULT 'pending_review', -- Wymaga weryfikacji przed publikacją
-  is_premium BOOLEAN DEFAULT false,
-  display_until TIMESTAMP WITH TIME ZONE NOT NULL,
-  
-  -- Czas
-  published_at TIMESTAMP WITH TIME ZONE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  
-  -- Indeksy
-  CONSTRAINT valid_display CHECK (display_until > created_at)
-);
-
--- Indeksy
-CREATE INDEX idx_obituaries_dates ON tenant_${domain}.obituaries(death_date DESC);
-CREATE INDEX idx_obituaries_display ON tenant_${domain}.obituaries(display_until);
-CREATE INDEX idx_obituaries_premium ON tenant_${domain}.obituaries(is_premium);
-```
-
----
-
-#### 20.2.8 POGODA (weather)
-
-Pogoda nie jest CPT w tradycyjnym sensie - to dane z zewnętrznego API.
-
-```typescript
-interface WeatherData {
-  // META
-  location: {
-    city: string;
-    coordinates: { lat: number; lng: number };
-    timezone: string;
-  };
-  
-  // AKTUALNA
-  current: {
-    timestamp: string;
-    temperature: number;          // °C
-    feels_like: number;           // Odczuwalna
-    humidity: number;             // %
-    pressure: number;             // hPa
-    wind_speed: number;           // km/h
-    wind_direction: number;       // Stopnie (0-360)
-    visibility: number;           // km
-    uv_index: number;
-    condition: string;            // sunny, cloudy, rainy, snowy, etc.
-    condition_icon: string;       // Kod ikony
-    precipitation_chance: number; // %
-    precipitation_amount: number; // mm
-  };
-  
-  // PROGNOZA GODZINOWA (24h)
-  hourly: {
-    timestamp: string;
-    temperature: number;
-    condition: string;
-    precipitation_chance: number;
-  }[];
-  
-  // PROGNOZA DZIENNA (5-7 dni)
-  daily: {
-    date: string;
-    temp_min: number;
-    temp_max: number;
-    temp_avg: number;
-    condition: string;
-    condition_icon: string;
-    precipitation_chance: number;
-    precipitation_amount: number;
-    wind_speed: number;
-    sunrise: string;
-    sunset: string;
-    moon_phase?: string;
-  }[];
-  
-  // ALERTY
-  alerts?: {
-    type: 'storm' | 'frost' | 'heat' | 'wind' | 'fog' | 'other';
-    severity: 'minor' | 'moderate' | 'severe' | 'extreme';
-    title: string;
-    description: string;
-    start: string;
-    end: string;
-  }[];
-  
-  // JAKOŚĆ POWIETRZA
-  air_quality?: {
-    aqi: number;                  // 0-500
-    pm25: number;
-    pm10: number;
-    o3: number;
-    no2: number;
-    so2: number;
-    co: number;
-    quality_label: 'good' | 'moderate' | 'unhealthy_sensitive' | 'unhealthy' | 'very_unhealthy' | 'hazardous';
-    health_recommendation?: string;
-  };
-  
-  // CZAS POBRANIA
-  fetched_at: string;
-  next_update_at: string;
-}
-```
-
-**Schemat SQL - tabela `weather_cache`:**
-
-```sql
-CREATE TABLE tenant_${domain}.weather_cache (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  domain_id UUID REFERENCES public.domains(id),
-  
-  -- Lokalizacja
-  location JSONB NOT NULL,
-  
-  -- Dane
-  current JSONB NOT NULL,
-  hourly JSONB[],
-  daily JSONB[],
-  alerts JSONB[],
-  air_quality JSONB,
-  
-  -- Czas
-  fetched_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  next_update_at TIMESTAMP WITH TIME ZONE,
-  expires_at TIMESTAMP WITH TIME ZONE, -- Czas ważności cache
-  
-  -- Unikalność per domena
-  UNIQUE(domain_id)
-);
-
--- Auto-czyszczenie starego cache
-CREATE INDEX idx_weather_expires ON tenant_${domain}.weather_cache(expires_at);
-```
-
----
-
-### 20.3 Mapowanie Pól dla Scraperów
-
-Każdy scraper musi mapować dane ze źródła do formatu `NormalizedContent`.
-
-#### 20.3.1 Przykład: Policja Toruń → NormalizedContent
-
-```typescript
-// Konfiguracja mapowania
-const POLICE_TORUN_MAPPING = {
-  // Identyfikacja
-  external_id: {
-    selector: '.news-id',
-    transform: (val) => `policja_torun_${val}`
-  },
-  
-  // Treść
-  title: {
-    selector: 'h1.news-title',
-    transform: (val) => val.trim()
-  },
-  
-  content_html: {
-    selector: '.news-content',
-    transform: (val) => cleanHtml(val) // Usuwa skrypty, style
-  },
-  
-  // Czas
-  published_at: {
-    selector: '.news-date',
-    transform: (val) => {
-      // Format: "12.02.2025 r."
-      const [day, month, year] = val.match(/(\d{2})\.(\d{2})\.(\d{4})/);
-      return `${year}-${month}-${day}T08:00:00Z`; // Domyślnie 8:00 rano
-    }
-  },
-  
-  // Metadane policyjne (parsowanie z treści)
-  metadata: {
-    incident_type: {
-      from_content: true,
-      patterns: [
-        { regex: /włamanie/i, value: 'burglary' },
-        { regex: /kradzież pojazdu/i, value: 'theft' },
-        { regex: /kolizja|wypadek drogowy/i, value: 'accident' },
-        { regex: /poszukujemy|zaginął/i, value: 'missing_person' },
-        { regex: /jazda pod wpływem|pijan/i, value: 'dui' },
-      ],
-      default: 'other'
-    },
-    
-    incident_location: {
-      from_content: true,
-      pattern: /w (?:miejscowości|mieście|ulicy|ul\.?) ([A-Za-ząćęłńóśźżĄĆĘŁŃÓŚŹŻ\s\.]+)/i,
-      transform: (match) => ({
-        address: match[1].trim(),
-        description: match[0]
-      })
-    },
-    
-    incident_date: {
-      from_content: true,
-      pattern: /w dniu (\d{1,2})[\s\.](\w+|\d{2})[\s\.]?(\d{4})?/i,
-      transform: (match, context) => {
-        const day = match[1].padStart(2, '0');
-        const month = parsePolishMonth(match[2]);
-        const year = match[3] || context.published_at.substring(0, 4);
-        return `${year}-${month}-${day}`;
-      }
-    },
-    
-    case_status: {
-      static: 'investigating'
-    }
-  },
-  
-  // Kategoria automatyczna
-  category: {
-    static: 'bezpieczenstwo'
-  },
-  
-  // Tagi (auto-generowane z treści)
-  tags: {
-    from_content: true,
-    keywords: ['policja', 'bezpieczeństwo', 'zdarzenie']
-  }
-};
-```
-
----
-
-#### 20.3.2 Przykład: Urząd Miasta → NormalizedContent
-
-```typescript
-const CITY_OFFICE_MAPPING = {
-  external_id: {
-    selector: 'meta[name="article-id"]',
-    attribute: 'content'
-  },
-  
-  title: {
-    selector: '.article-header h1'
-  },
-  
-  content_html: {
-    selector: '.article-body'
-  },
-  
-  published_at: {
-    selector: 'time[datetime]',
-    attribute: 'datetime'
-  },
-  
-  // Mapowanie kategorii na podstawie URL/sekcji
-  category: {
-    from_url: true,
-    mapping: {
-      '/kultura/': 'kultura',
-      '/sport/': 'sport',
-      '/inwestycje/': 'inwestycje',
-      '/komunikacja/': 'komunikacja',
-      '/edukacja/': 'edukacja',
-      '/zdjecia/': 'galeria',
-      '/filmy/': 'wideo'
-    }
-  },
-  
-  // Metadane dla galerii
-  metadata: {
-    news_type: {
-      from_url: true,
-      pattern: /\/zdjecia\//,
-      value: 'gallery',
-      default: 'local'
-    },
-    
-    // Galeria zdjęć
-    gallery: {
-      selector: '.gallery-item img',
-      multiple: true,
-      transform: (elements) => elements.map(img => ({
-        url: img.src,
-        alt: img.alt,
-        width: img.width,
-        height: img.height
-      }))
-    }
-  }
-};
-```
-
----
-
-#### 20.3.3 Przykład: OLX/Facebook (Firmy) → BusinessMetadata
-
-```typescript
-const OLX_BUSINESS_MAPPING = {
-  // Podstawowe
-  title: {
-    selector: 'h1[data-cy="ad_title"]'
-  },
-  
-  excerpt: {
-    selector: '[data-cy="ad_description"]',
-    max_length: 500
-  },
-  
-  // Kontakt
-  metadata: {
-    contact: {
-      phones: {
-        selector: '[data-cy="phone-number"]',
-        multiple: true
+  "dashboard": {
+    "title": "Deployment Monitoring",
+    "panels": [
+      {
+        "title": "Deployment Status",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "deployment_status{environment=~\"$environment\"}"
+          }
+        ]
       },
-      emails: {
-        selector: 'a[href^="mailto:"]',
-        attribute: 'href',
-        transform: (val) => val.replace('mailto:', '')
+      {
+        "title": "Error Rate (5m)",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(http_requests_total{status=~\"5..\"}[5m]) / rate(http_requests_total[5m]) * 100",
+            "legendFormat": "Error Rate %"
+          }
+        ],
+        "alert": {
+          "name": "High Error Rate",
+          "condition": "B",
+          "evaluator": {
+            "type": "gt",
+            "params": [5]
+          }
+        }
+      },
+      {
+        "title": "Response Time",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "95th percentile"
+          }
+        ]
       }
-    },
-    
-    // Lokalizacja
-    addresses: {
-      selector: '[data-cy="ad-location"]',
-      transform: (val) => [{
-        type: 'main',
-        street: val,
-        city: context.city, // Z kontekstu scrapera
-        is_primary: true
-      }]
-    },
-    
-    // Kategorie (mapowanie z OLX do naszych)
-    business_categories: {
-      selector: '[data-cy="category-path"] a',
-      multiple: true,
-      transform: (categories) => mapOlxToOurCategories(categories)
-    },
-    
-    // Godziny (jeśli podane w opisie)
-    opening_hours: {
-      from_description: true,
-      pattern: /(pon|wt|śr|czw|pt|sob|nd):?\s*(\d{1,2}[:\.]?\d{2})?\s*-\s*(\d{1,2}[:\.]?\d{2})/gi
-    },
-    
-    verification_status: {
-      static: 'unverified'
-    }
-  }
-};
-```
-
----
-
-### 20.4 Normalizacja i Walidacja Danych
-
-Wszystkie dane przed zapisem do DB muszą przejść normalizację:
-
-```typescript
-// Normalizacja tekstu
-function normalizeText(text: string): string {
-  return text
-    .replace(/\s+/g, ' ')          // Wielokrotne spacje -> jedna
-    .replace(/[\u2018\u2019]/g, "'") // Znaki typograficzne
-    .replace(/[\u201C\u201D]/g, '"')
-    .replace(/[\u2013\u2014]/g, '-')
-    .trim();
-}
-
-// Normalizacja adresu
-function normalizeAddress(address: string): { street: string; number: string } {
-  // Usuń zbędne spacje przy numerze
-  const cleaned = address
-    .replace(/\s+(\d)/, ' $1')     // "ul. Szeroka24" -> "ul. Szeroka 24"
-    .replace(/(\d)\s*\/\s*(\d)/, '$1/$2'); // "24 / 5" -> "24/5"
-  
-  // Rozdziel nazwę ulicy i numer
-  const match = cleaned.match(/^(.+?)\s+(\d+[\w\/]*)$/);
-  if (match) {
-    return { street: match[1].trim(), number: match[2] };
-  }
-  return { street: cleaned, number: '' };
-}
-
-// Normalizacja telefonu
-function normalizePhone(phone: string): string {
-  const digits = phone.replace(/\D/g, '');
-  if (digits.length === 9) {
-    return digits.replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3');
-  }
-  return phone;
-}
-
-// Walidacja NIP
-function validateNIP(nip: string): boolean {
-  const digits = nip.replace(/\D/g, '');
-  if (digits.length !== 10) return false;
-  
-  const weights = [6, 5, 7, 2, 3, 4, 5, 6, 7];
-  const checksum = digits.split('').slice(0, 9)
-    .reduce((sum, digit, i) => sum + parseInt(digit) * weights[i], 0);
-  
-  return (checksum % 11) === parseInt(digits[9]);
-}
-
-// Walidacja REGON
-function validateREGON(regon: string): boolean {
-  const digits = regon.replace(/\D/g, '');
-  if (digits.length !== 9 && digits.length !== 14) return false;
-  
-  const weights9 = [8, 9, 2, 3, 4, 5, 6, 7];
-  const checksum = digits.split('').slice(0, 8)
-    .reduce((sum, digit, i) => sum + parseInt(digit) * weights9[i], 0);
-  
-  return (checksum % 11) % 10 === parseInt(digits[8]);
-}
-```
-
----
-
-### 20.5 Jednolity Pipeline Przetwarzania
-
-```mermaid
-flowchart LR
-    subgraph Input["Źródło Danych"]
-        SRC1[policja.gov.pl]
-        SRC2[torun.pl]
-        SRC3[OLX]
-        SRC4[Facebook]
-    end
-    
-    subgraph Processing["Przetwarzanie"]
-        FETCH[1. Pobranie HTML]
-        PARSE[2. Parsowanie]
-        MAP[3. Mapowanie pól]
-        NORM[4. Normalizacja]
-        VALID[5. Walidacja]
-    end
-    
-    subgraph Output["Format Wyjściowy"]
-        NORM_CONTENT[NormalizedContent]
-    end
-    
-    subgraph Storage["Zapis"]
-        DB[(PostgreSQL)]
-    end
-    
-    SRC1 --> FETCH
-    SRC2 --> FETCH
-    SRC3 --> FETCH
-    SRC4 --> FETCH
-    
-    FETCH --> PARSE
-    PARSE --> MAP
-    MAP --> NORM
-    NORM --> VALID
-    VALID -->|Valid| NORM_CONTENT
-    VALID -->|Invalid| ERROR[Log błędu]
-    
-    NORM_CONTENT --> DB
-```
-
-**Kod pipeline:**
-
-```typescript
-class ContentProcessingPipeline {
-  async process(
-    html: string, 
-    sourceConfig: SourceMappingConfig
-  ): Promise<NormalizedContent> {
-    
-    // 1. Parsowanie
-    const $ = cheerio.load(html);
-    
-    // 2. Ekstrakcja surowych danych
-    const rawData = this.extractFields($, sourceConfig);
-    
-    // 3. Mapowanie do NormalizedContent
-    const mapped = this.mapToNormalized(rawData, sourceConfig);
-    
-    // 4. Normalizacja
-    const normalized = this.normalize(mapped);
-    
-    // 5. Walidacja
-    const validation = this.validate(normalized);
-    if (!validation.valid) {
-      throw new ValidationError(validation.errors);
-    }
-    
-    // 6. Generowanie slug
-    normalized.slug = this.generateSlug(normalized.title);
-    
-    // 7. Ekstrakcja plain text z HTML
-    normalized.content_text = this.htmlToText(normalized.content_html);
-    
-    // 8. Timestamp
-    normalized.scraped_at = new Date().toISOString();
-    
-    return normalized;
-  }
-  
-  private extractFields($: cheerio.Root, config: SourceMappingConfig): any {
-    const result = {};
-    
-    for (const [field, mapping] of Object.entries(config)) {
-      if (mapping.static) {
-        result[field] = mapping.static;
-      } else if (mapping.selector) {
-        const el = $(mapping.selector);
-        const value = mapping.attribute 
-          ? el.attr(mapping.attribute)
-          : el.text();
-        result[field] = mapping.transform 
-          ? mapping.transform(value) 
-          : value;
-      }
-    }
-    
-    return result;
-  }
-  
-  private normalize(content: NormalizedContent): NormalizedContent {
-    return {
-      ...content,
-      title: normalizeText(content.title),
-      content_html: this.sanitizeHtml(content.content_html),
-      tags: content.tags.map(t => t.toLowerCase().trim()),
-      // ... inne normalizacje
-    };
-  }
-  
-  private validate(content: NormalizedContent): ValidationResult {
-    const errors = [];
-    
-    if (!content.title || content.title.length < 5) {
-      errors.push('Tytuł za krótki');
-    }
-    
-    if (!content.content_html || content.content_html.length < 50) {
-      errors.push('Treść za krótka');
-    }
-    
-    if (!content.published_at) {
-      errors.push('Brak daty publikacji');
-    }
-    
-    return {
-      valid: errors.length === 0,
-      errors
-    };
-  }
-  
-  private generateSlug(title: string): string {
-    return title
-      .toLowerCase()
-      .replace(/[ąćęłńóśźż]/g, c => ({ą:'a',ć:'c',ę:'e',ł:'l',ń:'n',ó:'o',ś:'s',ź:'z',ż:'z'})[c])
-      .replace(/[^\w\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .substring(0, 220);
+    ]
   }
 }
 ```
 
 ---
 
-### 20.6 Zadania Implementacyjne dla Webdev
+### 22.10 Database Migrations w CI/CD
+
+#### 22.10.1 Prisma Migration Strategy
+
+```yaml
+# .github/workflows/migrate.yml
+name: Database Migration
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install dependencies
+        run: pnpm install
+      
+      - name: Generate Prisma Client
+        run: pnpm prisma generate
+      
+      - name: Backup database before migration
+        run: |
+          ssh deploy@${{ secrets.HOST }} \
+            "cd /opt/app && ./scripts/backup-db.sh pre-migration-$(date +%s)"
+      
+      - name: Run migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: pnpm prisma migrate deploy
+      
+      - name: Verify migrations
+        run: |
+          pnpm prisma migrate status
+          pnpm prisma db seed --preview-feature
+      
+      - name: Notify on failure
+        if: failure()
+        run: |
+          curl -X POST ${{ secrets.SLACK_WEBHOOK_URL }} \
+            -H 'Content-type: application/json' \
+            -d '{"text":"❌ Database migration failed!"}'
+```
+
+#### 22.10.2 Migration Safety Checklist
+
+```bash
+#!/bin/bash
+# scripts/migration-check.sh
+
+echo "🔍 Pre-migration safety checks..."
+
+# 1. Sprawdź czy są niezastosowane migracjie
+UNAPPLIED=$(npx prisma migrate status --preview-feature 2>&1 | grep -c "not yet applied" || true)
+
+if [[ $UNAPPLIED -eq 0 ]]; then
+    echo "✅ All migrations are up to date"
+    exit 0
+fi
+
+echo "⚠️ Found $UNAPPLIED unapplied migrations"
+
+# 2. Sprawdź czy migracje są destructive
+for file in prisma/migrations/*/migration.sql; do
+    if [[ -f "$file" ]]; then
+        if grep -q "DROP TABLE\|DROP COLUMN\|ALTER TABLE.*DROP" "$file"; then
+            echo "⚠️ WARNING: Destructive changes detected in $file"
+            echo "   Review before applying!"
+        fi
+    fi
+done
+
+# 3. Sprawdź rozmiar tabel (dla migracji potencjalnie długich)
+echo "📊 Table sizes:"
+psql "$DATABASE_URL" -c "
+SELECT schemaname, relname, pg_size_pretty(pg_total_relation_size(relid)) 
+FROM pg_stat_user_tables 
+ORDER BY pg_total_relation_size(relid) DESC 
+LIMIT 10;
+"
+
+echo "✅ Safety checks complete"
+```
+
+#### 22.10.3 Rollback Plan
+
+```bash
+#!/bin/bash
+# scripts/migration-rollback.sh
+
+set -e
+
+BACKUP_NAME=$1
+
+echo "🔄 Migration Rollback Procedure"
+echo "════════════════════════════════"
+
+if [[ -z "$BACKUP_NAME" ]]; then
+    echo "Usage: $0 <backup-name>"
+    echo "Available backups:"
+    ls -la /opt/backups/postgres/
+    exit 1
+fi
+
+echo "⚠️ WARNING: This will RESTORE database from backup!"
+echo "Backup: $BACKUP_NAME"
+read -p "Are you sure? Type 'yes' to continue: " confirm
+
+if [[ $confirm != "yes" ]]; then
+    echo "Aborted."
+    exit 0
+fi
+
+# 1. Zatrzymaj aplikację
+echo "🛑 Stopping application..."
+docker-compose stop api
+
+# 2. Restore z backupu
+echo "📦 Restoring database..."
+gunzip < "/opt/backups/postgres/$BACKUP_NAME.sql.gz" | \
+    docker-compose exec -T postgres psql -U postgres
+
+# 3. Uruchom aplikację
+echo "▶️ Starting application..."
+docker-compose start api
+
+# 4. Health check
+echo "🏥 Health check..."
+sleep 10
+curl -f http://localhost:3001/api/health || exit 1
+
+echo "✅ Rollback completed!"
+```
+
+---
+
+### 22.11 Zadania Implementacyjne dla DevOps
 
 | # | Zadanie | Szacowanie | Priorytet |
 |---|---------|-----------|-----------|
-| 20.1 | Implementacja klasy `ContentProcessingPipeline` | 8h | Krytyczny |
-| 20.2 | Implementacja normalizatorów (tekst, adres, telefon) | 4h | Krytyczny |
-| 20.3 | Implementacja walidatorów (NIP, REGON, email) | 3h | Krytyczny |
-| 20.4 | Konfiguracja mapowania dla Policji Toruń | 4h | Wysoki |
-| 20.5 | Konfiguracja mapowania dla Urzędu Miasta | 4h | Wysoki |
-| 20.6 | Konfiguracja mapowania dla OLX (firmy) | 6h | Średni |
-| 20.7 | Konfiguracja mapowania dla Facebook (firmy) | 6h | Średni |
-| 20.8 | Implementacja tabeli `posts` z JSONB metadata | 3h | Krytyczny |
-| 20.9 | Implementacja tabeli `businesses` | 4h | Wysoki |
-| 20.10 | Implementacja tabeli `jobs` | 3h | Wysoki |
-| 20.11 | Implementacja tabeli `obituaries` | 3h | Średni |
-| 20.12 | Implementacja tabeli `weather_cache` | 2h | Średni |
-| 20.13 | Migracja istniejących danych do nowego formatu | 6h | Niski |
-| 20.14 | Testy jednostkowe dla pipeline | 6h | Wysoki |
-| 20.15 | Dokumentacja API dla NormalizedContent | 3h | Średni |
+| 22.1 | Konfiguracja GitHub Actions workflow | 4h | Krytyczny |
+| 22.2 | Setup branch protection rules | 1h | Krytyczny |
+| 22.3 | Konfiguracja GitHub Secrets | 2h | Krytyczny |
+| 22.4 | Stworzenie Dockerfile dla API | 3h | Krytyczny |
+| 22.5 | Stworzenie Dockerfile dla Frontend | 3h | Krytyczny |
+| 22.6 | Konfiguracja docker-compose dev | 2h | Wysoki |
+| 22.7 | Implementacja Blue/Green deployment | 6h | Wysoki |
+| 22.8 | Skrypt deploymentu przez SSH | 3h | Wysoki |
+| 22.9 | Health check endpoints | 2h | Wysoki |
+| 22.10 | Automatyczny rollback | 4h | Średni |
+| 22.11 | Monitoring error rate post-deploy | 3h | Średni |
+| 22.12 | Slack notifications | 2h | Średni |
+| 22.13 | Database migration automation | 3h | Średni |
+| 22.14 | Backup automation | 2h | Średni |
+| 22.15 | Grafana dashboard dla deploymentów | 4h | Niski |
 
 ---
 
-**KONIEC SEKCJI 20**
+### 22.12 Checklist Przed Pierwszym Deployem
+
+```markdown
+## Pre-Deployment Checklist
+
+### 🔐 Security
+- [ ] Wszystkie secrets dodane do GitHub
+- [ ] SSH kliki wygenerowane i dodane do serwerów
+- [ ] Firewall skonfigurowany (tylko 80, 443, 22)
+- [ ] Fail2ban zainstalowany
+
+### 🗄️ Database
+- [ ] PostgreSQL zainstalowany i skonfigurowany
+- [ ] Użytkownik bazy danych utworzony
+- [ ] Pierwsza migracja wykonana
+- [ ] Backup schedule skonfigurowany
+
+### 🐳 Docker
+- [ ] Docker zainstalowany na serwerze
+- [ ] Docker Compose zainstalowany
+- [ ] Images przetestowane lokalnie
+
+### 🌐 DNS & SSL
+- [ ] DNS A record wskazuje na serwer
+- [ ] Let's Encrypt skonfigurowany
+- [ ] SSL certificate auto-renewal
+
+### 📊 Monitoring
+- [ ] Sentry DSN skonfigurowany
+- [ ] Health check endpoint działa
+- [ ] Log aggregation (opcjonalnie)
+
+### 🔔 Notifications
+- [ ] Slack webhook skonfigurowany
+- [ ] Email dla krytycznych alertów
+```
+
+---
+
+**KONIEC SEKCJI 22**
+
+
+---
+
+## 23. DOKUMENTACJA API (OpenAPI/Swagger) 📚
+
+### 23.1 Specyfikacja OpenAPI 3.0
+
+#### Plik Konfiguracyjny
+
+```yaml
+# openapi.yaml
+openapi: 3.0.3
+info:
+  title: Regionalne Serwisy API
+  description: API dla systemu zarządzania regionalnymi portalami
+  version: 1.0.0
+  contact:
+    name: Support
+    email: api@serwisy-lokalne.pl
+  license:
+    name: Proprietary
+
+servers:
+  - url: https://serwisy-lokalne.pl/api/v1
+    description: Production
+  - url: https://staging.serwisy-lokalne.pl/api/v1
+    description: Staging
+  - url: http://localhost:3001/api/v1
+    description: Local Development
+
+paths:
+  # Authentication
+  /auth/login:
+    post:
+      summary: Logowanie użytkownika
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        200:
+          description: Successful login
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        401:
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/refresh:
+    post:
+      summary: Odświeżenie tokenu
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        200:
+          description: Token refreshed
+        401:
+          description: Invalid refresh token
+
+  # Domains
+  /domains:
+    get:
+      summary: Lista domen
+      tags: [Domains]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        200:
+          description: List of domains
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainListResponse'
+
+    post:
+      summary: Tworzenie nowej domeny
+      tags: [Domains]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDomainRequest'
+      responses:
+        201:
+          description: Domain created
+        403:
+          description: Insufficient permissions
+
+  /domains/{domainId}:
+    get:
+      summary: Szczegóły domeny
+      tags: [Domains]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: domainId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: Domain details
+        404:
+          description: Domain not found
+
+  # Posts
+  /domains/{domainId}/posts:
+    get:
+      summary: Lista wpisów w domenie
+      tags: [Posts]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: domainId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [news, police, business, job, obituary]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, published, archived]
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        200:
+          description: List of posts
+
+    post:
+      summary: Tworzenie nowego wpisu
+      tags: [Posts]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePostRequest'
+      responses:
+        201:
+          description: Post created
+        422:
+          description: Validation error
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # Request/Response schemas
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        remember_me:
+          type: boolean
+
+    LoginResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        expires_in:
+          type: integer
+        user:
+          $ref: '#/components/schemas/User'
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        first_name:
+          type: string
+        last_name:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+
+    CreateDomainRequest:
+      type: object
+      required: [name, slug, city]
+      properties:
+        name:
+          type: string
+          example: "4Toruń"
+        slug:
+          type: string
+          example: "4torun.pl"
+        city:
+          type: string
+          example: "Toruń"
+        admin_email:
+          type: string
+          format: email
+
+    CreatePostRequest:
+      type: object
+      required: [title, content, post_type]
+      properties:
+        title:
+          type: string
+          maxLength: 200
+        content:
+          type: string
+        excerpt:
+          type: string
+          maxLength: 500
+        post_type:
+          type: string
+          enum: [news, police, business, job, obituary]
+        status:
+          type: string
+          enum: [draft, published, scheduled]
+        category_id:
+          type: string
+          format: uuid
+        tags:
+          type: array
+          items:
+            type: string
+        featured_image:
+          type: string
+          format: uri
+
+    DomainListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Domain'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    Domain:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        city:
+          type: string
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    PaginationMeta:
+      type: object
+      properties:
+        current_page:
+          type: integer
+        total_pages:
+          type: integer
+        total_items:
+          type: integer
+        items_per_page:
+          type: integer
+        has_next_page:
+          type: boolean
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        code:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+```
+
+### 23.2 Swagger UI
+
+#### Konfiguracja Express
+
+```typescript
+// app.ts
+import swaggerUi from 'swagger-ui-express';
+import YAML from 'yamljs';
+
+const swaggerDocument = YAML.load('./openapi.yaml');
+
+// Swagger UI dostępne pod /api-docs
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument, {
+  explorer: true,
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'Regionalne Serwisy API'
+}));
+
+// Raw OpenAPI spec
+app.get('/api-spec.yaml', (req, res) => {
+  res.sendFile(path.join(__dirname, 'openapi.yaml'));
+});
+```
+
+### 23.3 Generowanie Kodu z OpenAPI
+
+```bash
+# Generowanie klienta TypeScript
+npx openapi-typescript-codegen \
+  --input ./openapi.yaml \
+  --output ./src/api-client \
+  --client axios
+
+# Generowanie server stubs
+npx openapi-generator-cli generate \
+  -i ./openapi.yaml \
+  -g typescript-node \
+  -o ./src/api-stubs
+```
+
+---
+
+## 24. TROUBLESHOOTING I FAQ 🔧
+
+### 24.1 Częste Problemy - Baza Danych
+
+#### Problem: "Connection refused" do PostgreSQL
+
+**Objawy:**
+```
+Error: connect ECONNREFUSED 127.0.0.1:5432
+```
+
+**Rozwiązania:**
+1. Sprawdź czy PostgreSQL działa:
+   ```bash
+   sudo systemctl status postgresql
+   sudo service postgresql status
+   ```
+
+2. Sprawdź konfigurację pg_hba.conf:
+   ```bash
+   sudo nano /etc/postgresql/15/main/pg_hba.conf
+   # Upewnij się, że masz:
+   # host all all 127.0.0.1/32 md5
+   ```
+
+3. Sprawdź port:
+   ```bash
+   sudo netstat -plunt | grep 5432
+   ```
+
+4. Restart usługi:
+   ```bash
+   sudo systemctl restart postgresql
+   ```
+
+#### Problem: "Schema does not exist"
+
+**Objawy:**
+```
+Error: schema "tenant_4torun_pl" does not exist
+```
+
+**Rozwiązania:**
+1. Utwórz schemat:
+   ```sql
+   CREATE SCHEMA tenant_4torun_pl;
+   ```
+
+2. Sprawdź search_path:
+   ```sql
+   SHOW search_path;
+   SET search_path = tenant_4torun_pl, public;
+   ```
+
+3. Uruchom migracje:
+   ```bash
+   npx prisma migrate deploy
+   ```
+
+### 24.2 Częste Problemy - Scraping
+
+#### Problem: "Connection timeout" przy scrapingu
+
+**Rozwiązania:**
+1. Zwiększ timeout w kodzie:
+   ```python
+   timeout = aiohttp.ClientTimeout(total=60)
+   ```
+
+2. Sprawdź czy strona docelowa działa:
+   ```bash
+   curl -I https://torun.policja.gov.pl
+   ```
+
+3. Sprawdź czy nie jesteś zablokowany:
+   ```python
+   # Dodaj rotację User-Agent
+   headers = {'User-Agent': 'Mozilla/5.0...'}
+   ```
+
+4. Użyj proxy:
+   ```python
+   proxy = 'http://proxy:8080'
+   async with aiohttp.ClientSession() as session:
+       async with session.get(url, proxy=proxy) as resp:
+           ...
+   ```
+
+#### Problem: "Rate limited" (429 Too Many Requests)
+
+**Rozwiązania:**
+1. Dodaj opóźnienie między requestami:
+   ```python
+   await asyncio.sleep(2)  # 2 sekundy
+   ```
+
+2. Zmniejsz częstotliwość cron:
+   ```bash
+   # Zamiast co 1h -> co 6h
+   0 */6 * * * /usr/bin/python3 scraper.py
+   ```
+
+3. Użyj różnych IP (proxy rotating)
+
+### 24.3 Częste Problemy - Frontend
+
+#### Problem: "Hydration mismatch" w Next.js
+
+**Rozwiązania:**
+1. Upewnij się, że dane serwerowe i klienckie są identyczne
+2. Użyj `suppressHydrationWarning` dla dat:
+   ```tsx
+   <time suppressHydrationWarning>{date}</time>
+   ```
+3. Użyj `useEffect` dla komponentów zależnych od window:
+   ```tsx
+   const [mounted, setMounted] = useState(false);
+   useEffect(() => setMounted(true), []);
+   if (!mounted) return null;
+   ```
+
+#### Problem: "Module not found" przy budowaniu
+
+**Rozwiązania:**
+1. Wyczyść cache:
+   ```bash
+   rm -rf node_modules .next
+   npm install
+   ```
+
+2. Sprawdź case-sensitivity (Linux vs Windows):
+   ```bash
+   # Linux jest case-sensitive!
+   import { Button } from './Button'  # ✓
+   import { Button } from './button'  # ✗ na Linux
+   ```
+
+### 24.4 Częste Problemy - Deployment
+
+#### Problem: "Permission denied" przy deploy
+
+**Rozwiązania:**
+1. Sprawdź uprawnienia:
+   ```bash
+   ls -la /home/host988956/domains/
+   ```
+
+2. Napraw uprawnienia:
+   ```bash
+   sudo chown -R host988956:host988956 /home/host988956/domains/
+   sudo chmod -R 755 /home/host988956/domains/
+   ```
+
+#### Problem: "Port already in use"
+
+**Rozwiązania:**
+1. Znajdź proces:
+   ```bash
+   sudo lsof -i :3001
+   ```
+
+2. Zakończ proces:
+   ```bash
+   sudo kill -9 <PID>
+   ```
+
+3. Lub użyj innego portu w .env
+
+### 24.5 Debugging
+
+#### Logi Błędów
+
+```bash
+# Logi aplikacji
+tail -f /home/host988956/domains/*/logs/error.log
+
+# Logi systemowe
+sudo journalctl -u postgresql -f
+sudo journalctl -u nginx -f
+
+# Logi PM2
+pm2 logs
+
+# Logi scrapera
+tail -f /var/log/scraper.log
+```
+
+#### Narzędzia Debugowania
+
+```bash
+# Test API curl
+curl -X POST http://localhost:3001/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"password"}'
+
+# Test bazy danych
+psql -d regional_services -c "SELECT COUNT(*) FROM public.domains;"
+
+# Test Redis
+redis-cli ping
+
+# Test RabbitMQ
+rabbitmqctl status
+```
+
+### 24.6 FAQ
+
+**Q: Jak dodać nową domenę?**
+A: Użyj panelu centralnego (serwisy-lokalne.pl) → Domeny → Dodaj, lub skryptu:
+```bash
+./scripts/create-domain.sh nowadomena.pl "Nazwa Miasta"
+```
+
+**Q: Gdzie są logi?**
+A: Logi aplikacji są w `/home/host988956/domains/{domain}/logs/`. Logi systemowe przez `journalctl`.
+
+**Q: Jak zresetować hasło admina?**
+A: 
+```bash
+psql -d regional_services -c "UPDATE users SET password_hash = '\$2b\$12\$...' WHERE email = 'admin@example.com';"
+```
+
+**Q: Jak wykonać backup ręcznie?**
+A:
+```bash
+./scripts/backup.sh full
+```
+
+**Q: Jak przywrócić backup?**
+A:
+```bash
+./scripts/restore.sh 20240212
+```
+
+**Q: Jak sprawdzić czy scraper działa?**
+A:
+```bash
+pm2 status
+# lub
+curl http://localhost:3001/api/health
+```
+
+---
+
+**KONIEC SEKCJI 23-24**
+
+
+---
+
+## 25. BACKUP I DISASTER RECOVERY 💾
+
+### 25.1 Strategia Backupu
+
+#### Klasyfikacja Danych
+
+| Poziom | Dane | Częstotliwość Backupu | Retencja |
+|--------|------|----------------------|----------|
+| **Krytyczne** | Baza danych (public + tenants), Pliki użytkowników | Co 6h (inkrementalny), Codziennie 2:00 (pełny) | 30 dni pełnych, 7 dni inkrementalnych |
+| **Ważne** | Konfiguracje, Logi, Statystyki | Codziennie | 90 dni |
+| **Standardowe** | Cache, Temp files | Co tydzień | 7 dni |
+
+#### Architektura Backupu
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         ARCHITEKTURA BACKUPU                                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                         PRODUKCJA                                    │   │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐              │   │
+│  │  │ PostgreSQL   │  │ Redis        │  │ Pliki       │              │   │
+│  │  │ (Primary)    │  │ (Cache)      │  │ (Uploads)   │              │   │
+│  │  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘              │   │
+│  │         │                 │                 │                       │   │
+│  │         └─────────────────┼─────────────────┘                       │   │
+│  │                           ▼                                         │   │
+│  │                  ┌────────────────┐                                │   │
+│  │                  │ Backup Service │                                │   │
+│  │                  │ (Cron + Scripts)│                                │   │
+│  │                  └───────┬────────┘                                │   │
+│  │                          │                                         │   │
+│  └──────────────────────────┼─────────────────────────────────────────┘   │
+│                             │                                              │
+│                             ▼                                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                    LOKALNE STORAGE                                   │   │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐              │   │
+│  │  │ /backup/full │  │ /backup/incr │  │ /backup/logs│              │   │
+│  │  │ (7 dni)      │  │ (24h)        │  │ (90 dni)    │              │   │
+│  │  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘              │   │
+│  │         │                 │                 │                       │   │
+│  └─────────┼─────────────────┼─────────────────┼───────────────────────┘   │
+│            │                 │                 │                            │
+│            └─────────────────┼─────────────────┘                            │
+│                              ▼                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                    ZEWNĘTRZNE STORAGE                               │   │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐              │   │
+│  │  │ AWS S3       │  │ Backblaze B2 │  │ Google CS    │              │   │
+│  │  │ (Glacier)    │  │ (B2)         │  │ (Nearline)   │              │   │
+│  │  │ - Pełne      │  │ - Codzienne  │  │ - Kopie      │              │   │
+│  │  │ - Miesięczne │  │ - Tygodniowe │  │ - Kwartalne  │              │   │
+│  │  └──────────────┘  └──────────────┘  └──────────────┘              │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 25.2 PostgreSQL Backup
+
+#### pg_dump per Schema
+
+```bash
+#!/bin/bash
+# scripts/backup-postgres.sh
+
+set -e
+
+BACKUP_DIR="/backup/postgres/$(date +%Y%m%d)"
+RETENTION_DAYS=30
+
+# Tworzenie katalogu
+mkdir -p "$BACKUP_DIR"
+
+# Backup schematu public (centralnego)
+echo "[$(date)] Backing up public schema..."
+pg_dump \
+    -h localhost \
+    -U backup_user \
+    -d regional_services \
+    -n public \
+    -Fc \
+    -f "$BACKUP_DIR/public_$(date +%H%M).dump"
+
+# Backup wszystkich schematów tenant
+for schema in $(psql -h localhost -U backup_user -d regional_services -t -c "SELECT schema_name FROM information_schema.schemata WHERE schema_name LIKE 'tenant_%'"); do
+    domain=$(echo "$schema" | sed 's/tenant_//; s/_/./g')
+    echo "[$(date)] Backing up $schema ($domain)..."
+    
+    pg_dump \
+        -h localhost \
+        -U backup_user \
+        -d regional_services \
+        -n "$schema" \
+        -Fc \
+        -f "$BACKUP_DIR/${schema}_$(date +%H%M).dump" \
+        2>/dev/null || echo "Warning: Failed to backup $schema"
+done
+
+# Kompresja
+cd "$BACKUP_DIR"
+tar czf "../postgres_$(date +%Y%m%d_%H%M).tar.gz" .
+cd ..
+rm -rf "$BACKUP_DIR"
+
+# Usuń stare backupy (>30 dni)
+find /backup/postgres -name "postgres_*.tar.gz" -mtime +$RETENTION_DAYS -delete
+
+echo "[$(date)] PostgreSQL backup completed"
+```
+
+#### Continuous Archiving (WAL)
+
+```ini
+# postgresql.conf
+wal_level = replica
+archive_mode = on
+archive_command = 'cp %p /backup/postgres/wal/%f'
+max_wal_senders = 3
+wal_keep_size = 1GB
+```
+
+#### Szyfrowanie Backupu
+
+```bash
+#!/bin/bash
+# Szyfrowanie backupu GPG
+
+gpg --symmetric \
+    --cipher-algo AES256 \
+    --compress-algo 1 \
+    --output "$BACKUP_FILE.gpg" \
+    "$BACKUP_FILE"
+
+# Usuń nieszyfrowany plik
+rm "$BACKUP_FILE"
+```
+
+### 25.3 File Backup
+
+#### Rclone do Cloud Storage
+
+```bash
+#!/bin/bash
+# scripts/backup-files.sh
+
+# Konfiguracja rclone
+# rclone config: name=backblaze, type=b2
+
+# Upload plików
+rclone sync \
+    /home/host988956/domains \
+    backblaze:regionalne-serwisy-backup/domains \
+    --exclude ".git/**" \
+    --exclude "node_modules/**" \
+    --exclude "*.log" \
+    --transfers 4 \
+    --progress \
+    --log-file /var/log/backup-files.log
+
+# Upload bazy
+rclone sync \
+    /backup/postgres \
+    backblaze:regionalne-serwisy-backup/postgres \
+    --transfers 2
+
+echo "[$(date)] File backup completed"
+```
+
+#### Monitoring Ważności Certyfikatów SSL
+
+```bash
+#!/bin/bash
+# scripts/check-ssl-expiry.sh
+
+DOMAINS=("serwisy-lokalne.pl" "4torun.pl" "4bydgoszcz.pl")
+ALERT_DAYS=7
+
+for domain in "${DOMAMAS[@]}"; do
+    expiry_date=$(echo | openssl s_client -servername "$domain" -connect "$domain:443" 2>/dev/null | openssl x509 -noout -dates | grep notAfter | cut -d= -f2)
+    expiry_timestamp=$(date -d "$expiry_date" +%s)
+    current_timestamp=$(date +%s)
+    days_until_expiry=$(( (expiry_timestamp - current_timestamp) / 86400 ))
+    
+    if [ $days_until_expiry -lt $ALERT_DAYS ]; then
+        echo "ALERT: SSL certificate for $domain expires in $days_until_expiry days!" | mail -s "SSL Expiry Alert" admin@example.com
+    fi
+done
+```
+
+### 25.4 Weryfikacja Backupu
+
+#### Automatyczny Test Restore
+
+```bash
+#!/bin/bash
+# scripts/test-restore.sh (uruchamiany co tydzień)
+
+TEST_DB="test_restore_$(date +%s)"
+BACKUP_FILE=$(ls -t /backup/postgres/postgres_*.tar.gz | head -1)
+
+echo "Testing restore from: $BACKUP_FILE"
+
+# Odtworzenie do testowej bazy
+createdb "$TEST_DB"
+pg_restore -d "$TEST_DB" -j 4 "$BACKUP_FILE"
+
+# Weryfikacja integralności
+psql -d "$TEST_DB" -c "SELECT COUNT(*) FROM public.domains;"
+psql -d "$TEST_DB" -c "SELECT COUNT(*) FROM public.users;"
+
+# Cleanup
+dropdb "$TEST_DB"
+
+echo "[$(date)] Restore test completed successfully"
+```
+
+### 25.5 Disaster Recovery Plan
+
+#### Cele RTO/RPO
+
+| Metryka | Cel | Opis |
+|---------|-----|------|
+| **RTO** (Recovery Time Objective) | 4h | Maksymalny czas przywrócenia systemu |
+| **RPO** (Recovery Point Objective) | 6h | Maksymalna utrata danych (ostatni backup) |
+
+#### Scenariusze Awarii
+
+**Scenariusz 1: Awaria Bazy Danych**
+```
+1. Automatyczny failover do replica (jeśli skonfigurowane)
+2. Ręczne przełączenie aplikacji na replica
+3. Diagnostyka primary node
+4. Naprawa lub odbudowa primary
+5. Powrót do normalnej pracy
+```
+
+**Scenariusz 2: Uszkodzenie Danych (Logical)**
+```
+1. Wstrzymanie zapisów (maintenance mode)
+2. Identyfikacja punktu w czasie przed awarią
+3. PITR (Point-in-Time Recovery)
+4. Weryfikacja danych
+5. Wznowienie pracy
+```
+
+**Scenariusz 3: Awaria Całego Serwera**
+```
+1. Uruchomienie nowego serwera (z template)
+2. Odtworzenie konfiguracji z backupu
+3. Odtworzenie bazy danych
+4. Odtworzenie plików
+5. Aktualizacja DNS
+6. Weryfikacja
+```
+
+### 25.6 Procedury Recovery
+
+#### Full Recovery Procedure
+
+```bash
+#!/bin/bash
+# scripts/full-recovery.sh
+
+set -e
+
+BACKUP_DATE="$1"  # YYYYMMDD
+if [ -z "$BACKUP_DATE" ]; then
+    echo "Usage: $0 <backup_date>"
+    exit 1
+fi
+
+echo "🚨 STARTING FULL RECOVERY FROM $BACKUP_DATE"
+
+# 1. Zatrzymaj aplikacje
+pm2 stop all
+echo "✓ Applications stopped"
+
+# 2. Odtworzenie bazy
+echo "Restoring database..."
+pg_restore -d regional_services "/backup/postgres/postgres_${BACKUP_DATE}_0200.tar.gz"
+echo "✓ Database restored"
+
+# 3. Odtworzenie plików
+echo "Restoring files..."
+tar xzf "/backup/files/files_${BACKUP_DATE}.tar.gz" -C /
+echo "✓ Files restored"
+
+# 4. Migracje (jeśli potrzeba)
+npx prisma migrate deploy
+echo "✓ Migrations applied"
+
+# 5. Restart usług
+pm2 start all
+systemctl restart nginx
+echo "✓ Services restarted"
+
+# 6. Weryfikacja
+curl -sf http://localhost/health || exit 1
+echo "✓ Health check passed"
+
+echo "🎉 Recovery completed successfully!"
+```
+
+#### Point-in-Time Recovery (PITR)
+
+```bash
+#!/bin/bash
+# Odtworzenie do konkretnego momentu
+
+RECOVERY_TIME="2024-02-12 14:30:00"
+
+# 1. Przygotowanie
+mkdir -p /tmp/recovery
+
+# 2. Odtworzenie base backup
+pg_basebackup -D /tmp/recovery -Ft -z -P
+
+# 3. Konfiguracja recovery
+ cat > /tmp/recovery/recovery.conf << EOF
+restore_command = 'cp /backup/postgres/wal/%f %p'
+recovery_target_time = '$RECOVERY_TIME'
+recovery_target_action = 'promote'
+EOF
+
+# 4. Start PostgreSQL w trybie recovery
+pg_ctl -D /tmp/recovery start
+
+# 5. Export danych i import do produkcji
+pg_dump -d "host=/tmp/recovery dbname=regional_services" -n tenant_4torun_pl | psql -d regional_services
+```
+
+### 25.7 Runbook - Procedura Awaryjna
+
+```
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                         RUNBOOK - DISASTER RECOVERY                           ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+KROK 1: OCENA SYTUACJI (5 min)
+├── Sprawdź monitoring (Grafana/Datadog)
+├── Sprawdź logi błędów
+├── Określ zakres awarii (baza, aplikacja, infrastruktura)
+└── Zdecyduj: FAILOVER vs REPAIR
+
+KROK 2: KOMUNIKACJA (5 min)
+├── Powiadom zespół (Slack #incidents)
+├── Powiadom klientów (jeśli wymagane)
+└── Uruchom status page (status.serwisy-lokalne.pl)
+
+KROK 3: FAILOVER (jeśli replika dostępna) (15 min)
+├── Przełącz DNS na replica
+├── Aktywuj replica jako primary
+└── Weryfikacja działania
+
+KROK 4: RECOVERY (jeśli brak repliki) (2-4h)
+├── Uruchom nowy serwer (z template)
+├── Odtwórz bazę z backupu
+├── Odtwórz pliki
+└── Przełącz DNS
+
+KROK 5: WERYFIKACJA (15 min)
+├── Health check wszystkich usług
+├── Test logowania
+├── Test głównych funkcji
+└── Sprawdź logi błędów
+
+KROK 6: POST-INCIDENT (24h)
+├── Raport z awarii
+├── Root cause analysis
+├── Aktualizacja procedur
+└── Test przywracania
+
+KONTAKTY EMERGENCY:
+├── Tech Lead: +48 XXX XXX XXX
+├── DevOps: +48 XXX XXX XXX
+├── Dostawca Hosting: +48 XXX XXX XXX
+└── Dostawca Cloud: support@cloudprovider.com
+```
+
+### 25.8 Automatyzacja Backupu
+
+#### Główny Skrypt Orchestrator
+
+```bash
+#!/bin/bash
+# scripts/backup.sh - Główny skrypt backupu
+
+set -e
+
+BACKUP_TYPE="${1:-incremental}"  # full, incremental, all
+TIMESTAMP=$(date +%Y%m%d_%H%M)
+LOG_FILE="/var/log/backup-${TIMESTAMP}.log"
+
+exec 1> >(tee -a "$LOG_FILE")
+exec 2>&1
+
+echo "[$(date)] Starting $BACKUP_TYPE backup..."
+
+# Funkcja powiadomień
+notify() {
+    local status="$1"
+    local message="$2"
+    
+    # Slack
+    curl -X POST -H 'Content-type: application/json' \
+        --data "{\"text\":\"Backup $status: $message\"}" \
+        "$SLACK_WEBHOOK_URL" 2>/dev/null || true
+    
+    # Email (jeśli błąd)
+    if [ "$status" = "FAILED" ]; then
+        echo "$message" | mail -s "Backup Failed" admin@example.com
+    fi
+}
+
+# Wykonaj backup
+if [ "$BACKUP_TYPE" = "full" ] || [ "$BACKUP_TYPE" = "all" ]; then
+    echo "Running PostgreSQL full backup..."
+    /scripts/backup-postgres.sh || { notify "FAILED" "PostgreSQL backup failed"; exit 1; }
+    
+    echo "Running file backup..."
+    /scripts/backup-files.sh || { notify "FAILED" "File backup failed"; exit 1; }
+fi
+
+if [ "$BACKUP_TYPE" = "incremental" ]; then
+    echo "Running incremental backup..."
+    /scripts/backup-incremental.sh || { notify "FAILED" "Incremental backup failed"; exit 1; }
+fi
+
+# Weryfikacja
+echo "Verifying backup..."
+/scripts/verify-backup.sh || { notify "FAILED" "Backup verification failed"; exit 1; }
+
+# Cleanup
+echo "Cleaning up old backups..."
+/scripts/cleanup-old-backups.sh
+
+echo "[$(date)] Backup completed successfully"
+notify "SUCCESS" "Backup $BACKUP_TYPE completed at $TIMESTAMP"
+```
+
+#### Cron Configuration
+
+```bash
+# /etc/cron.d/regionalne-serwisy-backup
+
+# Pełny backup codziennie o 2:00
+0 2 * * * root /home/host988956/scripts/backup.sh full
+
+# Inkrementalny backup co 6h
+0 */6 * * * root /home/host988956/scripts/backup.sh incremental
+
+# Test restore co niedzielę
+0 6 * * 0 root /home/host988956/scripts/test-restore.sh
+
+# Sprawdzenie SSL co dzień
+0 9 * * * root /home/host988956/scripts/check-ssl-expiry.sh
+```
+
+---
+
+**KONIEC SEKCJI 25 - BACKUP I DISASTER RECOVERY**
+
+---
+
+## ZAKOŃCZENIE DOKUMENTACJI
+
+*Dokumentacja kompletna - wszystkie sekcje zostały zaktualizowane i rozszerzone.*
+
+*Wersja: 4.0 (Final)*  
+*Data: 12 lutego 2026*  
+*Autor: System Architect + AI Agents*  
+*Status: Ready for Implementation*
 
